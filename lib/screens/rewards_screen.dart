@@ -178,11 +178,96 @@ class _AdminRewardsViewState extends State<_AdminRewardsView> {
         ),
         Padding(
           padding: const EdgeInsets.all(12),
-          child: DuoButton(
-            label: 'Nueva recompensa',
-            icon: Icons.add,
-            onPressed: () => _nuevaRecompensa(context),
+          child: Row(
+            children: [
+              Expanded(
+                child: DuoButton(
+                  label: 'Nueva recompensa',
+                  icon: Icons.add,
+                  onPressed: () => _nuevaRecompensa(context),
+                ),
+              ),
+              const SizedBox(width: 10),
+              DuoButton(
+                label: 'Entregas',
+                icon: Icons.redeem,
+                onPressed: () => showDialog(
+                  context: context,
+                  builder: (_) => _EntregaCanjesDialog(app: widget.app),
+                ),
+              ),
+            ],
           ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Diálogo donde el admin entrega las recompensas canjeadas por los integrantes.
+class _EntregaCanjesDialog extends StatefulWidget {
+  final AppProvider app;
+  const _EntregaCanjesDialog({required this.app});
+
+  @override
+  State<_EntregaCanjesDialog> createState() => _EntregaCanjesDialogState();
+}
+
+class _EntregaCanjesDialogState extends State<_EntregaCanjesDialog> {
+  List<(Redemption, Reward, User)> _canjes = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _cargar();
+  }
+
+  Future<void> _cargar() async {
+    final canjes = await widget.app.canjesFamilia();
+    if (mounted) setState(() => _canjes = canjes);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final pendientes =
+        _canjes.where((c) => c.$1.estado == 'pendiente').toList();
+    return AlertDialog(
+      title: const Text('Entregar recompensas'),
+      content: SizedBox(
+        width: 420,
+        child: pendientes.isEmpty
+            ? const Text('No hay recompensas pendientes de entregar.',
+                style: TextStyle(color: AppColors.grisMedio))
+            : ListView.builder(
+                shrinkWrap: true,
+                itemCount: pendientes.length,
+                itemBuilder: (context, i) {
+                  final c = pendientes[i];
+                  return ListTile(
+                    dense: true,
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(Icons.card_giftcard,
+                        color: AppColors.azul),
+                    title: Text(c.$2.nombre,
+                        style: const TextStyle(fontWeight: FontWeight.w700)),
+                    subtitle: Text(
+                        '${c.$3.nombre} · ${c.$1.fecha.day}/${c.$1.fecha.month}'),
+                    trailing: DuoButton(
+                      label: 'Entregar',
+                      color: AppColors.verde,
+                      onPressed: () async {
+                        await widget.app.marcarCanjeEntregado(c.$1.id!);
+                        await _cargar();
+                      },
+                    ),
+                  );
+                },
+              ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cerrar'),
         ),
       ],
     );
@@ -378,9 +463,12 @@ class _UserRewardsViewState extends State<_UserRewardsView> {
                 )
               : ListView.builder(
                   padding: const EdgeInsets.all(12),
-                  itemCount: _recompensas.length,
+                  itemCount: _recompensas.length + (_canjes.isEmpty ? 0 : 1),
                   itemBuilder: (context, i) {
-                    final r = _recompensas[i];
+                    if (_canjes.isNotEmpty && i == 0) {
+                      return _MisCanjes(entre: _canjes, user: widget.user);
+                    }
+                    final r = _recompensas[i - (_canjes.isEmpty ? 0 : 1)];
                     final jaCambiado = _canjes.any((c) => c.$2.id == r.id);
                     return DuoCard(
                       padding: const EdgeInsets.symmetric(
@@ -446,6 +534,81 @@ class _UserRewardsViewState extends State<_UserRewardsView> {
                   },
                 ),
         ),
+      ],
+    );
+  }
+}
+
+/// Historial de canjes del integrante, con su estado (pendiente / entregada).
+class _MisCanjes extends StatelessWidget {
+  final List<(Redemption, Reward)> entre;
+  final User user;
+  const _MisCanjes({required this.entre, required this.user});
+
+  @override
+  Widget build(BuildContext context) {
+    final pendientes = entre.where((c) => c.$1.estado == 'pendiente').length;
+    final entregadas = entre.where((c) => c.$1.estado == 'entregada').length;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            const Icon(Icons.redeem, color: AppColors.azul, size: 20),
+            const SizedBox(width: 6),
+            Text(
+              'Mis canjes (${entre.length})',
+              style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w800,
+                  color: AppColors.grisOscuro),
+            ),
+            const Spacer(),
+            Chip(
+              label: Text('$pendientes pend. · $entregadas entr.',
+                  style: const TextStyle(
+                      color: AppColors.grisOscuro, fontSize: 11)),
+              visualDensity: VisualDensity.compact,
+              backgroundColor: AppColors.verdeFondo,
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        for (final c in entre)
+          ListTile(
+            dense: true,
+            contentPadding: EdgeInsets.zero,
+            leading: CircleAvatar(
+              radius: 16,
+              backgroundColor: AppColors.amarillo.withValues(alpha: 0.2),
+              child: const Icon(Icons.card_giftcard,
+                  color: AppColors.amarillo, size: 18),
+            ),
+            title: Text(c.$2.nombre,
+                style: const TextStyle(
+                    fontSize: 14, fontWeight: FontWeight.w700)),
+            subtitle: Text(
+              '${c.$1.fecha.day}/${c.$1.fecha.month} · ${c.$1.estado == 'entregada' ? 'Entregada' : 'Pendiente'}',
+              style: const TextStyle(fontSize: 12),
+            ),
+            trailing: Chip(
+              label: Text(c.$1.estado == 'entregada'
+                  ? 'ENTREGADA'
+                  : 'PENDIENTE',
+                  style: TextStyle(
+                      color: c.$1.estado == 'entregada'
+                          ? AppColors.verdeOscuro
+                          : AppColors.rojo,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800)),
+              backgroundColor: (c.$1.estado == 'entregada'
+                      ? AppColors.verdeFondo
+                      : Colors.red)
+                  .withValues(alpha: 0.12),
+            ),
+          ),
+        const SizedBox(height: 8),
       ],
     );
   }

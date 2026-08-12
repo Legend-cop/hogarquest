@@ -8,6 +8,7 @@ import '../models/assignment.dart';
 import '../models/badge.dart';
 import '../models/castigo.dart';
 import '../models/redemption.dart';
+import '../models/reto.dart';
 import '../models/reward.dart';
 import '../models/task.dart';
 import '../models/user.dart';
@@ -393,6 +394,41 @@ class AppProvider extends ChangeNotifier {
     return result;
   }
 
+  /// Todos los canjes de la familia (para que el admin entregue las recompensas).
+  Future<List<(Redemption, Reward, User)>> canjesFamilia() async {
+    final canjes = await _db.getCanjes();
+    final recompensas = await _db.getRecompensas();
+    final usuarios = await _db.getUsuarios();
+    final mapR = {for (final r in recompensas) r.id: r};
+    final mapU = {for (final u in usuarios) u.id: u};
+    final result = <(Redemption, Reward, User)>[];
+    for (final c in canjes) {
+      final r = mapR[c.recompensaId];
+      final u = mapU[c.usuarioId];
+      if (r != null && u != null) result.add((c, r, u));
+    }
+    result.sort((a, b) => b.$1.fecha.compareTo(a.$1.fecha));
+    return result;
+  }
+
+  /// El admin marca una recompensa canjeada como entregada.
+  Future<void> marcarCanjeEntregado(int canjeId) async {
+    final canjes = await _db.getCanjes();
+    final c = canjes.where((x) => x.id == canjeId).firstOrNull;
+    if (c == null) return;
+    await _db.updateCanje(c.copyWith(estado: 'entregada'));
+    notifyListeners();
+  }
+
+  /// El admin revierte un canje pendiente a entregado (al revés).
+  Future<void> marcarCanjePendiente(int canjeId) async {
+    final canjes = await _db.getCanjes();
+    final c = canjes.where((x) => x.id == canjeId).firstOrNull;
+    if (c == null) return;
+    await _db.updateCanje(c.copyWith(estado: 'pendiente'));
+    notifyListeners();
+  }
+
   Future<List<Badge>> listarInsignias() => _db.getInsignias();
   Future<List<int>> insigniasDe(int usuarioId) => _db.getInsigniasDeUsuario(usuarioId);
 
@@ -553,9 +589,9 @@ Future<List<(User, int)>> ranking(String periodo) async {
         if (user == null) continue;
         final castigo = Castigo(
           usuarioId: a.usuarioId,
-          motivo: 'Tarea vencida: ${t.titulo}',
+          motivo: 'Tarea sin cumplir: ${t.titulo}',
           puntos: _puntosCastigo(t),
-          tipo: 'vencida',
+          tipo: 'tarea',
           tareaId: t.id,
           fecha: hoy,
         );
@@ -575,7 +611,13 @@ Future<List<(User, int)>> ranking(String periodo) async {
   }
 
   /// Aplica un castigo manual del admin a un integrante.
-  Future<void> castigarManual(int usuarioId, String motivo, int puntos) async {
+  /// `tipo`: 'disciplina' (portarse mal) o 'tarea' (no cumplió la tarea).
+  Future<void> castigarManual(
+    int usuarioId,
+    String motivo,
+    int puntos, {
+    String tipo = 'disciplina',
+  }) async {
     final user = await _db.getUserById(usuarioId);
     if (user == null) return;
     final nuevosPuntos = user.puntos - puntos;
@@ -587,7 +629,7 @@ Future<List<(User, int)>> ranking(String periodo) async {
       usuarioId: usuarioId,
       motivo: motivo,
       puntos: puntos,
-      tipo: 'manual',
+      tipo: tipo,
       fecha: DateTime.now(),
     ));
     if (_usuarioActual?.id == usuarioId) {
@@ -603,6 +645,69 @@ Future<List<(User, int)>> ranking(String periodo) async {
   Future<void> eliminarCastigo(int id) async {
     await _db.eliminarCastigo(id);
     notifyListeners();
+  }
+
+  // ---------------------------------------------------------------
+  // RETOS
+  // ---------------------------------------------------------------
+
+  Future<List<Reto>> listarRetos() => _db.getRetos();
+
+  /// Reto vigente de la semana en curso (si el admin creó uno).
+  Future<Reto?> retoDeLaSemana() async {
+    final retos = await _db.getRetos();
+    final hoy = DateTime.now();
+    for (final r in retos) {
+      if (r.vigente && r.perteneceASemana(hoy)) return r;
+    }
+    return null;
+  }
+
+  Future<void> crearReto({
+    required String titulo,
+    required String descripcion,
+    required int puntos,
+  }) async {
+    final hoy = DateTime.now();
+    final lunes =
+        hoy.subtract(Duration(days: hoy.weekday - 1));
+    final inicio = DateTime(lunes.year, lunes.month, lunes.day);
+    await _db.insertReto(Reto(
+      titulo: titulo,
+      descripcion: descripcion,
+      puntos: puntos,
+      fechaInicio: inicio,
+    ));
+    notifyListeners();
+  }
+
+  /// Un integrante marca que cumplió el reto de la semana.
+  Future<void> marcarRetoCumplido(Reto reto) async {
+    final uid = _usuarioActual!.id!;
+    if (reto.cumplidos.contains(uid)) return;
+    await _db.updateReto(reto.copyWith(
+      cumplidos: [...reto.cumplidos, uid],
+    ));
+    notifyListeners();
+  }
+
+  /// El admin aprueba el reto: otorga los puntos bonus a quienes lo cumplieron.
+  Future<void> aprobarReto(Reto reto) async {
+    final cumplidos = reto.cumplidos;
+    for (final uid in cumplidos) {
+      final user = await _db.getUserById(uid);
+      if (user == null) continue;
+      final nuevosPuntos = user.puntos + reto.puntos;
+      await _db.updateUsuario(user.copyWith(
+        puntos: nuevosPuntos,
+        nivel: GamificationService.nivelPara(nuevosPuntos),
+      ));
+    }
+    await _db.updateReto(reto.copyWith(
+      aprobados: cumplidos,
+      finalizado: true,
+    ));
+    if (cumplidos.isNotEmpty) notifyListeners();
   }
 
   /// Revierte un castigo (lo perdona): devuelve los puntos al integrante,

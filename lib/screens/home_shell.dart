@@ -5,6 +5,7 @@ import '../providers/app_provider.dart';
 import 'dashboard_screen.dart';
 import 'profile_screen.dart';
 import 'ranking_screen.dart';
+import 'retos_screen.dart';
 import 'rewards_screen.dart';
 import 'tasks_screen.dart';
 
@@ -53,6 +54,7 @@ class _HomeShellState extends State<HomeShell> {
     final screens = [
       const DashboardScreen(),
       const TasksScreen(),
+      const RetosScreen(),
       const RankingScreen(),
       const RewardsScreen(),
       const ProfileScreen(),
@@ -81,6 +83,11 @@ class _HomeShellState extends State<HomeShell> {
             selectedIcon:
                 Icon(esAdmin ? Icons.fact_check : Icons.checklist),
             label: 'Tareas',
+          ),
+          const NavigationDestination(
+            icon: Icon(Icons.flag_outlined),
+            selectedIcon: Icon(Icons.flag),
+            label: 'Retos',
           ),
           const NavigationDestination(
             icon: Icon(Icons.leaderboard_outlined),

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -6,6 +8,7 @@ import '../models/badge.dart' as badge_model;
 import '../models/task.dart';
 import '../models/user.dart';
 import '../providers/app_provider.dart';
+import '../services/celebration_service.dart';
 import '../services/gamification_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/charts.dart';
@@ -414,6 +417,7 @@ class _AdminDashboard extends StatelessWidget {
                               tooltip: 'Aprobar',
                               onPressed: () {
                                 lanzarConfeti(context);
+                                unawaited(CelebrationService.instance.success());
                                 app.aprobarAsignacion(p.$2.id!);
                               },
                             ),

@@ -5,7 +5,9 @@ import '../models/user.dart';
 import '../models/castigo.dart';
 import '../providers/app_provider.dart';
 import '../theme/app_theme.dart';
+import '../widgets/charts.dart';
 import '../widgets/duo_widgets.dart';
+import '../widgets/section_header.dart';
 import '../widgets/user_avatar.dart';
 
 /// Resumen de la actividad de un integrante: HOY y SEMANA.
@@ -108,6 +110,8 @@ class _DetailUsuarioScreenState extends State<DetailUsuarioScreen> {
                     _TareasHoyCard(tareas: (res['tareasHoy'] as List)),
                     const SizedBox(height: 20),
                     _SemanasCard(user: user),
+                    const SizedBox(height: 20),
+                    _GraficoCumplimiento(usuarioId: widget.usuarioId),
                     const SizedBox(height: 20),
                     _CastigosCard(usuarioId: widget.usuarioId),
                   ],
@@ -397,51 +401,131 @@ class _CastigosCardState extends State<_CastigosCard> {
           children: const [
             Icon(Icons.check_circle, color: AppColors.verde, size: 20),
             SizedBox(width: 10),
-            Text('Sin castigos',
+            Text('Sin castigos ni quitas',
                 style: TextStyle(fontWeight: FontWeight.w700)),
           ],
         ),
       );
     }
+    final tareas = _castigos.where((c) => c.esTarea).toList();
+    final disciplina = _castigos.where((c) => c.esDisciplina).toList();
     return DuoCard(
       padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Castigos',
+          const Text('Castigos y quitas',
               style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
           const SizedBox(height: 8),
-          for (final c in _castigos)
-            ListTile(
-              dense: true,
-              contentPadding: EdgeInsets.zero,
-              leading: const Icon(Icons.gavel, color: AppColors.rojo, size: 22),
-              title: Text(c.motivo,
-                  style: const TextStyle(fontWeight: FontWeight.w600)),
-              subtitle: Text(
-                '${c.fecha.day}/${c.fecha.month} · '
-                '${c.tipo == 'vencida' ? 'Tarea vencida' : 'Castigo del admin'}',
-                style: const TextStyle(fontSize: 11),
-              ),
-              trailing: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text('-${c.puntos} pts',
-                      style: const TextStyle(
-                          color: AppColors.rojo,
-                          fontWeight: FontWeight.w800)),
-                  IconButton(
-                    icon: const Icon(Icons.restore,
-                        color: AppColors.verde, size: 20),
-                    tooltip: 'Perdonar castigo',
-                    onPressed: () => _revertir(c),
-                  ),
-                ],
-              ),
-            ),
+          if (tareas.isNotEmpty) ...[
+            const Text('Por tareas sin cumplir',
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: AppColors.grisMedio)),
+            for (final c in tareas)
+              _filaCastigo(c, Icons.event_busy, Colors.orange),
+            const SizedBox(height: 8),
+          ],
+          if (disciplina.isNotEmpty) ...[
+            const Text('Castigos (disciplina)',
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: AppColors.grisMedio)),
+            for (final c in disciplina)
+              _filaCastigo(c, Icons.gavel, AppColors.rojo),
+          ],
           const Text(
             'Toca el botón de restaurar para perdonar un castigo y devolver los puntos.',
             style: TextStyle(fontSize: 11, color: AppColors.grisMedio),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _filaCastigo(Castigo c, IconData icono, Color color) {
+    return ListTile(
+      dense: true,
+      contentPadding: EdgeInsets.zero,
+      leading: Icon(icono, color: color, size: 22),
+      title: Text(c.motivo,
+          style: const TextStyle(fontWeight: FontWeight.w600)),
+      subtitle: Text(
+        '${c.fecha.day}/${c.fecha.month} · '
+        '${c.esTarea ? 'Tarea sin cumplir' : 'Disciplina'}',
+        style: const TextStyle(fontSize: 11),
+      ),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text('-${c.puntos} pts',
+              style: const TextStyle(
+                  color: AppColors.rojo,
+                  fontWeight: FontWeight.w800)),
+          IconButton(
+            icon: const Icon(Icons.restore,
+                color: AppColors.verde, size: 20),
+            tooltip: 'Perdonar castigo',
+            onPressed: () => _revertir(c),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Gráfico visual de cumplimiento (puntos ganados) de un integrante
+/// en los últimos 7 y 30 días.
+class _GraficoCumplimiento extends StatelessWidget {
+  final int usuarioId;
+  const _GraficoCumplimiento({required this.usuarioId});
+
+  @override
+  Widget build(BuildContext context) {
+    final app = context.read<AppProvider>();
+    final dias = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
+    final fechaBase = DateTime.now();
+
+    return DuoCard(
+      padding: const EdgeInsets.all(12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('Cumplimiento',
+              style: TextStyle(
+                  fontSize: 16, fontWeight: FontWeight.w800)),
+          const SizedBox(height: 8),
+          SizedBox(
+            height: 160,
+            child: FutureBuilder<List<(DateTime, int)>>(
+              future: app.puntosPorDia(usuarioId, dias: 7),
+              builder: (context, snap) {
+                final datos = snap.data ?? const <(DateTime, int)>[];
+                return BarChart(
+                  data: datos,
+                  labelFor: (d) {
+                    final diff = fechaBase.difference(d).inDays;
+                    final idx = (6 - diff).clamp(0, 6);
+                    return dias[idx];
+                  },
+                );
+              },
+            ),
+          ),
+          const SizedBox(height: 12),
+          FutureBuilder<List<(DateTime, int)>>(
+            future: app.puntosPorDia(usuarioId, dias: 30),
+            builder: (context, snap) {
+              final datos = snap.data ?? const <(DateTime, int)>[];
+              final total = datos.fold<int>(0, (s, e) => s + e.$2);
+              return Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text('Últimos 30 días: $total pts',
+                      style: const TextStyle(
+                          fontSize: 12, color: AppColors.grisMedio)),
+                  Text('${datos.where((e) => e.$2 > 0).length} días activos',
+                      style: const TextStyle(
+                          fontSize: 12, color: AppColors.grisMedio)),
+                ],
+              );
+            },
           ),
         ],
       ),

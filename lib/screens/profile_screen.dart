@@ -680,6 +680,8 @@ class _CastigosSectionState extends State<_CastigosSection> {
       return const Center(child: CircularProgressIndicator());
     }
 
+    final disciplina = _castigos.where((c) => c.esDisciplina).take(5).toList();
+    final tareas = _castigos.where((c) => c.esTarea).take(5).toList();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -687,7 +689,7 @@ class _CastigosSectionState extends State<_CastigosSection> {
           children: [
             const Icon(Icons.gavel, color: AppColors.rojo, size: 20),
             const SizedBox(width: 6),
-            const Text('Castigos',
+            const Text('Castigos y quitas',
                 style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w800,
@@ -704,30 +706,44 @@ class _CastigosSectionState extends State<_CastigosSection> {
         ),
         const SizedBox(height: 8),
         if (_castigos.isEmpty)
-          const Text('Sin castigos. ¡Sigue así! 🎉',
+          const Text('Sin castigos ni quitas. ¡Sigue así! 🎉',
               style: TextStyle(color: AppColors.grisMedio, fontSize: 13))
-        else
-          ..._castigos.take(5).map((c) => ListTile(
-                dense: true,
-                contentPadding: EdgeInsets.zero,
-                leading: CircleAvatar(
-                  radius: 18,
-                  backgroundColor: Colors.red.withValues(alpha: 0.15),
-                  child: const Icon(Icons.error_outline,
-                      color: AppColors.rojo, size: 20),
-                ),
-                title: Text(c.motivo,
-                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
-                subtitle: Text(
-                    '${c.fecha.day}/${c.fecha.month} · ${c.tipo == 'vencida' ? 'Tarea vencida' : 'Castigo del admin'}',
-                    style: const TextStyle(fontSize: 11)),
-                trailing: Text('-${c.puntos} pts',
-                    style: const TextStyle(
-                        color: AppColors.rojo,
-                        fontWeight: FontWeight.w800,
-                        fontSize: 13)),
-              )),
+        else ...[
+          if (tareas.isNotEmpty) ...[
+            const Text('Por tareas sin cumplir',
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: AppColors.grisMedio)),
+            ...tareas.map((c) => _fila(c, Icons.event_busy, Colors.orange)),
+            const SizedBox(height: 8),
+          ],
+          if (disciplina.isNotEmpty) ...[
+            const Text('Castigos (disciplina)',
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: AppColors.grisMedio)),
+            ...disciplina.map((c) => _fila(c, Icons.error_outline, AppColors.rojo)),
+          ],
+        ],
       ],
+    );
+  }
+
+  Widget _fila(Castigo c, IconData icono, Color color) {
+    return ListTile(
+      dense: true,
+      contentPadding: EdgeInsets.zero,
+      leading: CircleAvatar(
+        radius: 18,
+        backgroundColor: color.withValues(alpha: 0.15),
+        child: Icon(icono, color: color, size: 20),
+      ),
+      title: Text(c.motivo,
+          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+      subtitle: Text(
+          '${c.fecha.day}/${c.fecha.month} · ${c.esTarea ? 'Tarea sin cumplir' : 'Disciplina'}',
+          style: const TextStyle(fontSize: 11)),
+      trailing: Text('-${c.puntos} pts',
+          style: const TextStyle(
+              color: AppColors.rojo,
+              fontWeight: FontWeight.w800,
+              fontSize: 13)),
     );
   }
 }

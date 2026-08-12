@@ -1,10 +1,12 @@
-/// Castigo aplicado a un integrante (por tarea vencida o manual del admin).
+/// Castigo aplicado a un integrante.
+/// - `tarea`: quitar puntos por no cumplir la tarea asignada (automático al vencer).
+/// - `disciplina`: castigo por portarse mal / desobediencia (del admin, aparte).
 class Castigo {
   final int? id;
   final int usuarioId;
   final String motivo;
   final int puntos;
-  final String tipo; // 'vencida' | 'manual'
+  final String tipo; // 'tarea' | 'disciplina' (también acepta 'vencida'/'manual' antiguos)
   final int? tareaId;
   final DateTime fecha;
 
@@ -13,10 +15,16 @@ class Castigo {
     required this.usuarioId,
     required this.motivo,
     required this.puntos,
-    this.tipo = 'manual',
+    this.tipo = 'disciplina',
     this.tareaId,
     required this.fecha,
   });
+
+  /// ¿Es castigo de disciplina (portarse mal / desobediencia)?
+  bool get esDisciplina => tipo == 'disciplina' || tipo == 'manual';
+
+  /// ¿Es quita de puntos por tarea no cumplida?
+  bool get esTarea => tipo == 'tarea' || tipo == 'vencida';
 
   Castigo copyWith({
     int? id,
@@ -56,7 +64,7 @@ class Castigo {
       usuarioId: map['usuario_id'] as int,
       motivo: (map['motivo'] as String?) ?? '',
       puntos: (map['puntos'] as int?) ?? 0,
-      tipo: (map['tipo'] as String?) ?? 'manual',
+      tipo: (map['tipo'] as String?) ?? 'disciplina',
       tareaId: map['tarea_id'] as int?,
       fecha: DateTime.tryParse((map['fecha'] as String?) ?? '') ??
           DateTime.now(),

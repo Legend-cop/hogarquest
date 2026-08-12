@@ -8,6 +8,7 @@ import '../models/assignment.dart';
 import '../models/badge.dart';
 import '../models/castigo.dart';
 import '../models/redemption.dart';
+import '../models/reto.dart';
 import '../models/reward.dart';
 import '../models/task.dart';
 import '../models/user.dart';
@@ -27,6 +28,7 @@ class DatabaseHelper {
   static const _boxCanjes = 'canjes';
   static const _boxInsignias = 'insignias';
   static const _boxCastigos = 'castigos';
+  static const _boxRetos = 'retos';
   static const _boxMeta = 'meta';
 
   final SyncClient _client = SyncClient();
@@ -539,6 +541,7 @@ class DatabaseHelper {
       'usuario_id': r.usuarioId,
       'recompensa_id': r.recompensaId,
       'fecha': r.fecha.toIso8601String(),
+      'estado': r.estado,
     };
   }
 
@@ -548,6 +551,7 @@ class DatabaseHelper {
       usuarioId: map['usuario_id'] as int,
       recompensaId: map['recompensa_id'] as int,
       fecha: DateTime.tryParse(map['fecha'] as String) ?? DateTime.now(),
+      estado: (map['estado'] as String?) ?? 'pendiente',
     );
   }
 
@@ -917,6 +921,24 @@ class DatabaseHelper {
     return box.items.where((m) => m['usuario_id'] == usuarioId).map(_mapToRedemption).toList();
   }
 
+  Future<List<Redemption>> getCanjes() async {
+    final box = _box(_boxCanjes);
+    return box.items.map(_mapToRedemption).toList();
+  }
+
+  Future<void> updateCanje(Redemption r) async {
+    final box = _box(_boxCanjes);
+    for (var i = 0; i < box.items.length; i++) {
+      final m = box.items[i];
+      if (m != null && m['id'] == r.id) {
+        box.items[i] = _redemptionToMap(r);
+        _sellar(box.items[i]);
+        _marcar();
+        return;
+      }
+    }
+  }
+
   // ---------------------------------------------------------------
   // INSIGNIAS
   // ---------------------------------------------------------------
@@ -981,6 +1003,62 @@ class DatabaseHelper {
       final m = box.items[i];
       if (m != null && m['id'] == id) {
         _tombstone(_boxCastigos, m);
+        box.items.removeAt(i);
+        _marcar();
+        return;
+      }
+    }
+  }
+
+  // ---------------------------------------------------------------
+  // RETOS
+  // ---------------------------------------------------------------
+  Map<String, dynamic> _retoToMap(Reto r) {
+    return {
+      'id': r.id,
+      'titulo': r.titulo,
+      'descripcion': r.descripcion,
+      'puntos': r.puntos,
+      'fecha_inicio': r.fechaInicio.toIso8601String(),
+      'cumplidos': r.cumplidos,
+      'aprobados': r.aprobados,
+      'finalizado': r.finalizado ? 1 : 0,
+    };
+  }
+
+  Reto _mapToReto(Map map) {
+    return Reto.fromMap(Map<String, Object?>.from(map));
+  }
+
+  Future<int> insertReto(Reto r) async {
+    final box = _box(_boxRetos);
+    return _addConId(box, _retoToMap(r));
+  }
+
+  Future<List<Reto>> getRetos() async {
+    final box = _box(_boxRetos);
+    return box.items.map(_mapToReto).toList();
+  }
+
+  Future<void> updateReto(Reto r) async {
+    final box = _box(_boxRetos);
+    for (var i = 0; i < box.items.length; i++) {
+      final m = box.items[i];
+      if (m != null && m['id'] == r.id) {
+        box.items[i] = _retoToMap(r);
+        _sellar(box.items[i]);
+        _marcar();
+        return;
+      }
+    }
+  }
+
+  Future<void> eliminarReto(int id) async {
+    final box = _box(_boxRetos);
+    for (var i = box.items.length - 1; i >= 0; i--) {
+      final m = box.items[i];
+      if (m != null && m['id'] == id) {
+        _tombstone(_boxRetos, m);
         box.items.removeAt(i);
         _marcar();
         return;

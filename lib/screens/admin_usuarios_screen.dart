@@ -117,56 +117,76 @@ class _AdminUsuariosScreenState extends State<AdminUsuariosScreen> {
     final app = context.read<AppProvider>();
     final motivo = TextEditingController();
     final puntos = TextEditingController(text: '10');
+    var tipo = 'disciplina';
 
     await showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Aplicar castigo'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              'Castigar a ${u.nombre}. Se le restarán puntos.',
-              style: const TextStyle(fontSize: 13, color: AppColors.grisMedio),
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: motivo,
-              decoration: const InputDecoration(
-                labelText: 'Motivo',
-                hintText: 'Ej: no lavó los platos',
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setLocal) => AlertDialog(
+          title: const Text('Aplicar castigo'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'Castigo a ${u.nombre}. Los castigos son por portarse mal '
+                'o desobediencia; la quita de puntos por no cumplir tareas se '
+                'genera sola al vencer.',
+                style: const TextStyle(fontSize: 13, color: AppColors.grisMedio),
               ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: motivo,
+                decoration: const InputDecoration(
+                  labelText: 'Motivo',
+                  hintText: 'Ej: desobedeció, se portó mal',
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: puntos,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(labelText: 'Puntos a quitar'),
+              ),
+              const SizedBox(height: 12),
+              DropdownButtonFormField<String>(
+                value: tipo,
+                decoration: const InputDecoration(labelText: 'Tipo'),
+                items: const [
+                  DropdownMenuItem(value: 'disciplina', child: Text('Castigo (portarse mal)')),
+                  DropdownMenuItem(value: 'tarea', child: Text('Quita por tarea sin cumplir')),
+                ],
+                onChanged: (v) => setLocal(() => tipo = v!),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancelar'),
             ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: puntos,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(labelText: 'Puntos a restar'),
+            TextButton(
+              onPressed: () async {
+                final pts = int.tryParse(puntos.text) ?? 0;
+                final m = motivo.text.trim();
+                if (pts <= 0 || m.isEmpty) {
+                  ScaffoldMessenger.of(ctx).showSnackBar(
+                    const SnackBar(content: Text('Escribe un motivo y puntos válidos.')),
+                  );
+                  return;
+                }
+                await app.castigarManual(
+                  u.id!,
+                  m,
+                  pts,
+                  tipo: tipo == 'tarea' ? 'tarea' : 'disciplina',
+                );
+                if (ctx.mounted) Navigator.pop(ctx);
+                await _cargar();
+              },
+              child: const Text('Aplicar', style: TextStyle(color: AppColors.rojo)),
             ),
           ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancelar'),
-          ),
-          TextButton(
-            onPressed: () async {
-              final pts = int.tryParse(puntos.text) ?? 0;
-              final m = motivo.text.trim();
-              if (pts <= 0 || m.isEmpty) {
-                ScaffoldMessenger.of(ctx).showSnackBar(
-                  const SnackBar(content: Text('Escribe un motivo y puntos válidos.')),
-                );
-                return;
-              }
-              await app.castigarManual(u.id!, m, pts);
-              if (ctx.mounted) Navigator.pop(ctx);
-              await _cargar();
-            },
-            child: const Text('Aplicar', style: TextStyle(color: AppColors.rojo)),
-          ),
-        ],
       ),
     );
   }
