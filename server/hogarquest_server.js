@@ -24,7 +24,7 @@ function saveDb() {
   try { fs.writeFileSync(dataFile, JSON.stringify(db)); } catch (e) { console.log('save err', e); }
   // Persistencia en la nube: espejo en MongoDB si está configurado.
   if (mongoReady && mongo) {
-    mongo.collection('db').updateOne(
+    mongo.db().collection('db').updateOne(
       { _id: 'hogarquest' },
       { $set: { data: JSON.stringify(db), updated_at: Date.now() } },
       { upsert: true }
@@ -37,7 +37,7 @@ async function initMongo() {
     const { MongoClient } = await import('mongodb');
     mongo = new MongoClient(MONGODB_URI, { serverSelectionTimeoutMS: 8000 });
     await mongo.connect();
-    const col = mongo.collection('db');
+    const col = mongo.db().collection('db');
     const doc = await col.findOne({ _id: 'hogarquest' });
     mongoReady = true;
     console.log('DB en la nube (MongoDB) conectada');
