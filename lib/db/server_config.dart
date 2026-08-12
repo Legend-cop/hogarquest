@@ -8,7 +8,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 ///   primero (funciona en cualquier parte) y luego la red local (en casa).
 class ServerConfig {
   /// URL pública en la nube (Render/Railway). Pon aquí tu servicio cuando exista.
-  static const String cloudUrl = 'https://hogarquest-server.onrender.com';
+  static const String cloudUrl = 'https://hogarquest.onrender.com';
 
   /// Dirección local de la PC que corre el servidor en casa.
   static const String localUrl = 'http://192.168.1.14:8080';
