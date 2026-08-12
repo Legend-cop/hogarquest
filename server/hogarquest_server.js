@@ -8,6 +8,9 @@ const port = parseInt(process.env.PORT || process.argv[3]) || 8080;
 const dataFile = process.env.DATA_FILE || process.argv[4] || path.join(__dirname, 'hogarquest_data.json');
 const fotosDir = path.join(__dirname, 'fotos');
 const WRITE_TOKEN = config.writeToken;
+const MONGODB_URI = process.env.MONGODB_URI || '';
+let mongo = null;
+let mongoReady = false;
 
 if (!fs.existsSync(fotosDir)) fs.mkdirSync(fotosDir, { recursive: true });
 
@@ -19,6 +22,38 @@ if (fs.existsSync(dataFile)) {
 }
 function saveDb() {
   try { fs.writeFileSync(dataFile, JSON.stringify(db)); } catch (e) { console.log('save err', e); }
+  // Persistencia en la nube: espejo en MongoDB si está configurado.
+  if (mongoReady && mongo) {
+    mongo.collection('db').updateOne(
+      { _id: 'hogarquest' },
+      { $set: { data: JSON.stringify(db), updated_at: Date.now() } },
+      { upsert: true }
+    ).catch((e) => console.log('mongo save err', e));
+  }
+}
+async function initMongo() {
+  if (!MONGODB_URI) return;
+  try {
+    const { MongoClient } = await import('mongodb');
+    mongo = new MongoClient(MONGODB_URI, { serverSelectionTimeoutMS: 8000 });
+    await mongo.connect();
+    const col = mongo.collection('db');
+    const doc = await col.findOne({ _id: 'hogarquest' });
+    mongoReady = true;
+    console.log('DB en la nube (MongoDB) conectada');
+    if (doc && doc.data) {
+      try {
+        const remoto = Object.assign({}, EMPTY, JSON.parse(doc.data));
+        db = mergeIncoming(remoto);
+        saveDb();
+        console.log('Datos restaurados desde la nube (' + remoto.usuarios.length + ' usuarios)');
+      } catch (e) { console.log('mongo load parse err', e); }
+    } else {
+      saveDb(); // primera vez: subir lo que haya local/seed
+    }
+  } catch (e) {
+    console.log('Sin MongoDB, sigo con archivo local:', e.message);
+  }
 }
 
 // --- MERGE DE CONFLICTOS -------------------------------------------------
@@ -184,4 +219,6 @@ const server = http.createServer((req, res) => {
   });
 });
 
-server.listen(port, '0.0.0.0', () => console.log('HogarQuest server on 0.0.0.0:' + port + ' (db=' + dataFile + ')'));
+initMongo().finally(() => {
+  server.listen(port, '0.0.0.0', () => console.log('HogarQuest server on 0.0.0.0:' + port + ' (db=' + dataFile + ')'));
+});

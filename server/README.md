@@ -39,8 +39,29 @@ Recompila la app: `flutter build apk` (celular) y `flutter build web`.
 
 ## Persistencia de datos
 
-- En Render/Railway **el disco se resetea** en cada redeploy. Para que los datos duren, configura una variable de entorno `DATA_FILE` apuntando a un volumen persistente (ver docs de cada plataforma), o simplemente descarga `hogarquest_data.json` como respaldo regular.
+> **Recomendado:** configura una base MongoDB gratuita (Atlas) para que tu información
+> **sobreviva a los redespliegues** de Render. Sin esto, el servidor guarda en su disco
+> local, que Render **borra en cada deploy**.
+
+### Opción recomendada: MongoDB Atlas (gratis)
+
+1. Ve a https://www.mongodb.com/atlas → **"Try Free"** → crea cuenta.
+2. En **Deployments → Databases** pulsa **"Create"** para un clúster **M0 Free** (eligiendo MongoDB Atlas, no local). Espera ~2 min a que se cree.
+3. **Database Access → Add New Database User**: usuario `hogarquest` + contraseña propia (guárdala).
+4. **Network Access → Add IP Address**: elige **"Allow access from anywhere"** (0.0.0.0/0).
+5. **Connect → Drivers**: copia la **connection string** que termina en `.mongodb.net/`.
+6. En **Render → tu Web Service → Environment**: agrega la variable:
+
+   ```
+   MONGODB_URI=mongodb+srv://hogarquest:TU_PASSWORD@cluster0.xxxxx.mongodb.net/hogarquest?retryWrites=true&w=majority
+   ```
+
+7. **Deploy** (Render se redespliega). En los logs verás `DB en la nube (MongoDB) conectada`.
+
+La primera vez sube los datos actuales; de ahí en adelante espeja todo a la nube.
+
 - El token de escritura vive en `server/config.js` y debe coincidir con `ServerConfig.writeToken`.
+- Sin `MONGODB_URI`, el servidor sigue funcionando con `hogarquest_data.json` local (como antes).
 
 ## Datos iniciales
 
