@@ -172,10 +172,14 @@ const server = http.createServer((req, res) => {
     '.html': 'text/html', '.js': 'application/javascript', '.css': 'text/css',
     '.json': 'application/json', '.png': 'image/png', '.svg': 'image/svg+xml',
     '.wasm': 'application/wasm', '.otf': 'font/otf', '.ttf': 'font/ttf',
+    '.apk': 'application/vnd.android.package-archive',
   }[ext] || 'text/plain';
+  const isApk = ext.toLowerCase() === '.apk';
   fs.readFile(f, (err, data) => {
     if (err) { res.writeHead(404); res.end('Not found'); return; }
-    res.writeHead(200, { 'Content-Type': ct });
+    const headers = { 'Content-Type': ct };
+    if (isApk) headers['Content-Disposition'] = 'attachment; filename="hogarquest.apk"';
+    res.writeHead(200, headers);
     res.end(data);
   });
 });
