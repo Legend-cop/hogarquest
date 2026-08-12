@@ -1,0 +1,12 @@
+{
+  "name": "hogarquest-server",
+  "version": "1.0.0",
+  "description": "Servidor de sincronización de HogarQuest (API + web + fotos)",
+  "main": "hogarquest_server.js",
+  "scripts": {
+    "start": "node hogarquest_server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
