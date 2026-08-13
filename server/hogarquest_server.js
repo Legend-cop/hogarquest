@@ -74,8 +74,12 @@ async function initFirebase() {
     return;
   }
   try {
+    // Al pegar la variable en el dashboard a veces se cuelan saltos de línea
+    // reales dentro del private_key; los volvemos a escapar para que el JSON
+    // sea válido sin tener que re-pegar nada.
+    const reparado = creds.replace(/\r\n/g, '\n').replace(/\n/g, '\\n');
     admin = require('firebase-admin');
-    admin.initializeApp({ credential: admin.credential.cert(JSON.parse(creds)) });
+    admin.initializeApp({ credential: admin.credential.cert(JSON.parse(reparado)) });
     console.log('Firebase Admin inicializado (push listo)');
   } catch (e) {
     console.log('Firebase init err:', e.message);
