@@ -12,6 +12,7 @@ class DuoButton extends StatelessWidget {
   final Color borderColor;
   final bool loading;
   final bool expanded;
+  final bool fullWidth;
 
   const DuoButton({
     super.key,
@@ -22,6 +23,7 @@ class DuoButton extends StatelessWidget {
     this.borderColor = AppColors.verdeOscuro,
     this.loading = false,
     this.expanded = true,
+    this.fullWidth = true,
   });
 
   @override
@@ -30,8 +32,11 @@ class DuoButton extends StatelessWidget {
     final bg = enabled ? color : AppColors.linea;
     final bd = enabled ? borderColor : AppColors.grisMedio;
 
+    final mainAxisSize =
+        (fullWidth && expanded) ? MainAxisSize.max : MainAxisSize.min;
+
     final content = Row(
-      mainAxisSize: expanded ? MainAxisSize.max : MainAxisSize.min,
+      mainAxisSize: mainAxisSize,
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
         if (loading)
@@ -61,34 +66,59 @@ class DuoButton extends StatelessWidget {
       ],
     );
 
+    final radius = BorderRadius.circular(16);
+
+    if (fullWidth) {
+      return SizedBox(
+        height: 54,
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: enabled ? onPressed : null,
+            borderRadius: radius,
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                Container(
+                  height: 54,
+                  margin: const EdgeInsets.only(top: 5),
+                  decoration: BoxDecoration(
+                    color: bd,
+                    borderRadius: radius,
+                  ),
+                ),
+                Container(
+                  height: 49,
+                  width: double.infinity,
+                  decoration: BoxDecoration(
+                    color: bg,
+                    borderRadius: radius,
+                  ),
+                  child: content,
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
     return SizedBox(
       height: 54,
       child: Material(
         color: Colors.transparent,
         child: InkWell(
           onTap: enabled ? onPressed : null,
-          borderRadius: BorderRadius.circular(16),
-          child: Stack(
-            alignment: Alignment.center,
-            children: [
-              Container(
-                height: 54,
-                margin: const EdgeInsets.only(top: 5),
-                decoration: BoxDecoration(
-                  color: bd,
-                  borderRadius: BorderRadius.circular(16),
-                ),
-              ),
-              Container(
-                height: 49,
-                width: double.infinity,
-                decoration: BoxDecoration(
-                  color: bg,
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: content,
-              ),
-            ],
+          borderRadius: radius,
+          child: Container(
+            height: 49,
+            padding: const EdgeInsets.symmetric(horizontal: 24),
+            decoration: BoxDecoration(
+              color: bg,
+              borderRadius: radius,
+              border: Border(bottom: BorderSide(color: bd, width: 5)),
+            ),
+            child: content,
           ),
         ),
       ),

@@ -235,17 +235,41 @@ class _IntegranteDashboard extends StatelessWidget {
 // =====================================================================
 // ADMIN
 // =====================================================================
-class _AdminDashboard extends StatelessWidget {
+class _AdminDashboard extends StatefulWidget {
   final AppProvider app;
 
   const _AdminDashboard({required this.app});
 
+  @override
+  State<_AdminDashboard> createState() => _AdminDashboardState();
+}
+
+class _AdminDashboardState extends State<_AdminDashboard> {
+  final ScrollController _scroll = ScrollController();
+  final GlobalKey _keyAprobaciones = GlobalKey();
+
   void _irATareas() => HomeTabs.index.value = 1;
-  void _irAPremios() => HomeTabs.index.value = 3;
-  void _irAInicio() => HomeTabs.index.value = 0;
+  void _irAPremios() => HomeTabs.index.value = 4;
+  void _irAInicio() {
+    HomeTabs.index.value = 0;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final ctx = _keyAprobaciones.currentContext;
+      if (ctx != null) {
+        Scrollable.ensureVisible(ctx,
+            duration: const Duration(milliseconds: 400));
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _scroll.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
+    final app = widget.app;
     final futuras = Future.wait([
       app.estadisticas(),
       app.pendientesDeAprobacion(),
@@ -276,6 +300,7 @@ class _AdminDashboard extends StatelessWidget {
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 760),
             child: ListView(
+              controller: _scroll,
               padding: const EdgeInsets.all(16),
               children: [
                 const _AdminHeader(),
@@ -380,7 +405,7 @@ class _AdminDashboard extends StatelessWidget {
                     },
                   ),
                 ),
-                SectionHeader(title: 'Pendientes de aprobación'),
+                SectionHeader(key: _keyAprobaciones, title: 'Pendientes de aprobación'),
                 if (pendientes.isEmpty)
                   const EmptyState(
                     icon: Icons.hourglass_empty,
@@ -628,7 +653,7 @@ class _LeccionDelDiaCard extends StatelessWidget {
             icon: pendientes > 0 ? Icons.rocket_launch : Icons.card_giftcard,
             onPressed: pendientes > 0
                 ? onStart
-                : () => HomeTabs.index.value = 3,
+                : () => HomeTabs.index.value = 4,
           ),
         ],
       ),

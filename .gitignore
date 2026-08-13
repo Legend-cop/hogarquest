@@ -47,6 +47,7 @@ app.*.map.json
 # Temp/backup files
 android/.kotlin/
 android/replay_pid*.log
+server/hogarquest_data.json
 server/hogarquest_data.json.bak
 server/hogarquest_data.json.mojibake
 server/node_modules/

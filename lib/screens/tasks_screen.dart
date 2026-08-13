@@ -120,25 +120,31 @@ class _AdminTasksList extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Tareas del hogar'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.add),
-            onPressed: () => _nuevaTarea(context),
+      ),
+      body: Column(
+        children: [
+          Expanded(
+            child: RefreshIndicator(
+              onRefresh: onRefresh,
+              child: ListView.builder(
+                padding: const EdgeInsets.all(12),
+                itemCount: tareas.length,
+                itemBuilder: (context, i) => _AdminTaskCard(tarea: tareas[i]),
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(12),
+            child: SizedBox(
+              width: double.infinity,
+              child: DuoButton(
+                label: 'Nueva tarea',
+                icon: Icons.add,
+                onPressed: () => _nuevaTarea(context),
+              ),
+            ),
           ),
         ],
-      ),
-      body: RefreshIndicator(
-        onRefresh: onRefresh,
-        child: ListView.builder(
-          padding: const EdgeInsets.all(12),
-          itemCount: tareas.length,
-          itemBuilder: (context, i) => _AdminTaskCard(tarea: tareas[i]),
-        ),
-      ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _nuevaTarea(context),
-        icon: const Icon(Icons.add),
-        label: const Text('Nueva tarea'),
       ),
     );
   }

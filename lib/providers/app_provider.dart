@@ -679,12 +679,26 @@ Future<List<(User, int)>> ranking(String periodo) async {
     final lunes =
         hoy.subtract(Duration(days: hoy.weekday - 1));
     final inicio = DateTime(lunes.year, lunes.month, lunes.day);
-    await _db.insertReto(Reto(
-      titulo: titulo,
-      descripcion: descripcion,
-      puntos: puntos,
-      fechaInicio: inicio,
-    ));
+    // Si ya existe un reto vigente esta semana, lo reemplaza.
+    final existente = await retoDeLaSemana();
+    if (existente != null) {
+      await _db.updateReto(existente.copyWith(
+        titulo: titulo,
+        descripcion: descripcion,
+        puntos: puntos,
+        fechaInicio: inicio,
+        cumplidos: const [],
+        aprobados: const [],
+        finalizado: false,
+      ));
+    } else {
+      await _db.insertReto(Reto(
+        titulo: titulo,
+        descripcion: descripcion,
+        puntos: puntos,
+        fechaInicio: inicio,
+      ));
+    }
     notifyListeners();
   }
 

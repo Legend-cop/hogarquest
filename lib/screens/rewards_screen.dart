@@ -188,12 +188,14 @@ class _AdminRewardsViewState extends State<_AdminRewardsView> {
                 ),
               ),
               const SizedBox(width: 10),
-              DuoButton(
-                label: 'Entregas',
-                icon: Icons.redeem,
-                onPressed: () => showDialog(
-                  context: context,
-                  builder: (_) => _EntregaCanjesDialog(app: widget.app),
+              Expanded(
+                child: DuoButton(
+                  label: 'Entregas',
+                  icon: Icons.redeem,
+                  onPressed: () => showDialog(
+                    context: context,
+                    builder: (_) => _EntregaCanjesDialog(app: widget.app),
+                  ),
                 ),
               ),
             ],

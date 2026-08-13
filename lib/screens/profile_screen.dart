@@ -101,23 +101,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
             const SizedBox(height: 20),
             _CastigosSection(userId: user.id!),
             const SizedBox(height: 32),
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton.icon(
-                onPressed: () => _cerrarSesion(context),
-                icon: const Icon(Icons.logout, color: AppColors.rojo),
-                label: const Text('Cerrar sesión',
-                    style: TextStyle(color: AppColors.rojo)),
-                style: OutlinedButton.styleFrom(
-                  side: const BorderSide(color: AppColors.rojo, width: 2),
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16)),
-                  padding: const EdgeInsets.symmetric(
-                      vertical: 16, horizontal: 20),
-                  minimumSize: const Size.fromHeight(54),
-                  alignment: Alignment.center,
-                ),
-              ),
+            DuoButton(
+              label: 'Cerrar sesión',
+              icon: Icons.logout,
+              color: AppColors.rojo,
+              borderColor: const Color(0xFFC62828),
+              fullWidth: false,
+              onPressed: () => _cerrarSesion(context),
             ),
             const SizedBox(height: 16),
           ],
