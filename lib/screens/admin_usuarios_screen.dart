@@ -300,42 +300,94 @@ class _AdminUsuariosScreenState extends State<AdminUsuariosScreen> {
                             ),
                             subtitle: Text(
                                 '${u.edad} años · Nivel ${u.nivel} · ${u.puntos} pts'),
-                            trailing: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                IconButton(
-                                  icon: Icon(
-                                    u.activo
-                                        ? Icons.visibility_off
-                                        : Icons.visibility,
-                                    color: AppColors.grisMedio,
+                            trailing: PopupMenuButton<String>(
+                              tooltip: 'Opciones',
+                              onSelected: (opcion) {
+                                switch (opcion) {
+                                  case 'activo':
+                                    _toggleActivo(u);
+                                    break;
+                                  case 'castigo':
+                                    _castigarUsuario(u);
+                                    break;
+                                  case 'editar':
+                                    _editarUsuario(u);
+                                    break;
+                                  case 'password':
+                                    _resetPassword(u);
+                                    break;
+                                  case 'eliminar':
+                                    _eliminarUsuario(u);
+                                    break;
+                                }
+                              },
+                              itemBuilder: (ctx) => [
+                                PopupMenuItem(
+                                  value: 'activo',
+                                  child: ListTile(
+                                    dense: true,
+                                    contentPadding: EdgeInsets.zero,
+                                    visualDensity: VisualDensity.compact,
+                                    leading: Icon(
+                                      u.activo
+                                          ? Icons.visibility_off
+                                          : Icons.visibility,
+                                      color: AppColors.grisMedio,
+                                    ),
+                                    title: Text(u.activo
+                                        ? 'Inactivar'
+                                        : 'Activar'),
+                                    trailing: u.activo
+                                        ? null
+                                        : const Text('Inactivo',
+                                            style: TextStyle(
+                                                fontSize: 12,
+                                                color: AppColors.grisMedio)),
                                   ),
-                                  tooltip: u.activo
-                                      ? 'Inactivar'
-                                      : 'Activar',
-                                  onPressed: () => _toggleActivo(u),
                                 ),
-                                IconButton(
-                                  icon: const Icon(Icons.gavel,
-                                      color: AppColors.rojo),
-                                  tooltip: 'Aplicar castigo',
-                                  onPressed: () => _castigarUsuario(u),
+                                PopupMenuItem(
+                                  value: 'castigo',
+                                  child: ListTile(
+                                    dense: true,
+                                    contentPadding: EdgeInsets.zero,
+                                    visualDensity: VisualDensity.compact,
+                                    leading: const Icon(Icons.gavel,
+                                        color: AppColors.rojo),
+                                    title: const Text('Aplicar castigo'),
+                                  ),
                                 ),
-                                IconButton(
-                                  icon: const Icon(Icons.edit,
-                                      color: AppColors.azul),
-                                  onPressed: () => _editarUsuario(u),
+                                PopupMenuItem(
+                                  value: 'editar',
+                                  child: ListTile(
+                                    dense: true,
+                                    contentPadding: EdgeInsets.zero,
+                                    visualDensity: VisualDensity.compact,
+                                    leading: const Icon(Icons.edit,
+                                        color: AppColors.azul),
+                                    title: const Text('Editar'),
+                                  ),
                                 ),
-                                IconButton(
-                                  icon: const Icon(Icons.lock_reset,
-                                      color: AppColors.morado),
-                                  tooltip: 'Restablecer contraseña',
-                                  onPressed: () => _resetPassword(u),
+                                PopupMenuItem(
+                                  value: 'password',
+                                  child: ListTile(
+                                    dense: true,
+                                    contentPadding: EdgeInsets.zero,
+                                    visualDensity: VisualDensity.compact,
+                                    leading: const Icon(Icons.lock_reset,
+                                        color: AppColors.morado),
+                                    title: const Text('Restablecer contraseña'),
+                                  ),
                                 ),
-                                IconButton(
-                                  icon: const Icon(Icons.delete,
-                                      color: AppColors.rojo),
-                                  onPressed: () => _eliminarUsuario(u),
+                                PopupMenuItem(
+                                  value: 'eliminar',
+                                  child: ListTile(
+                                    dense: true,
+                                    contentPadding: EdgeInsets.zero,
+                                    visualDensity: VisualDensity.compact,
+                                    leading: const Icon(Icons.delete,
+                                        color: AppColors.rojo),
+                                    title: const Text('Eliminar'),
+                                  ),
                                 ),
                               ],
                             ),
