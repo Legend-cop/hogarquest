@@ -181,24 +181,21 @@ class _AdminRewardsViewState extends State<_AdminRewardsView> {
         ),
         Padding(
           padding: const EdgeInsets.all(12),
-          child: Row(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Expanded(
-                child: DuoButton(
-                  label: 'Nueva recompensa',
-                  icon: Icons.add,
-                  onPressed: () => _nuevaRecompensa(context),
-                ),
+              DuoButton(
+                label: 'Nueva recompensa',
+                icon: Icons.add,
+                onPressed: () => _nuevaRecompensa(context),
               ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: DuoButton(
-                  label: 'Entregas',
-                  icon: Icons.redeem,
-                  onPressed: () => showDialog(
-                    context: context,
-                    builder: (_) => _EntregaCanjesDialog(app: widget.app),
-                  ),
+              const SizedBox(height: 10),
+              DuoButton(
+                label: 'Entregas',
+                icon: Icons.redeem,
+                onPressed: () => showDialog(
+                  context: context,
+                  builder: (_) => _EntregaCanjesDialog(app: widget.app),
                 ),
               ),
             ],
