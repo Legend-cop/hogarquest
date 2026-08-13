@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "833781012070",
+    "project_id": "hogarquest-59324",
+    "storage_bucket": "hogarquest-59324.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:833781012070:android:8c032cec3b8641f35fbfa7",
+        "android_client_info": {
+          "package_name": "com.hogarquest.hogarquest"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA3Oe94su62xd70Ax-0Osx7qUHyCHTfqF8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

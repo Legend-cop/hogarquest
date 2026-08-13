@@ -105,6 +105,21 @@ class DatabaseHelper {
     await _client.pushDb(db);
   }
 
+  // --- PUSH (Firebase Cloud Messaging) ------------------------------------
+
+  /// Registra el token FCM de este dispositivo para un usuario en el servidor.
+  Future<void> registrarFcmToken(int userId, String token) =>
+      _client.registrarFcmToken(userId, token);
+
+  /// Quita el token FCM del usuario (al cerrar sesión).
+  Future<void> borrarFcmToken(int userId, String token) =>
+      _client.borrarFcmToken(userId, token);
+
+  /// Pide al servidor que envíe un push real al dispositivo del usuario.
+  Future<void> enviarPush(int userId, String titulo, String cuerpo,
+          [Map<String, String>? data]) =>
+      _client.enviarPushFcm(userId, titulo, cuerpo, data);
+
   Future<void> _cargarDesdeServidor() async {
     final data = await _client.fetchDb();
     if (data == null || data.isEmpty) {

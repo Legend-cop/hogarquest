@@ -7,6 +7,7 @@ import '../db/database_helper.dart';
 import '../models/assignment.dart';
 import '../models/badge.dart';
 import '../models/castigo.dart';
+import '../services/push_service.dart';
 import '../models/redemption.dart';
 import '../models/reto.dart';
 import '../models/reward.dart';
@@ -102,6 +103,7 @@ class AppProvider extends ChangeNotifier {
         .solicitarPermiso());
     unawaited(NotificationService.instance
         .programarRecordatorios(app: this, usuario: user));
+    unawaited(PushService.instance.registrarPara(user.id!));
     notifyListeners();
     return true;
   }
@@ -125,6 +127,7 @@ class AppProvider extends ChangeNotifier {
   void logout() {
     _usuarioActual = null;
     unawaited(NotificationService.instance.cancelarRecordatorios());
+    unawaited(PushService.instance.desregistrar());
     unawaited(_limpiarSesion());
     notifyListeners();
   }
@@ -217,6 +220,7 @@ class AppProvider extends ChangeNotifier {
         tareaId: tareaId,
         fechaAsignada: DateTime.now(),
       ));
+      unawaited(_db.enviarPush(uid, 'Nueva tarea', titulo));
     }
     notifyListeners();
   }
@@ -384,6 +388,11 @@ class AppProvider extends ChangeNotifier {
       recompensaId: r.id!,
       fecha: DateTime.now(),
     ));
+    final admins = (await _db.getUsuarios()).where((u) => u.esAdmin);
+    for (final a in admins) {
+      unawaited(_db.enviarPush(
+          a.id!, 'Canje solicitado', '${user.nombre} canjeó: ${r.nombre}'));
+    }
     _usuarioActual = user.copyWith(puntos: nuevosPuntos, nivel: nuevoNivel);
     notifyListeners();
     return true;
@@ -424,6 +433,8 @@ class AppProvider extends ChangeNotifier {
     final c = canjes.where((x) => x.id == canjeId).firstOrNull;
     if (c == null) return;
     await _db.updateCanje(c.copyWith(estado: 'entregada'));
+    unawaited(_db.enviarPush(
+        c.usuarioId, 'Recompensa entregada', 'Tu canje fue entregado'));
     notifyListeners();
   }
 
@@ -639,6 +650,7 @@ Future<List<(User, int)>> ranking(String periodo) async {
       tipo: tipo,
       fecha: DateTime.now(),
     ));
+    unawaited(_db.enviarPush(usuarioId, 'Tienes un castigo', motivo));
     if (_usuarioActual?.id == usuarioId) {
       final u = await _db.getUserById(usuarioId);
       if (u != null) _usuarioActual = u;

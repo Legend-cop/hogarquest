@@ -168,4 +168,24 @@ class NotificationService {
         AndroidFlutterLocalNotificationsPlugin>();
     return (await androidImpl?.requestNotificationsPermission()) ?? true;
   }
+
+  /// Muestra una notificación inmediata (push FCM recibido en primer plano).
+  Future<void> mostrarInstantanea(String? titulo, String? cuerpo) async {
+    if (kIsWeb) return;
+    await init();
+    await _plugin.show(
+      DateTime.now().millisecondsSinceEpoch % 100000,
+      titulo ?? 'HogarQuest',
+      cuerpo,
+      const NotificationDetails(
+        android: AndroidNotificationDetails(
+          'hq_push',
+          'Notificaciones push',
+          channelDescription: 'Avisos en tiempo real de HogarQuest',
+          importance: Importance.high,
+          priority: Priority.high,
+        ),
+      ),
+    );
+  }
 }

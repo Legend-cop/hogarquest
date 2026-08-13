@@ -56,6 +56,80 @@ async function initMongo() {
   }
 }
 
+// --- FIREBASE (push FCM) -------------------------------------------------
+let admin = null;
+async function initFirebase() {
+  const creds = process.env.FIREBASE_CREDENTIALS;
+  if (!creds) {
+    console.log('Sin FIREBASE_CREDENTIALS: push FCM desactivado');
+    return;
+  }
+  try {
+    admin = require('firebase-admin');
+    admin.initializeApp({ credential: admin.credential.cert(JSON.parse(creds)) });
+    console.log('Firebase Admin inicializado (push listo)');
+  } catch (e) {
+    console.log('Firebase init err:', e.message);
+  }
+}
+
+// Almacén de tokens FCM por usuario (Mongo si está disponible, si no memoria).
+const _memTokens = new Map(); // userId -> Set(token)
+async function guardarToken(userId, token) {
+  if (mongoReady && mongo) {
+    await mongo.db().collection('deviceTokens').updateOne(
+      { userId, token },
+      { $set: { userId, token, updated_at: Date.now() } },
+      { upsert: true }
+    );
+    return;
+  }
+  if (!_memTokens.has(userId)) _memTokens.set(userId, new Set());
+  _memTokens.get(userId).add(token);
+}
+async function quitarToken(userId, token) {
+  if (mongoReady && mongo) {
+    await mongo.db().collection('deviceTokens').deleteOne({ userId, token });
+    return;
+  }
+  _memTokens.get(userId)?.delete(token);
+}
+async function tokensDe(userId) {
+  if (mongoReady && mongo) {
+    const docs = await mongo.db().collection('deviceTokens').find({ userId }).toArray();
+    return docs.map((d) => d.token);
+  }
+  return Array.from(_memTokens.get(userId) || []);
+}
+async function enviarPush(userId, title, body, data) {
+  if (!admin) return { ok: false, reason: 'no-admin' };
+  const tokens = await tokensDe(userId);
+  if (tokens.length === 0) return { ok: false, reason: 'no-tokens' };
+  try {
+    const resp = await admin.messaging().sendEachForMulticast({
+      tokens,
+      notification: { title, body },
+      data: data || {},
+    });
+    if (resp.failureCount > 0) {
+      const invalidos = [];
+      resp.responses.forEach((r, i) => {
+        if (!r.success) {
+          const err = r.error && r.error.code;
+          if (err === 'messaging/registration-token-not-registered' ||
+              err === 'messaging/invalid-registration-token') {
+            invalidos.push(tokens[i]);
+          }
+        }
+      });
+      for (const t of invalidos) await quitarToken(userId, t);
+    }
+    return { ok: true, sent: resp.successCount, failed: resp.failureCount };
+  } catch (e) {
+    return { ok: false, error: String(e) };
+  }
+}
+
 // --- MERGE DE CONFLICTOS -------------------------------------------------
 // Cada dispositivo guarda la base completa y la envía. En vez de reemplazar
 // todo (que borraría los cambios de otro celular), se fusiona registro por
@@ -200,6 +274,51 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  if (url === '/api/register-token' && req.method === 'POST') {
+    if (req.headers['x-write-token'] !== WRITE_TOKEN) {
+      res.writeHead(403, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+      res.end(JSON.stringify({ ok: false, error: 'Token de escritura inválido' }));
+      return;
+    }
+    let body = '';
+    req.on('data', (c) => (body += c));
+    req.on('end', async () => {
+      try {
+        const { userId, token, remove } = JSON.parse(body);
+        if (remove) await quitarToken(userId, token);
+        else await guardarToken(userId, token);
+        res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+        res.end(JSON.stringify({ ok: true }));
+      } catch (e) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: false, error: String(e) }));
+      }
+    });
+    return;
+  }
+
+  if (url === '/api/notify' && req.method === 'POST') {
+    if (req.headers['x-write-token'] !== WRITE_TOKEN) {
+      res.writeHead(403, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+      res.end(JSON.stringify({ ok: false, error: 'Token de escritura inválido' }));
+      return;
+    }
+    let body = '';
+    req.on('data', (c) => (body += c));
+    req.on('end', async () => {
+      try {
+        const { userId, title, body: texto, data } = JSON.parse(body);
+        const r = await enviarPush(userId, title, texto, data);
+        res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+        res.end(JSON.stringify(r));
+      } catch (e) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: false, error: String(e) }));
+      }
+    });
+    return;
+  }
+
   let f = path.join(root, url === '/' ? 'index.html' : url);
   if (!fs.existsSync(f)) f = path.join(root, 'index.html');
   const ext = path.extname(f);
@@ -219,6 +338,6 @@ const server = http.createServer((req, res) => {
   });
 });
 
-initMongo().finally(() => {
+Promise.all([initMongo(), initFirebase()]).finally(() => {
   server.listen(port, '0.0.0.0', () => console.log('HogarQuest server on 0.0.0.0:' + port + ' (db=' + dataFile + ')'));
 });

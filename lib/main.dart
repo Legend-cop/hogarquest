@@ -1,16 +1,30 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:provider/provider.dart';
 
+import 'firebase_options.dart';
 import 'providers/app_provider.dart';
 import 'providers/theme_controller.dart';
 import 'screens/admin_usuarios_screen.dart';
 import 'screens/home_shell.dart';
 import 'screens/login_screen.dart';
 import 'screens/splash_screen.dart';
+import 'services/push_service.dart';
 import 'theme/app_theme.dart';
 
-void main() {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  try {
+    await Firebase.initializeApp(
+      options: kIsWeb ? DefaultFirebaseOptions.web : null,
+    );
+    FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+    await PushService.instance.inicializar();
+  } catch (e) {
+    // Sin config de Firebase (aún) la app funciona con notificaciones locales.
+  }
   runApp(const HogarQuestApp());
 }
 

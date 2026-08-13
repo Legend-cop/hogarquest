@@ -69,6 +69,45 @@ class SyncClient {
 
   /// Escucha notificaciones del servidor vía SSE y llama a [onRemote]
   /// cada vez que otro cliente cambia datos. Se reconecta automáticamente.
+  /// Registra el token FCM de este dispositivo para un usuario.
+  Future<void> registrarFcmToken(int userId, String token) => _postJson(
+        '/api/register-token',
+        {'userId': userId, 'token': token},
+      );
+
+  /// Quita el token FCM del usuario (al cerrar sesión).
+  Future<void> borrarFcmToken(int userId, String token) => _postJson(
+        '/api/register-token',
+        {'userId': userId, 'token': token, 'remove': true},
+      );
+
+  /// Pide al servidor que envíe un push real al dispositivo del usuario.
+  Future<void> enviarPushFcm(int userId, String titulo, String cuerpo,
+      [Map<String, String>? data]) async {
+    final payload = <String, dynamic>{
+      'userId': userId,
+      'title': titulo,
+      'body': cuerpo,
+    };
+    if (data != null) payload['data'] = data;
+    await _postJson('/api/notify', payload);
+  }
+
+  Future<void> _postJson(String path, Map<String, dynamic> body) async {
+    final base = await encontrarBase();
+    if (base == null) return;
+    try {
+      final client = HttpClient()..connectionTimeout = const Duration(seconds: 8);
+      final req = await client.postUrl(Uri.parse('$base$path'));
+      req.headers.contentType = ContentType.json;
+      req.headers.set('X-Write-Token', ServerConfig.writeToken);
+      req.write(jsonEncode(body));
+      final res = await req.close();
+      await res.drain();
+      client.close();
+    } catch (_) {}
+  }
+
   void listen(void Function() onRemote, {void Function()? onReconnect}) {
     _onRemote = onRemote;
     _onReconnect = onReconnect;
