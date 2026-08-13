@@ -59,6 +59,17 @@ async function initMongo() {
 // --- FIREBASE (push FCM) -------------------------------------------------
 let admin = null;
 let lastFirebaseError = null;
+
+// Parsea JSON tolerando saltos de línea reales: como whitespace son válidos,
+// y dentro de strings (p.ej. private_key) se escapan a \n.
+function parseCred(creds) {
+  const s = String(creds || '').trim();
+  try { return JSON.parse(s); } catch (_) {}
+  try {
+    const fixed = s.replace(/"(?:\\.|[^"\\])*"/g, (m) => m.replace(/\n/g, '\\n'));
+    return JSON.parse(fixed);
+  } catch (_) { return null; }
+}
 async function _leerCredencialFirebase() {
   const fuentes = [];
   if (process.env.FIREBASE_CREDENTIALS_FILE) {
@@ -76,11 +87,9 @@ async function _leerCredencialFirebase() {
   for (const f of fuentes) {
     const c = f();
     if (!c) continue;
-    const creds = c.trim();
-    let obj = null;
-    try { obj = JSON.parse(creds.replace(/\r\n/g, '\n').replace(/\n/g, '\\n')); } catch (_) {}
+    let obj = parseCred(c);
     if (!obj) {
-      try { obj = JSON.parse(Buffer.from(creds, 'base64').toString('utf8').trim().replace(/\r\n/g, '\n').replace(/\n/g, '\\n')); } catch (_) {}
+      try { obj = parseCred(Buffer.from(c.trim(), 'base64').toString('utf8')); } catch (_) {}
     }
     // Solo aceptamos una credencial completa de cuenta de servicio.
     if (obj && obj.project_id && obj.private_key && obj.client_email) return obj;
@@ -356,7 +365,7 @@ const server = http.createServer((req, res) => {
             const s = String(doc.json).trim();
             prefix = JSON.stringify(s.slice(0, 30));
             try {
-              const o = JSON.parse(s.replace(/\r\n/g, '\n').replace(/\n/g, '\\n'));
+              const o = parseCred(s);
               if (o && o.project_id && o.private_key && o.client_email) credOk = true;
               else motivo = 'JSON parseable pero sin project_id/private_key/client_email';
             } catch (e) { motivo = 'JSON invalido: ' + (e && e.message ? e.message.slice(0, 120) : String(e)); }
