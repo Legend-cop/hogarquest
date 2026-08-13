@@ -126,10 +126,19 @@ class AppProvider extends ChangeNotifier {
 
   void logout() {
     _usuarioActual = null;
-    unawaited(NotificationService.instance.cancelarRecordatorios());
-    unawaited(PushService.instance.desregistrar());
-    unawaited(_limpiarSesion());
     notifyListeners();
+    unawaited(_limpiarSesion());
+    unawaited(_cleanupLogout());
+  }
+
+  /// Limpieza tras salir: cancela push/recordatorios sin bloquear la UI.
+  Future<void> _cleanupLogout() async {
+    try {
+      await NotificationService.instance.cancelarRecordatorios();
+    } catch (_) {}
+    try {
+      await PushService.instance.desregistrar();
+    } catch (_) {}
   }
 
   Future<void> _limpiarSesion() async {

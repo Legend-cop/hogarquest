@@ -155,8 +155,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<void> _cerrarSesion(BuildContext context) async {
+    final app = context.read<AppProvider>();
     final ok = await showDialog<bool>(
       context: context,
+      barrierDismissible: false,
       builder: (ctx) => AlertDialog(
         title: const Text('Cerrar sesión'),
         content: const Text('¿Seguro que quieres salir?'),
@@ -172,8 +174,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
         ],
       ),
     );
-    if (ok == true && context.mounted) {
-      context.read<AppProvider>().logout();
+    if (ok == true) {
+      app.logout();
     }
   }
 }
