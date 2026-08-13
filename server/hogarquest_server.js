@@ -76,18 +76,26 @@ async function initFirebase() {
   }
   // Si el valor no es JSON (no empieza con '{'), lo decodificamos como Base64.
   let creds = raw.trim();
-  if (!creds.startsWith('{')) {
+  console.log('FIREBASE_CREDENTIALS prefix:', JSON.stringify(creds.slice(0, 24)));
+  let obj = null;
+  try {
+    obj = JSON.parse(creds.replace(/\r\n/g, '\n').replace(/\n/g, '\\n'));
+  } catch (_) {}
+  if (!obj) {
     try {
-      creds = Buffer.from(creds, 'base64').toString('utf8').trim();
-    } catch (_) {}
+      const dec = Buffer.from(creds, 'base64').toString('utf8').trim();
+      obj = JSON.parse(dec.replace(/\r\n/g, '\n').replace(/\n/g, '\\n'));
+    } catch (e2) {
+      console.log('Firebase init err: la credencial no es JSON ni Base64. Detalle:', e2.message);
+    }
+  }
+  if (!obj) {
+    console.log('Sin FIREBASE_CREDENTIALS valido: push FCM desactivado');
+    return;
   }
   try {
-    // Al pegar la variable en el dashboard a veces se cuelan saltos de línea
-    // reales dentro del private_key; los volvemos a escapar para que el JSON
-    // sea válido sin tener que re-pegar nada.
-    const reparado = creds.replace(/\r\n/g, '\n').replace(/\n/g, '\\n');
     admin = require('firebase-admin');
-    admin.initializeApp({ credential: admin.credential.cert(JSON.parse(reparado)) });
+    admin.initializeApp({ credential: admin.credential.cert(obj) });
     console.log('Firebase Admin inicializado (push listo)');
   } catch (e) {
     console.log('Firebase init err:', e.message);
