@@ -81,7 +81,8 @@ async function _leerCredencialFirebase() {
     if (!obj) {
       try { obj = JSON.parse(Buffer.from(creds, 'base64').toString('utf8').trim().replace(/\r\n/g, '\n').replace(/\n/g, '\\n')); } catch (_) {}
     }
-    if (obj) return obj; // primera fuente válida gana
+    // Solo aceptamos una credencial completa de cuenta de servicio.
+    if (obj && obj.project_id && obj.private_key && obj.client_email) return obj;
   }
   return null;
 }
