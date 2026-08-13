@@ -58,6 +58,7 @@ async function initMongo() {
 
 // --- FIREBASE (push FCM) -------------------------------------------------
 let admin = null;
+let lastFirebaseError = null;
 async function _leerCredencialFirebase() {
   const fuentes = [];
   if (process.env.FIREBASE_CREDENTIALS_FILE) {
@@ -98,7 +99,8 @@ async function initFirebase() {
     admin.initializeApp({ credential: admin.credential.cert(obj) });
     console.log('Firebase Admin inicializado (push listo)');
   } catch (e) {
-    console.log('Firebase init err:', e.message);
+    lastFirebaseError = e && e.message;
+    console.log('Firebase init err:', lastFirebaseError);
   }
 }
 
@@ -358,6 +360,7 @@ const server = http.createServer((req, res) => {
         tieneCredencialMongo: tieneMongo,
         tieneCredencialLocal: tieneLocal,
         tieneEnvB64: !!process.env.FIREBASE_CREDENTIALS_B64,
+        ultimoError: lastFirebaseError,
       }));
     })();
     return;
