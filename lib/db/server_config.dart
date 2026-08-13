@@ -16,7 +16,7 @@ class ServerConfig {
   /// Orden en que la app nativa probará las direcciones.
   static const List<String> candidateUrls = [cloudUrl, localUrl];
 
-  static const String writeToken = 'hq-secreto-cambiar-2026';
+  static const String writeToken = 'hq-aCOYOzECZhLg04xREE1a1WlAoRJp3exLGJB63cQB';
 
   /// URL que la app nativa debe usar (se rellena al encontrar el servidor).
   static String activaUrl = candidateUrls.first;
