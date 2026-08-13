@@ -50,4 +50,5 @@ android/replay_pid*.log
 server/hogarquest_data.json
 server/hogarquest_data.json.bak
 server/hogarquest_data.json.mojibake
+server/firebase-credentials.json
 server/node_modules/

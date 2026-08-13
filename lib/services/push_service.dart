@@ -17,8 +17,9 @@ class PushService {
   final FirebaseMessaging _messaging = FirebaseMessaging.instance;
 
   /// Clave VAPID para web (necesaria para obtener el token en navegadores).
-  /// TODO: pegar la VAPID key de Firebase (Cloud Messaging > Web Push certs).
-  static const String _vapidKey = 'PEGAR_VAPID_KEY';
+  /// De Firebase: Project settings > Cloud Messaging > Web Push certificates.
+  static const String _vapidKey =
+      'BIyzi4bmLuZX7x6qhgApXiQP1d98mN_dzL1G49LleCQO-bgikLVSiN7EY4_eCASyc4C6QN2JM4iCq2waygvZbMo';
 
   int? _userId;
   bool _iniciado = false;
