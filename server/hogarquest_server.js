@@ -59,7 +59,15 @@ async function initMongo() {
 // --- FIREBASE (push FCM) -------------------------------------------------
 let admin = null;
 async function initFirebase() {
-  let creds = process.env.FIREBASE_CREDENTIALS;
+  let creds = process.env.FIREBASE_CREDENTIALS_B64;
+  if (creds) {
+    try {
+      creds = Buffer.from(creds.trim(), 'base64').toString('utf8');
+    } catch (_) {
+      creds = null;
+    }
+  }
+  if (!creds) creds = process.env.FIREBASE_CREDENTIALS;
   if (!creds) {
     // Fallback local para pruebas (no se sube al repo).
     try {
