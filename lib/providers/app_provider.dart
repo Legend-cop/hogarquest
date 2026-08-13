@@ -59,7 +59,7 @@ class AppProvider extends ChangeNotifier {
     if (user != null) {
       _usuarioActual = user;
       unawaited(NotificationService.instance
-          .programarRecordatorios(app: this, usuario: user));
+          .sincronizar(app: this, userId: user.id!));
     }
   }
 
@@ -102,7 +102,7 @@ class AppProvider extends ChangeNotifier {
     unawaited(NotificationService.instance
         .solicitarPermiso());
     unawaited(NotificationService.instance
-        .programarRecordatorios(app: this, usuario: user));
+        .sincronizar(app: this, userId: user.id!));
     unawaited(PushService.instance.registrarPara(user.id!));
     notifyListeners();
     return true;
@@ -148,6 +148,17 @@ class AppProvider extends ChangeNotifier {
 
   /// Busca un usuario por id (sin marcar sesión).
   Future<User?> buscarUsuario(int id) => _db.getUserById(id);
+
+  /// Envía la hora del recordatorio diario del usuario al server.
+  Future<void> guardarRecordatorioEnServer({
+    required int userId,
+    required int minutos,
+    required int offset,
+  }) async {
+    try {
+      await _db.enviarRecordatorioConfig(userId, minutos, offset);
+    } catch (_) {}
+  }
 
   Future<void> crearUsuario({
     required String nombre,

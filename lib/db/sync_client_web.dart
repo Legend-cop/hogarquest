@@ -57,6 +57,14 @@ class SyncClient {
     await _postJson('/api/notify', payload);
   }
 
+  /// Sincroniza la hora del recordatorio diario del usuario con el server.
+  Future<void> enviarRecordatorioConfig(int userId, int minutos, int offset) =>
+      _postJson('/api/reminder', {
+        'userId': userId,
+        'minutos': minutos,
+        'offset': offset,
+      });
+
   Future<void> _postJson(String path, Map<String, dynamic> body) async {
     try {
       await html.HttpRequest.request(

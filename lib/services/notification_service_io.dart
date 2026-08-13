@@ -4,10 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:timezone/data/latest_all.dart' as tzdata;
-import 'package:timezone/timezone.dart' as tz;
 
-import '../models/user.dart';
 import '../providers/app_provider.dart';
 
 /// Servicio de notificaciones del sistema para plataformas nativas (Android).
@@ -57,22 +54,19 @@ class NotificationService {
     return (hora ?? _horaPorDefecto) * 60;
   }
 
-  /// Guarda la hora del recordatorio (minutos del día) y reprograma.
+  /// Guarda la hora del recordatorio (minutos del día) y la sincroniza con el
+  /// server, que es quien envía el push diario.
   Future<void> guardarHora(
       {required AppProvider app, required int userId, required int minutos}) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setInt('$_claveMinutos$userId', minutos);
     await prefs.setInt('$_claveHora$userId', minutos ~/ 60);
-    final usuario = await app.buscarUsuario(userId);
-    if (usuario != null) {
-      await programarRecordatorios(app: app, usuario: usuario);
-    }
+    await sincronizar(app: app, userId: userId);
   }
 
-  /// Inicializa el plugin y programa el recordatorio diario del usuario actual.
+  /// Inicializa el plugin para mostrar notificaciones inmediatas.
   Future<void> init({AppProvider? app}) async {
     if (_iniciado) return;
-    tzdata.initializeTimeZones();
     const android = AndroidInitializationSettings('@mipmap/ic_launcher');
     const darwin = DarwinInitializationSettings(
       requestAlertPermission: false,
@@ -85,81 +79,24 @@ class NotificationService {
     _iniciado = true;
   }
 
-  /// Programa dos recordatorios diarios del usuario:
-  ///  - mañana: tareas pendientes de HOY (para integrantes)
-  ///  - tarde:  aprobaciones pendientes (para el admin)
-  Future<void> programarRecordatorios(
-      {required AppProvider app, required User usuario}) async {
-    await init(app: app);
-    final id = usuario.id;
-    if (id == null) return;
-
-    // Cancelar recordatorios viejos de este usuario antes de reprogramar.
-    await cancelarRecordatoriosDe(usuario);
-
-    final zona = tz.local;
-    final hoy = tz.TZDateTime.now(zona);
-    final minutos = await horaConfigurada(id);
-    final hora = minutos ~/ 60;
-    final minuto = minutos % 60;
-    var horaRecordatorio = tz.TZDateTime(zona, hoy.year, hoy.month, hoy.day,
-        hora.clamp(0, 23), minuto.clamp(0, 59));
-    if (horaRecordatorio.isBefore(hoy)) {
-      horaRecordatorio = horaRecordatorio.add(const Duration(days: 1));
-    }
-
-    if (!usuario.esAdmin) {
-      // Recordatorio de tareas de HOY para el integrante.
-      await _plugin.zonedSchedule(
-        id * 100 + 1,
-        'HogarQuest: tus tareas de hoy',
-        '¡Recuerda completar tus tareas para ganar puntos!',
-        horaRecordatorio,
-        const NotificationDetails(
-          android: AndroidNotificationDetails(
-            'hq_recordatorios',
-            'Recordatorios de tareas',
-            channelDescription: 'Recordatorios diarios de tareas del hogar',
-            importance: Importance.high,
-            priority: Priority.high,
-          ),
-        ),
-        androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
-        matchDateTimeComponents: DateTimeComponents.time,
-      );
-    } else {
-      // Recordatorio de aprobaciones pendientes para el admin.
-      await _plugin.zonedSchedule(
-        id * 100 + 2,
-        'HogarQuest: tareas por revisar',
-        'Revisa las tareas completadas de tus hijos.',
-        horaRecordatorio,
-        const NotificationDetails(
-          android: AndroidNotificationDetails(
-            'hq_aprobaciones',
-            'Aprobaciones de tareas',
-            channelDescription: 'Avisos de tareas completadas por aprobar',
-            importance: Importance.high,
-            priority: Priority.high,
-          ),
-        ),
-        androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
-        matchDateTimeComponents: DateTimeComponents.time,
-      );
-    }
+  /// Envía la hora configurada del recordatorio y el offset UTC local al
+  /// server, para que él programe el push diario.
+  Future<void> sincronizar(
+      {required AppProvider app, required int userId}) async {
+    final minutos = await horaConfigurada(userId);
+    final offset = DateTime.now().timeZoneOffset.inMinutes;
+    await app.guardarRecordatorioEnServer(
+      userId: userId,
+      minutos: minutos,
+      offset: offset,
+    );
   }
 
-  /// Cancela los recordatorios de un usuario concreto.
-  Future<void> cancelarRecordatoriosDe(User usuario) async {
-    final id = usuario.id;
-    if (id == null) return;
-    await _plugin.cancel(id * 100 + 1);
-    await _plugin.cancel(id * 100 + 2);
-  }
-
-  /// Cancela todos los recordatorios programados.
+  /// Cancela todos los recordatorios programados localmente (versiones viejas).
   Future<void> cancelarRecordatorios() async {
-    await _plugin.cancelAll();
+    try {
+      await _plugin.cancelAll();
+    } catch (_) {}
   }
 
   /// Solicita permiso para mostrar notificaciones (Android 13+).

@@ -170,6 +170,71 @@ async function enviarPush(userId, title, body, data) {
   }
 }
 
+// --- RECORDATORIOS DIARIOS (push desde el server) -------------------------
+// Cada usuario configura una hora local (minutos del día) y su offset UTC.
+// El server envía el push cuando en su hora local coinciden esos minutos.
+const _recordatorios = new Map(); // userId -> { minutos, offset, localDate }
+async function guardarRecordatorio(userId, minutos, offset) {
+  _recordatorios.set(userId, { minutos: Number(minutos), offset: Number(offset || 0), localDate: null });
+  if (mongoReady && mongo) {
+    await mongo.db().collection('reminders').updateOne(
+      { _id: userId },
+      { $set: { minutos: Number(minutos), offset: Number(offset || 0) } },
+      { upsert: true }
+    ).catch(() => {});
+  }
+}
+async function quitarRecordatorio(userId) {
+  _recordatorios.delete(userId);
+  if (mongoReady && mongo) {
+    await mongo.db().collection('reminders').deleteOne({ _id: userId }).catch(() => {});
+  }
+}
+async function cargarRecordatorios() {
+  if (!mongoReady || !mongo) return;
+  try {
+    const docs = await mongo.db().collection('reminders').find({}).toArray();
+    for (const d of docs) {
+      _recordatorios.set(d._id, { minutos: Number(d.minutos), offset: Number(d.offset || 0), localDate: null });
+    }
+    console.log('Recordatorios diarios cargados (' + _recordatorios.size + ')');
+  } catch (_) {}
+}
+
+function _contarAsignaciones(userId, esAdmin) {
+  const asig = Array.isArray(db.asignaciones) ? db.asignaciones : [];
+  if (esAdmin) {
+    return asig.filter((a) => a.completada === 1 && a.aprobada !== 1).length;
+  }
+  return asig.filter((a) => a.usuario_id === userId && a.completada !== 1 && a.castigada !== 1).length;
+}
+
+function iniciarRecordatorios() {
+  setInterval(() => {
+    if (!admin || _recordatorios.size === 0) return;
+    const ahora = Date.now();
+    for (const [userId, cfg] of _recordatorios) {
+      const local = new Date(ahora + (cfg.offset || 0) * 60000);
+      const minutoDelDia = local.getHours() * 60 + local.getMinutes();
+      if (minutoDelDia !== cfg.minutos) continue;
+      const hoy = local.getFullYear() + '-' + (local.getMonth() + 1) + '-' + local.getDate();
+      if (cfg.localDate === hoy) continue;
+      cfg.localDate = hoy;
+      const u = (Array.isArray(db.usuarios) ? db.usuarios : []).find((x) => x.id === userId);
+      const esAdmin = !!(u && u.rol === 'admin');
+      const n = _contarAsignaciones(userId, esAdmin);
+      if (n === 0) continue;
+      if (esAdmin) {
+        enviarPush(userId, 'HogarQuest: tareas por revisar',
+          'Tienes ' + n + ' tarea' + (n === 1 ? '' : 's') + ' completada' + (n === 1 ? '' : 's') + ' por aprobar.');
+      } else {
+        enviarPush(userId, 'HogarQuest: tus tareas de hoy',
+          'Tienes ' + n + ' tarea' + (n === 1 ? '' : 's') + ' pendiente' + (n === 1 ? '' : 's') + '. ¡Complétalas para ganar puntos!');
+      }
+    }
+  }, 60000);
+}
+
 // --- MERGE DE CONFLICTOS -------------------------------------------------
 // Cada dispositivo guarda la base completa y la envía. En vez de reemplazar
 // todo (que borraría los cambios de otro celular), se fusiona registro por
@@ -435,6 +500,29 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  if (url === '/api/reminder' && req.method === 'POST') {
+    if (req.headers['x-write-token'] !== WRITE_TOKEN) {
+      res.writeHead(403, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+      res.end(JSON.stringify({ ok: false, error: 'Token de escritura inválido' }));
+      return;
+    }
+    let body = '';
+    req.on('data', (c) => (body += c));
+    req.on('end', async () => {
+      try {
+        const { userId, minutos, offset, remove } = JSON.parse(body);
+        if (remove) await quitarRecordatorio(userId);
+        else await guardarRecordatorio(userId, minutos, offset);
+        res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+        res.end(JSON.stringify({ ok: true }));
+      } catch (e) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: false, error: String(e) }));
+      }
+    });
+    return;
+  }
+
   let f = path.join(root, url === '/' ? 'index.html' : url);
   if (!fs.existsSync(f)) f = path.join(root, 'index.html');
   const ext = path.extname(f);
@@ -455,8 +543,13 @@ const server = http.createServer((req, res) => {
 });
 
 // Firebase necesita Mongo conectado (lee la credencial de ahí), así que
-// esperamos a initMongo antes de initFirebase.
-initMongo().then(() => initFirebase()).catch((e) => console.log('init err:', e && e.message)).finally(() => {
+// esperamos a initMongo antes de initFirebase. Los recordatorios diarios
+// también se cargan desde Mongo.
+initMongo().then(async () => {
+  await cargarRecordatorios();
+  await initFirebase();
+  iniciarRecordatorios();
+}).catch((e) => console.log('init err:', e && e.message)).finally(() => {
   server.listen(port, '0.0.0.0', () => console.log('HogarQuest server on 0.0.0.0:' + port + ' (db=' + dataFile + ')'));
   // Reintentar Firebase si Mongo conectó tarde.
   let reintentos = 0;

@@ -117,8 +117,11 @@ class DatabaseHelper {
 
   /// Pide al servidor que envíe un push real al dispositivo del usuario.
   Future<void> enviarPush(int userId, String titulo, String cuerpo,
-          [Map<String, String>? data]) =>
+      [Map<String, String>? data]) =>
       _client.enviarPushFcm(userId, titulo, cuerpo, data);
+
+  Future<void> enviarRecordatorioConfig(int userId, int minutos, int offset) =>
+      _client.enviarRecordatorioConfig(userId, minutos, offset);
 
   Future<void> _cargarDesdeServidor() async {
     final data = await _client.fetchDb();
