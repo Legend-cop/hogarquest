@@ -26,6 +26,7 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> _ingresar() async {
+    if (_enviando) return;
     if (_usuario.text.trim().isEmpty || _password.text.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Escribe usuario y contraseña.')),
@@ -34,12 +35,22 @@ class _LoginScreenState extends State<LoginScreen> {
     }
     setState(() => _enviando = true);
     final app = context.read<AppProvider>();
-    final ok = await app.login(_usuario.text.trim(), _password.text);
-    if (!ok && mounted) {
-      setState(() => _enviando = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(app.error ?? 'Error al iniciar sesión')),
-      );
+    try {
+      final ok = await app.login(_usuario.text.trim(), _password.text);
+      if (mounted && !ok) {
+        setState(() => _enviando = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(app.error ?? 'Error al iniciar sesión')),
+        );
+      }
+    } catch (e) {
+      debugPrint('Error al iniciar sesión: $e');
+      if (mounted) {
+        setState(() => _enviando = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error al iniciar sesión: $e')),
+        );
+      }
     }
   }
 

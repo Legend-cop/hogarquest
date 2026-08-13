@@ -35,7 +35,9 @@ class _DetailUsuarioScreenState extends State<DetailUsuarioScreen> {
   }
 
   void _onChange() {
-    if (mounted) setState(() {});
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) setState(() {});
+    });
   }
 
   @override

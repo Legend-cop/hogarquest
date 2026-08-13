@@ -28,7 +28,9 @@ class _AdminUsuariosScreenState extends State<AdminUsuariosScreen> {
   }
 
   void _onChange() {
-    if (mounted) _cargar();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _cargar();
+    });
   }
 
   Future<void> _cargar() async {

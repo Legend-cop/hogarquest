@@ -34,7 +34,9 @@ class _RankingScreenState extends State<RankingScreen>
   }
 
   void _onChange() {
-    if (mounted) _cargarDatos();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _cargarDatos();
+    });
   }
 
   Future<void> _cargarDatos() async {

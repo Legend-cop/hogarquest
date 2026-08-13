@@ -46,13 +46,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   void _onChange() {
-    if (mounted) setState(() {});
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) setState(() {});
+    });
   }
 
   @override
   Widget build(BuildContext context) {
     final app = context.read<AppProvider>();
-    final user = app.usuarioActual!;
+    final user = app.usuarioActual;
+    if (user == null) return const SizedBox.shrink();
     if (_nombreController.text.isEmpty) {
       _nombreController.text = user.nombre;
       _edadController.text = user.edad.toString();

@@ -41,13 +41,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   void _onChange() {
-    if (mounted) setState(() {});
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) setState(() {});
+    });
   }
 
   @override
   Widget build(BuildContext context) {
     final app = context.read<AppProvider>();
-    final user = app.usuarioActual!;
+    final user = app.usuarioActual;
+    if (user == null) return const SizedBox.shrink();
     return Scaffold(
       appBar: AppBar(title: const Text('HogarQuest')),
       body: RefreshIndicator(

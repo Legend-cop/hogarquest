@@ -15,7 +15,8 @@ class RewardsScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final app = context.watch<AppProvider>();
-    final user = app.usuarioActual!;
+    final user = app.usuarioActual;
+    if (user == null) return const SizedBox.shrink();
 
     return Scaffold(
       appBar: AppBar(title: const Text('Recompensas')),
@@ -46,7 +47,9 @@ class _AdminRewardsViewState extends State<_AdminRewardsView> {
   }
 
   void _onChange() {
-    if (mounted) _cargarDatos();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _cargarDatos();
+    });
   }
 
   Future<void> _cargarDatos() async {
@@ -390,7 +393,9 @@ class _UserRewardsViewState extends State<_UserRewardsView> {
   }
 
   void _onChange() {
-    if (mounted) _cargarDatos();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _cargarDatos();
+    });
   }
 
   Future<void> _cargarDatos() async {

@@ -18,7 +18,8 @@ class RetosScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final app = context.read<AppProvider>();
-    final user = app.usuarioActual!;
+    final user = app.usuarioActual;
+    if (user == null) return const SizedBox.shrink();
     return Scaffold(
       appBar: AppBar(title: const Text('Retos de la semana')),
       body: RefreshIndicator(

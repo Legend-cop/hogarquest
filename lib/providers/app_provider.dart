@@ -99,13 +99,29 @@ class AppProvider extends ChangeNotifier {
     _usuarioActual = user;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setInt(_claveSesion, user.id!);
-    unawaited(NotificationService.instance
-        .solicitarPermiso());
-    unawaited(NotificationService.instance
-        .sincronizar(app: this, userId: user.id!));
-    unawaited(PushService.instance.registrarPara(user.id!));
     notifyListeners();
+    unawaited(_posLogin(user.id!));
     return true;
+  }
+
+  /// Tareas posteriores al login (permiso, push y recordatorio). Corren en
+  /// segundo plano y nunca pueden bloquear ni romper el login aunque fallen.
+  Future<void> _posLogin(int userId) async {
+    try {
+      await NotificationService.instance.solicitarPermiso();
+    } catch (e) {
+      debugPrint('solicitarPermiso: $e');
+    }
+    try {
+      await NotificationService.instance.sincronizar(app: this, userId: userId);
+    } catch (e) {
+      debugPrint('sincronizar recordatorio: $e');
+    }
+    try {
+      await PushService.instance.registrarPara(userId);
+    } catch (e) {
+      debugPrint('registrarPara: $e');
+    }
   }
 
   static const _maxIntentos = 5;

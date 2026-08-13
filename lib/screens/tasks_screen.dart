@@ -42,7 +42,9 @@ class _TasksScreenState extends State<TasksScreen>
   }
 
   void _onChange() {
-    if (mounted) _cargarDatos();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _cargarDatos();
+    });
   }
 
   Future<void> _cargarDatos() async {
