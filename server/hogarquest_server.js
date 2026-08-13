@@ -58,52 +58,36 @@ async function initMongo() {
 
 // --- FIREBASE (push FCM) -------------------------------------------------
 let admin = null;
-async function initFirebase() {
-  if (admin) return; // ya inicializado
-  let raw = null;
+async function _leerCredencialFirebase() {
+  const fuentes = [];
   if (process.env.FIREBASE_CREDENTIALS_FILE) {
-    try {
-      raw = fs.readFileSync(process.env.FIREBASE_CREDENTIALS_FILE, 'utf8');
-    } catch (_) {}
+    fuentes.push(() => { try { return fs.readFileSync(process.env.FIREBASE_CREDENTIALS_FILE, 'utf8'); } catch (_) { return null; } });
   }
-  if (!raw) {
-    raw = process.env.FIREBASE_CREDENTIALS_B64 || process.env.FIREBASE_CREDENTIALS || null;
-  }
-  if (!raw) {
-    // Fallback local para pruebas (no se sube al repo).
-    try {
-      raw = fs.readFileSync(
-        path.join(__dirname, 'firebase-credentials.json'),
-        'utf8'
-      );
-    } catch (_) {}
-  }
-  if (!raw && mongoReady && mongo) {
-    // Fallback: credencial guardada vía /api/set-firebase-creds (Mongo).
+  if (process.env.FIREBASE_CREDENTIALS) fuentes.push(() => process.env.FIREBASE_CREDENTIALS);
+  if (process.env.FIREBASE_CREDENTIALS_B64) fuentes.push(() => process.env.FIREBASE_CREDENTIALS_B64);
+  fuentes.push(() => { try { return fs.readFileSync(path.join(__dirname, 'firebase-credentials.json'), 'utf8'); } catch (_) { return null; } });
+  if (mongoReady && mongo) {
     try {
       const doc = await mongo.db().collection('config').findOne({ _id: 'firebaseCreds' });
-      if (doc && doc.json) raw = doc.json;
+      if (doc && doc.json) fuentes.push(() => doc.json);
     } catch (_) {}
   }
-  if (!raw) {
-    console.log('Sin FIREBASE_CREDENTIALS: push FCM desactivado');
-    return;
-  }
-  // Si el valor no es JSON (no empieza con '{'), lo decodificamos como Base64.
-  let creds = raw.trim();
-  console.log('FIREBASE_CREDENTIALS prefix:', JSON.stringify(creds.slice(0, 24)));
-  let obj = null;
-  try {
-    obj = JSON.parse(creds.replace(/\r\n/g, '\n').replace(/\n/g, '\\n'));
-  } catch (_) {}
-  if (!obj) {
-    try {
-      const dec = Buffer.from(creds, 'base64').toString('utf8').trim();
-      obj = JSON.parse(dec.replace(/\r\n/g, '\n').replace(/\n/g, '\\n'));
-    } catch (e2) {
-      console.log('Firebase init err: la credencial no es JSON ni Base64. Detalle:', e2.message);
+  for (const f of fuentes) {
+    const c = f();
+    if (!c) continue;
+    const creds = c.trim();
+    let obj = null;
+    try { obj = JSON.parse(creds.replace(/\r\n/g, '\n').replace(/\n/g, '\\n')); } catch (_) {}
+    if (!obj) {
+      try { obj = JSON.parse(Buffer.from(creds, 'base64').toString('utf8').trim().replace(/\r\n/g, '\n').replace(/\n/g, '\\n')); } catch (_) {}
     }
+    if (obj) return obj; // primera fuente válida gana
   }
+  return null;
+}
+async function initFirebase() {
+  if (admin) return; // ya inicializado
+  const obj = await _leerCredencialFirebase();
   if (!obj) {
     console.log('Sin FIREBASE_CREDENTIALS valido: push FCM desactivado');
     return;
