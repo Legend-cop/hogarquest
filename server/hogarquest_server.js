@@ -59,27 +59,27 @@ async function initMongo() {
 // --- FIREBASE (push FCM) -------------------------------------------------
 let admin = null;
 async function initFirebase() {
-  let creds = process.env.FIREBASE_CREDENTIALS_B64;
-  if (creds) {
-    try {
-      creds = Buffer.from(creds.trim(), 'base64').toString('utf8');
-    } catch (_) {
-      creds = null;
-    }
-  }
-  if (!creds) creds = process.env.FIREBASE_CREDENTIALS;
-  if (!creds) {
+  let raw =
+    process.env.FIREBASE_CREDENTIALS_B64 || process.env.FIREBASE_CREDENTIALS || null;
+  if (!raw) {
     // Fallback local para pruebas (no se sube al repo).
     try {
-      creds = fs.readFileSync(
+      raw = fs.readFileSync(
         path.join(__dirname, 'firebase-credentials.json'),
         'utf8'
       );
     } catch (_) {}
   }
-  if (!creds) {
+  if (!raw) {
     console.log('Sin FIREBASE_CREDENTIALS: push FCM desactivado');
     return;
+  }
+  // Si el valor no es JSON (no empieza con '{'), lo decodificamos como Base64.
+  let creds = raw.trim();
+  if (!creds.startsWith('{')) {
+    try {
+      creds = Buffer.from(creds, 'base64').toString('utf8').trim();
+    } catch (_) {}
   }
   try {
     // Al pegar la variable en el dashboard a veces se cuelan saltos de línea
