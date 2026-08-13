@@ -326,20 +326,40 @@ const server = http.createServer((req, res) => {
             { upsert: true }
           );
         }
+        // Respaldo en archivo local (activa el proceso actual sin depender de Mongo).
+        try { fs.writeFileSync(path.join(__dirname, 'firebase-credentials.json'), body); } catch (_) {}
         // Activar de inmediato sin reiniciar.
-        try {
-          if (!admin) await initFirebase();
-          res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
-          res.end(JSON.stringify({ ok: true, activo: !!admin }));
-        } catch (e) {
-          res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
-          res.end(JSON.stringify({ ok: true, activo: false, nota: 'Guardado. Redeploy para activar: ' + e.message }));
-        }
+        if (!admin) await initFirebase();
+        res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+        res.end(JSON.stringify({ ok: true, activo: !!admin }));
       } catch (e) {
         res.writeHead(400, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
         res.end(JSON.stringify({ ok: false, error: String(e) }));
       }
     });
+    return;
+  }
+
+  if (url === '/api/firebase-status' && req.method === 'GET') {
+    (async () => {
+      let tieneMongo = false;
+      if (mongoReady && mongo) {
+        try {
+          const doc = await mongo.db().collection('config').findOne({ _id: 'firebaseCreds' });
+          tieneMongo = !!(doc && doc.json);
+        } catch (_) {}
+      }
+      let tieneLocal = false;
+      try { tieneLocal = !!fs.readFileSync(path.join(__dirname, 'firebase-credentials.json'), 'utf8'); } catch (_) {}
+      res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+      res.end(JSON.stringify({
+        admin: !!admin,
+        mongoReady,
+        tieneCredencialMongo: tieneMongo,
+        tieneCredencialLocal: tieneLocal,
+        tieneEnvB64: !!process.env.FIREBASE_CREDENTIALS_B64,
+      }));
+    })();
     return;
   }
 
@@ -411,4 +431,11 @@ const server = http.createServer((req, res) => {
 // esperamos a initMongo antes de initFirebase.
 initMongo().then(() => initFirebase()).catch((e) => console.log('init err:', e && e.message)).finally(() => {
   server.listen(port, '0.0.0.0', () => console.log('HogarQuest server on 0.0.0.0:' + port + ' (db=' + dataFile + ')'));
+  // Reintentar Firebase si Mongo conectó tarde.
+  let reintentos = 0;
+  const reintentar = setInterval(() => {
+    if (admin) { clearInterval(reintentar); return; }
+    if (reintentos++ > 5) { clearInterval(reintentar); return; }
+    initFirebase();
+  }, 4000);
 });
