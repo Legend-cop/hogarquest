@@ -594,9 +594,17 @@ class DatabaseHelper {
     return box.items.map(_mapToUser).toList();
   }
 
-  Future<List<User>> getIntegrantes() async {
+  Future<List<User>> getIntegrantes({bool soloActivos = true}) async {
     final box = _box(_boxUsuarios);
-    return box.items.where((m) => (m['rol'] as String?) != 'admin').map(_mapToUser).toList();
+    return box.items
+        .where((m) => (m['rol'] as String?) != 'admin')
+        .where((m) {
+          if (!soloActivos) return true;
+          final activo = m['activo'] as int?;
+          return activo == null || activo == 1;
+        })
+        .map(_mapToUser)
+        .toList();
   }
 
   Future<User?> getUserById(int id) async {
@@ -640,6 +648,22 @@ class DatabaseHelper {
       final m = box.items[i];
       if (m != null && m['id'] == id) {
         m['activo'] = activo ? 1 : 0;
+        _sellar(m);
+        _marcar();
+        return;
+      }
+    }
+  }
+
+  /// Restablece la contraseña de un usuario generando un nuevo salt+hash.
+  Future<void> setPassword(int id, String nueva) async {
+    final box = _box(_boxUsuarios);
+    for (var i = 0; i < box.items.length; i++) {
+      final m = box.items[i];
+      if (m != null && m['id'] == id) {
+        final salt = SecurityService.generarSalt();
+        m['salt'] = salt;
+        m['password'] = SecurityService.hashPassword(nueva, salt);
         _sellar(m);
         _marcar();
         return;
@@ -1075,7 +1099,13 @@ class DatabaseHelper {
     final asignaciones = _box(_boxAsignaciones);
     final canjes = _box(_boxCanjes);
 
-    final integrantes = usuarios.items.where((m) => m['rol'] != 'admin').length;
+    final integrantes = usuarios.items
+        .where((m) => m['rol'] != 'admin')
+        .where((m) {
+          final activo = m['activo'] as int?;
+          return activo == null || activo == 1;
+        })
+        .length;
     final tareasActivas = tareas.items.where((m) => m['estado'] == 'activa').length;
     final aprobadas = asignaciones.items.where((m) => m['aprobada'] == 1).length;
     final totalPuntos = usuarios.items.fold<int>(0, (sum, m) => sum + (m['puntos'] as int? ?? 0));

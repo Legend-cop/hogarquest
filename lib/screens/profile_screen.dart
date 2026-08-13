@@ -87,6 +87,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               nombreController: _nombreController,
               edadController: _edadController,
               colorTemaController: _colorTemaController,
+              onGuardado: () => setState(() => _editando = false),
             ),
             const SizedBox(height: 20),
             _RecordatorioCard(userId: user.id!),
@@ -100,16 +101,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
             const SizedBox(height: 20),
             _CastigosSection(userId: user.id!),
             const SizedBox(height: 32),
-            OutlinedButton.icon(
-              onPressed: () => _cerrarSesion(context),
-              icon: const Icon(Icons.logout, color: AppColors.rojo),
-              label: const Text('Cerrar sesión',
-                  style: TextStyle(color: AppColors.rojo)),
-              style: OutlinedButton.styleFrom(
-                side: const BorderSide(color: AppColors.rojo, width: 2),
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16)),
-                padding: const EdgeInsets.symmetric(vertical: 16),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: () => _cerrarSesion(context),
+                icon: const Icon(Icons.logout, color: AppColors.rojo),
+                label: const Text('Cerrar sesión',
+                    style: TextStyle(color: AppColors.rojo)),
+                style: OutlinedButton.styleFrom(
+                  side: const BorderSide(color: AppColors.rojo, width: 2),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16)),
+                  padding: const EdgeInsets.symmetric(
+                      vertical: 16, horizontal: 20),
+                  minimumSize: const Size.fromHeight(54),
+                  alignment: Alignment.center,
+                ),
               ),
             ),
             const SizedBox(height: 16),
@@ -276,6 +283,7 @@ class _InfoCard extends StatelessWidget {
   final TextEditingController nombreController;
   final TextEditingController edadController;
   final TextEditingController colorTemaController;
+  final VoidCallback? onGuardado;
 
   const _InfoCard({
     required this.user,
@@ -283,6 +291,7 @@ class _InfoCard extends StatelessWidget {
     required this.nombreController,
     required this.edadController,
     required this.colorTemaController,
+    this.onGuardado,
   });
 
   @override
@@ -319,6 +328,7 @@ class _InfoCard extends StatelessWidget {
                   colorTema: colorTemaController.text,
                 );
                 await app.editarUsuario(userEditado);
+                onGuardado?.call();
                 if (context.mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(content: Text('Perfil actualizado')),

@@ -153,16 +153,16 @@ class _LoginScreenState extends State<LoginScreen> {
                           style: TextStyle(
                               fontSize: 13, color: AppColors.grisMedio),
                         ),
-                        TextButton(
-                          onPressed: () => ScaffoldMessenger.of(context)
-                              .showSnackBar(
-                            const SnackBar(
-                              content: Text(
-                                  'Pídele al administrador de la familia que la restablezca.'),
+                          TextButton(
+                            onPressed: () => ScaffoldMessenger.of(context)
+                                .showSnackBar(
+                              const SnackBar(
+                                content: Text(
+                                    'Si eres el administrador, restablécela desde "Gestionar integrantes".'),
+                              ),
                             ),
+                            child: const Text('Pide ayuda'),
                           ),
-                          child: const Text('Pide ayuda'),
-                        ),
                       ],
                     ),
                   ],

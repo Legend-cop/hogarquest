@@ -140,7 +140,8 @@ class AppProvider extends ChangeNotifier {
     notifyListeners();
     return usuarios;
   }
-  Future<List<User>> listarIntegrantes() => _db.getIntegrantes();
+  Future<List<User>> listarIntegrantes({bool soloActivos = true}) =>
+      _db.getIntegrantes(soloActivos: soloActivos);
 
   /// Busca un usuario por id (sin marcar sesión).
   Future<User?> buscarUsuario(int id) => _db.getUserById(id);
@@ -178,6 +179,12 @@ class AppProvider extends ChangeNotifier {
 
   Future<void> setUsuarioActivo(int id, bool activo) async {
     await _db.setUsuarioActivo(id, activo);
+    notifyListeners();
+  }
+
+  /// El administrador restablece la contraseña de un integrante.
+  Future<void> cambiarPassword(int id, String nueva) async {
+    await _db.setPassword(id, nueva);
     notifyListeners();
   }
 

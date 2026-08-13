@@ -242,6 +242,7 @@ class _AdminDashboard extends StatelessWidget {
 
   void _irATareas() => HomeTabs.index.value = 1;
   void _irAPremios() => HomeTabs.index.value = 3;
+  void _irAInicio() => HomeTabs.index.value = 0;
 
   @override
   Widget build(BuildContext context) {
@@ -281,7 +282,7 @@ class _AdminDashboard extends StatelessWidget {
                 const SizedBox(height: 16),
                 if (pendientes.isNotEmpty) ...[
                   _RecordatorioAprobaciones(
-                      cantidad: pendientes.length, onTap: _irATareas),
+                      cantidad: pendientes.length, onTap: _irAInicio),
                   const SizedBox(height: 16),
                 ],
                 // ===== Las 4 tarjetas compactas y responsivas =====

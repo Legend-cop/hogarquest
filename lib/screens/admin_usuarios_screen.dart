@@ -34,7 +34,7 @@ class _AdminUsuariosScreenState extends State<AdminUsuariosScreen> {
   Future<void> _cargar() async {
     setState(() => _cargando = true);
     final app = context.read<AppProvider>();
-    final lista = await app.listarIntegrantes();
+    final lista = await app.listarIntegrantes(soloActivos: false);
     if (mounted) {
       setState(() {
         _integrantes = lista;
@@ -191,6 +191,50 @@ class _AdminUsuariosScreenState extends State<AdminUsuariosScreen> {
     );
   }
 
+  Future<void> _resetPassword(User u) async {
+    final app = context.read<AppProvider>();
+    final pass = TextEditingController(text: '1234');
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Restablecer contraseña'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Nueva contraseña para ${u.nombre}:',
+                style: const TextStyle(fontSize: 13, color: AppColors.grisMedio)),
+            const SizedBox(height: 12),
+            TextField(
+              controller: pass,
+              decoration: const InputDecoration(labelText: 'Contraseña'),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancelar'),
+          ),
+          TextButton(
+            onPressed: () {
+              if (pass.text.trim().isEmpty) return;
+              Navigator.pop(ctx, true);
+            },
+            child: const Text('Restablecer'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    await app.cambiarPassword(u.id!, pass.text.trim());
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Contraseña de ${u.nombre} actualizada')),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -276,6 +320,12 @@ class _AdminUsuariosScreenState extends State<AdminUsuariosScreen> {
                                   icon: const Icon(Icons.edit,
                                       color: AppColors.azul),
                                   onPressed: () => _editarUsuario(u),
+                                ),
+                                IconButton(
+                                  icon: const Icon(Icons.lock_reset,
+                                      color: AppColors.morado),
+                                  tooltip: 'Restablecer contraseña',
+                                  onPressed: () => _resetPassword(u),
                                 ),
                                 IconButton(
                                   icon: const Icon(Icons.delete,

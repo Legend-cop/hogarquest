@@ -22,6 +22,7 @@ class _RankingScreenState extends State<RankingScreen>
   List<(User, int, int)> _rankingSemanal = []; // (usuario, pts, perdidos)
   List<(User, int, int)> _rankingMensual = [];
   List<(DateTime, int)> _puntosGlobal = [];
+  List<(DateTime, int)> _puntosGlobal30 = [];
   List<_Recorde> _fama = [];
 
   @override
@@ -42,12 +43,14 @@ class _RankingScreenState extends State<RankingScreen>
     final semanal = await _conPerdidos(app, 'semanal');
     final mensual = await _conPerdidos(app, 'mensual');
     final puntosGlobal = await app.puntosPorDiaGlobal(dias: 7);
+    final puntosGlobal30 = await app.puntosPorDiaGlobal(dias: 30);
     final fama = await _calcularFama(app);
     if (!mounted) return;
     setState(() {
       _rankingSemanal = semanal;
       _rankingMensual = mensual;
       _puntosGlobal = puntosGlobal;
+      _puntosGlobal30 = puntosGlobal30;
       _fama = fama;
       _cargando = false;
     });
@@ -145,7 +148,11 @@ class _RankingScreenState extends State<RankingScreen>
                   items: _rankingSemanal,
                   puntosGlobal: _puntosGlobal,
                 ),
-                _RankingList(title: 'Top 10 Mensual', items: _rankingMensual),
+                _RankingList(
+                  title: 'Top 10 Mensual',
+                  items: _rankingMensual,
+                  resumen: _ResumenPeriodo(datos: _puntosGlobal30),
+                ),
                 _FamaList(records: _fama),
               ],
             ),
@@ -170,6 +177,64 @@ class _Recorde {
     required this.detalle,
     required this.color,
   });
+}
+
+/// Resumen de puntos de la familia en un periodo (total y días activos).
+class _ResumenPeriodo extends StatelessWidget {
+  final List<(DateTime, int)> datos;
+
+  const _ResumenPeriodo({required this.datos});
+
+  @override
+  Widget build(BuildContext context) {
+    final total = datos.fold<int>(0, (s, e) => s + e.$2);
+    final diasActivos = datos.where((e) => e.$2 > 0).length;
+    return DuoCard(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      color: AppColors.verdeFondo,
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Resumen (30 días)',
+                    style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w800,
+                        color: AppColors.grisMedio)),
+                const SizedBox(height: 2),
+                Text('$total pts familia',
+                    style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                        color: AppColors.verdeOscuro)),
+              ],
+            ),
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Column(
+              children: [
+                Text('$diasActivos',
+                    style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w800,
+                        color: AppColors.grisOscuro)),
+                const Text('días activos',
+                    style: TextStyle(fontSize: 11, color: AppColors.grisMedio)),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 /// Gráfica de barras simple: puntos ganados por día (últimos 7 días).
@@ -257,8 +322,13 @@ class _RankingList extends StatelessWidget {
   final String title;
   final List<(User, int, int)> items;
   final List<(DateTime, int)>? puntosGlobal;
+  final Widget? resumen;
 
-  const _RankingList({required this.title, required this.items, this.puntosGlobal});
+  const _RankingList(
+      {required this.title,
+      required this.items,
+      this.puntosGlobal,
+      this.resumen});
 
   @override
   Widget build(BuildContext context) {
@@ -272,6 +342,11 @@ class _RankingList extends StatelessWidget {
                 fontSize: 20, fontWeight: FontWeight.w800, color: AppColors.grisOscuro),
           ),
         ),
+        if (resumen != null)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+            child: resumen!,
+          ),
         if (puntosGlobal != null && puntosGlobal!.isNotEmpty)
           Padding(
             padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
@@ -486,7 +561,7 @@ class _RankRow extends StatelessWidget {
               ),
               if (perdidos > 0)
                 Text(
-                  '-$perdidos castigados',
+                  '-$perdidos xp perdidos',
                   style: const TextStyle(
                       fontSize: 11,
                       fontWeight: FontWeight.w700,
