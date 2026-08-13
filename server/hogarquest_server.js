@@ -59,6 +59,7 @@ async function initMongo() {
 // --- FIREBASE (push FCM) -------------------------------------------------
 let admin = null;
 async function initFirebase() {
+  if (admin) return; // ya inicializado
   let raw = null;
   if (process.env.FIREBASE_CREDENTIALS_FILE) {
     try {
@@ -75,6 +76,13 @@ async function initFirebase() {
         path.join(__dirname, 'firebase-credentials.json'),
         'utf8'
       );
+    } catch (_) {}
+  }
+  if (!raw && mongoReady && mongo) {
+    // Fallback: credencial guardada vía /api/set-firebase-creds (Mongo).
+    try {
+      const doc = await mongo.db().collection('config').findOne({ _id: 'firebaseCreds' });
+      if (doc && doc.json) raw = doc.json;
     } catch (_) {}
   }
   if (!raw) {
@@ -304,6 +312,46 @@ const server = http.createServer((req, res) => {
         res.end(JSON.stringify({ ok: true }));
       } catch (e) {
         res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: false, error: String(e) }));
+      }
+    });
+    return;
+  }
+
+  if (url === '/api/set-firebase-creds' && req.method === 'POST') {
+    if (req.headers['x-write-token'] !== WRITE_TOKEN) {
+      res.writeHead(403, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+      res.end(JSON.stringify({ ok: false, error: 'Token de escritura inválido' }));
+      return;
+    }
+    let body = '';
+    req.on('data', (c) => (body += c));
+    req.on('end', async () => {
+      try {
+        const obj = JSON.parse(body);
+        if (!obj.project_id || !obj.private_key || !obj.client_email) {
+          res.writeHead(400, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+          res.end(JSON.stringify({ ok: false, error: 'El JSON no parece una cuenta de servicio de Firebase (falta project_id/private_key/client_email)' }));
+          return;
+        }
+        if (mongoReady && mongo) {
+          await mongo.db().collection('config').updateOne(
+            { _id: 'firebaseCreds' },
+            { $set: { json: body, updated_at: Date.now() } },
+            { upsert: true }
+          );
+        }
+        // Activar de inmediato sin reiniciar.
+        try {
+          if (!admin) await initFirebase();
+          res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+          res.end(JSON.stringify({ ok: true, activo: !!admin }));
+        } catch (e) {
+          res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+          res.end(JSON.stringify({ ok: true, activo: false, nota: 'Guardado. Redeploy para activar: ' + e.message }));
+        }
+      } catch (e) {
+        res.writeHead(400, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
         res.end(JSON.stringify({ ok: false, error: String(e) }));
       }
     });
