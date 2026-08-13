@@ -12,8 +12,31 @@ import '../widgets/confetti.dart';
 import '../widgets/duo_widgets.dart';
 import '../widgets/section_header.dart';
 
-class RetosScreen extends StatelessWidget {
+class RetosScreen extends StatefulWidget {
   const RetosScreen({super.key});
+
+  @override
+  State<RetosScreen> createState() => _RetosScreenState();
+}
+
+class _RetosScreenState extends State<RetosScreen> {
+  @override
+  void initState() {
+    super.initState();
+    context.read<AppProvider>().addListener(_onChange);
+  }
+
+  @override
+  void dispose() {
+    context.read<AppProvider>().removeListener(_onChange);
+    super.dispose();
+  }
+
+  void _onChange() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) setState(() {});
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -23,7 +46,7 @@ class RetosScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(title: const Text('Retos de la semana')),
       body: RefreshIndicator(
-        onRefresh: () async => setState(context),
+        onRefresh: () async => setState(() {}),
         child: FutureBuilder<Reto?>(
           future: app.retoDeLaSemana(),
           builder: (context, snap) {
@@ -51,10 +74,6 @@ class RetosScreen extends StatelessWidget {
         ),
       ),
     );
-  }
-
-  void setState(BuildContext context) {
-    // no-op: la tarjeta es stateless y se re-arma al hacer pull-to-refresh
   }
 }
 
