@@ -239,13 +239,16 @@ class _AdminUsuariosScreenState extends State<AdminUsuariosScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Gestionar integrantes')),
-      body: _cargando
+      body: Column(
+        children: [
+          Expanded(
+            child: _cargando
           ? const Center(child: CircularProgressIndicator())
           : _integrantes.isEmpty
               ? const EmptyState(
                   icon: Icons.group_add,
                   message: 'Aún no hay integrantes',
-                  hint: 'Toca el botón + para agregar el primero.',
+                  hint: 'Toca "Nuevo integrante" para agregar el primero.',
                 )
               : RefreshIndicator(
                   onRefresh: _cargar,
@@ -340,11 +343,19 @@ class _AdminUsuariosScreenState extends State<AdminUsuariosScreen> {
                     },
                   ),
                 ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _nuevoUsuario,
-        backgroundColor: AppColors.verde,
-        foregroundColor: Colors.white,
-        child: const Icon(Icons.person_add_alt),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(12),
+            child: SizedBox(
+              width: double.infinity,
+              child: DuoButton(
+                label: 'Nuevo integrante',
+                icon: Icons.person_add_alt,
+                onPressed: _nuevoUsuario,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
