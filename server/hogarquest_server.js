@@ -345,11 +345,23 @@ const server = http.createServer((req, res) => {
   if (url === '/api/firebase-status' && req.method === 'GET') {
     (async () => {
       let tieneMongo = false;
+      let credOk = false;
+      let motivo = null;
+      let prefix = null;
       if (mongoReady && mongo) {
         try {
           const doc = await mongo.db().collection('config').findOne({ _id: 'firebaseCreds' });
-          tieneMongo = !!(doc && doc.json);
-        } catch (_) {}
+          if (doc && doc.json) {
+            tieneMongo = true;
+            const s = String(doc.json).trim();
+            prefix = JSON.stringify(s.slice(0, 30));
+            try {
+              const o = JSON.parse(s.replace(/\r\n/g, '\n').replace(/\n/g, '\\n'));
+              if (o && o.project_id && o.private_key && o.client_email) credOk = true;
+              else motivo = 'JSON parseable pero sin project_id/private_key/client_email';
+            } catch (e) { motivo = 'JSON invalido: ' + (e && e.message ? e.message.slice(0, 120) : String(e)); }
+          }
+        } catch (e) { motivo = 'read error: ' + e.message; }
       }
       let tieneLocal = false;
       try { tieneLocal = !!fs.readFileSync(path.join(__dirname, 'firebase-credentials.json'), 'utf8'); } catch (_) {}
@@ -358,6 +370,9 @@ const server = http.createServer((req, res) => {
         admin: !!admin,
         mongoReady,
         tieneCredencialMongo: tieneMongo,
+        credencialOk: credOk,
+        motivo,
+        prefix,
         tieneCredencialLocal: tieneLocal,
         tieneEnvB64: !!process.env.FIREBASE_CREDENTIALS_B64,
         ultimoError: lastFirebaseError,
