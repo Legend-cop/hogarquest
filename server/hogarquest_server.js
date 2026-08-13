@@ -59,21 +59,6 @@ async function initMongo() {
 // --- FIREBASE (push FCM) -------------------------------------------------
 let admin = null;
 async function initFirebase() {
-  let raw =
-    process.env.FIREBASE_CREDENTIALS_B64 || process.env.FIREBASE_CREDENTIALS || null;
-  if (!raw) {
-    // Fallback local para pruebas (no se sube al repo).
-    try {
-      raw = fs.readFileSync(
-        path.join(__dirname, 'firebase-credentials.json'),
-        'utf8'
-      );
-    } catch (_) {}
-  }
-  if (!raw) {
-    console.log('Sin FIREBASE_CREDENTIALS: push FCM desactivado');
-    return;
-  }
   let raw = null;
   if (process.env.FIREBASE_CREDENTIALS_FILE) {
     try {
