@@ -406,6 +406,8 @@ const server = http.createServer((req, res) => {
   });
 });
 
-Promise.all([initMongo(), initFirebase()]).finally(() => {
+// Firebase necesita Mongo conectado (lee la credencial de ahí), así que
+// esperamos a initMongo antes de initFirebase.
+initMongo().then(() => initFirebase()).catch((e) => console.log('init err:', e && e.message)).finally(() => {
   server.listen(port, '0.0.0.0', () => console.log('HogarQuest server on 0.0.0.0:' + port + ' (db=' + dataFile + ')'));
 });
