@@ -394,18 +394,31 @@ class DatabaseHelper {
     final asignaciones = _box(_boxAsignaciones);
     final meta = _box(_boxMeta);
 
-    // Si el horario de la semilla cambió, se regeneran tareas/asignaciones.
-    const versionSeed = 3;
+    // La semana se regenera sola: al cambiar la versión del horario o al
+    // empezar una semana nueva (lunes). Solo se crean tareas desde HOY en
+    // adelante, así un reinicio a mitad de semana no genera tareas ya
+    // vencidas (y por lo tanto no castiga al instante).
+    const versionSeed = 5;
+    final hoy = DateTime.now();
+    final inicioSemana = hoy.subtract(Duration(days: hoy.weekday - 1));
+    final claveSemana =
+        '${inicioSemana.year}-${inicioSemana.month}-${inicioSemana.day}';
     final semilla = meta.get('seed_horario');
-    if (semilla is! Map || semilla['version'] != versionSeed) {
+    if (semilla is! Map ||
+        semilla['version'] != versionSeed ||
+        semilla['semana'] != claveSemana) {
       asignaciones.items.clear();
       tareas.items.clear();
-      meta.put('seed_horario', {'version': versionSeed});
+      meta.put('seed_horario',
+          {'version': versionSeed, 'semana': claveSemana});
     }
 
     const dias = [
       'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado', 'domingo',
     ];
+    // 0 = lunes … 6 = domingo. Los días anteriores a hoy no se crean.
+    final desdeHoy = hoy.weekday - 1;
+    int idxDia(String d) => dias.indexOf(d);
 
     int? idUsuario(String nombre) {
       for (final m in usuarios.items) {
@@ -472,14 +485,26 @@ class DatabaseHelper {
     await crearUsuario('Natalia', '👩');
     final emanuelId = await crearUsuario('Emanuel', '👦');
     final saraisId = await crearUsuario('Sarais', '👧');
+    final nataliaId = await crearUsuario('Natalia', '👩');
+
+    // Reparto justo: las tareas individuales rotan entre los 3 niños.
+    final ninos = [emanuelId, saraisId, nataliaId];
+    var rot = 0;
+    int proximo() {
+      final k = ninos[rot % ninos.length];
+      rot++;
+      return k;
+    }
 
     Future<void> conjunta(int tareaId) async {
-      await asignar(emanuelId, tareaId);
-      await asignar(saraisId, tareaId);
+      for (final n in ninos) {
+        await asignar(n, tareaId);
+      }
     }
 
     // --- DIARIAS CONJUNTAS (las más importantes): oración y devocional. ---
-    for (final dia in dias) {
+    for (var i = desdeHoy; i < dias.length; i++) {
+      final dia = dias[i];
       final oracion = await crearTarea('Orar', 'Hacer oración en familia.', 10, 'facil', dia);
       final devocional = await crearTarea('Hacer el devocional', 'Realizar el devocional del día.', 10, 'facil', dia);
       await conjunta(oracion);
@@ -487,58 +512,54 @@ class DatabaseHelper {
     }
 
     // --- SÁBADO: ir a la iglesia (conjunta, importante). ---
-    final iglesia = await crearTarea('Ir a la iglesia', 'Asistir al servicio en familia.', 10, 'facil', 'sabado');
-    await conjunta(iglesia);
+    if (idxDia('sabado') >= desdeHoy) {
+      final iglesia = await crearTarea('Ir a la iglesia', 'Asistir al servicio en familia.', 10, 'facil', 'sabado');
+      await conjunta(iglesia);
+    }
 
     // --- BASURA (conjunta): domingos, martes y jueves. ---
     for (final dia in ['domingo', 'martes', 'jueves']) {
+      if (idxDia(dia) < desdeHoy) continue;
       final basura = await crearTarea('Botar la basura', 'Botar la basura del día.', 15, 'facil', dia);
       await conjunta(basura);
     }
 
     // --- ESCALERAS (conjunta, cada 3 días): martes y viernes. ---
     for (final dia in ['martes', 'viernes']) {
+      if (idxDia(dia) < desdeHoy) continue;
       final escaleras = await crearTarea('Lavar las escaleras', 'Lavar las escaleras de la casa.', 25, 'media', dia);
       await conjunta(escaleras);
     }
 
-    // --- DIARIAS INDIVIDUALES (rotan por día). ---
-    // Barrer: Emanuel lun/mié/vie · Sarais mar/jue/dom
-    // Loza  : Sarais lun/mié/vie · Emanuel mar/jue/dom
-    // Cuarto: Emanuel lun/mié/vie · Sarais mar/jue/dom
-    final barrerE = {'lunes', 'miercoles', 'viernes'};
-    for (final dia in dias) {
+    // --- DIARIAS INDIVIDUALES (rotan justo entre los 3). ---
+    for (var i = desdeHoy; i < dias.length; i++) {
+      final dia = dias[i];
       if (dia == 'sabado') continue;
-      final deEmanuel = barrerE.contains(dia);
       final barrer = await crearTarea('Barrer', 'Barrer el piso de la casa.', 20, 'facil', dia);
       final loza = await crearTarea('Lavar la loza', 'Lavar los platos de las 3 comidas.', 25, 'media', dia);
       final cuarto = await crearTarea('Arreglar el cuarto', 'Organizar y ordenar el cuarto.', 20, 'facil', dia);
-      await asignar(deEmanuel ? emanuelId : saraisId, barrer);
-      await asignar(deEmanuel ? saraisId : emanuelId, loza);
-      await asignar(deEmanuel ? emanuelId : saraisId, cuarto);
+      await asignar(proximo(), barrer);
+      await asignar(proximo(), loza);
+      await asignar(proximo(), cuarto);
     }
 
     // --- BAÑO (cada 3 días): lunes, jueves, domingo. ---
-    final banoDias = {
-      'lunes': emanuelId,
-      'jueves': saraisId,
-      'domingo': emanuelId,
-    };
-    for (final entry in banoDias.entries) {
-      final bano = await crearTarea('Lavar el baño', 'Lavar el baño completo.', 35, 'dificil', entry.key);
-      await asignar(entry.value, bano);
+    for (final dia in ['lunes', 'jueves', 'domingo']) {
+      if (idxDia(dia) < desdeHoy) continue;
+      final bano = await crearTarea('Lavar el baño', 'Lavar el baño completo.', 35, 'dificil', dia);
+      await asignar(proximo(), bano);
     }
 
     // --- INTERMEDIAS: lavar ropa y peinadoras. ---
-    final ropaDias = {'miercoles': emanuelId, 'viernes': saraisId};
-    for (final entry in ropaDias.entries) {
-      final ropa = await crearTarea('Lavar la ropa', 'Lavar la ropa de la semana.', 40, 'dificil', entry.key);
-      await asignar(entry.value, ropa);
+    for (final dia in ['miercoles', 'viernes']) {
+      if (idxDia(dia) < desdeHoy) continue;
+      final ropa = await crearTarea('Lavar la ropa', 'Lavar la ropa de la semana.', 40, 'dificil', dia);
+      await asignar(proximo(), ropa);
     }
-    final peinadorasDias = {'miercoles': saraisId, 'viernes': emanuelId};
-    for (final entry in peinadorasDias.entries) {
-      final peinadoras = await crearTarea('Arreglar las peinadoras', 'Arreglar las peinadoras.', 15, 'facil', entry.key);
-      await asignar(entry.value, peinadoras);
+    for (final dia in ['miercoles', 'viernes']) {
+      if (idxDia(dia) < desdeHoy) continue;
+      final peinadoras = await crearTarea('Arreglar las peinadoras', 'Arreglar las peinadoras.', 15, 'facil', dia);
+      await asignar(proximo(), peinadoras);
     }
   }
 
