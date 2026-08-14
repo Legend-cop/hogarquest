@@ -17,13 +17,7 @@ class UserAvatar extends StatefulWidget {
   final double radius;
   final String? foto;
 
-  @override
-  State<UserAvatar> createState() => _UserAvatarState();
-}
-
-class _UserAvatarState extends State<UserAvatar> {
-  bool _fallo = false;
-
+  /// Color estable por nombre, para que cada persona siempre tenga el mismo.
   static const _paleta = [
     Color(0xFF2E7D32), // verde
     Color(0xFF1565C0), // azul
@@ -60,6 +54,13 @@ class _UserAvatarState extends State<UserAvatar> {
     return '$primero$segundo';
   }
 
+  @override
+  State<UserAvatar> createState() => _UserAvatarState();
+}
+
+class _UserAvatarState extends State<UserAvatar> {
+  bool _fallo = false;
+
   String get _fotoUrl {
     final f = widget.foto ?? widget.user.foto;
     if (f.isEmpty) return '';
@@ -83,9 +84,9 @@ class _UserAvatarState extends State<UserAvatar> {
     final nombre = widget.user.nombre;
     return CircleAvatar(
       radius: widget.radius,
-      backgroundColor: colorDe(nombre),
+      backgroundColor: UserAvatar.colorDe(nombre),
       child: Text(
-        iniciales(nombre),
+        UserAvatar.iniciales(nombre),
         style: TextStyle(
           fontSize: widget.radius * 0.8,
           fontWeight: FontWeight.w700,
