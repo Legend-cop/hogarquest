@@ -230,6 +230,29 @@ class AppProvider extends ChangeNotifier {
   Future<List<Task>> listarTareas() => _db.getTareas();
   Future<List<Task>> listarTareasActivas() => _db.getTareasActivas();
 
+  /// Mapa `tareaId -> integrantes asignados`, para que el admin vea quién
+  /// tiene cada tarea en la planificación semanal y detecte repeticiones.
+  Future<Map<int, List<User>>> asignadosPorTarea() async {
+    final tareas = await _db.getTareas();
+    final asignaciones = await _db.getTodasLasAsignaciones();
+    final usuarios = await _db.getIntegrantes();
+    final mapU = {for (final u in usuarios) u.id: u};
+    final result = <int, List<User>>{};
+    for (final t in tareas) {
+      final asignados = <User>[];
+      for (final a in asignaciones) {
+        if (a.tareaId == t.id) {
+          final u = mapU[a.usuarioId];
+          if (u != null && !asignados.any((x) => x.id == u.id)) {
+            asignados.add(u);
+          }
+        }
+      }
+      result[t.id!] = asignados;
+    }
+    return result;
+  }
+
   Future<void> crearTarea({
     required String titulo,
     String descripcion = '',

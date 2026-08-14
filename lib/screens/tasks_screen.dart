@@ -6,6 +6,7 @@ import '../theme/app_theme.dart';
 import '../widgets/confetti.dart';
 import '../widgets/duo_widgets.dart';
 import '../widgets/empty_state.dart';
+import '../widgets/user_avatar.dart';
 import '../models/task.dart';
 import '../models/assignment.dart';
 import '../models/user.dart';
@@ -111,29 +112,83 @@ class _TasksScreenState extends State<TasksScreen>
   }
 }
 
-class _AdminTasksList extends StatelessWidget {
+class _AdminTasksList extends StatefulWidget {
   final List<Task> tareas;
   final Future<void> Function() onRefresh;
 
   const _AdminTasksList({required this.tareas, required this.onRefresh});
 
   @override
+  State<_AdminTasksList> createState() => _AdminTasksListState();
+}
+
+class _AdminTasksListState extends State<_AdminTasksList>
+    with SingleTickerProviderStateMixin {
+  late final TabController _tabController;
+  Map<int, List<User>> _asignados = {};
+  bool _cargandoAsignados = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 2, vsync: this);
+    _cargarAsignados();
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _cargarAsignados() async {
+    final app = context.read<AppProvider>();
+    final map = await app.asignadosPorTarea();
+    if (!mounted) return;
+    setState(() {
+      _asignados = map;
+      _cargandoAsignados = false;
+    });
+  }
+
+  Future<void> _recargar() async {
+    setState(() => _cargandoAsignados = true);
+    await Future.wait([widget.onRefresh(), _cargarAsignados()]);
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Tareas del hogar'),
+        bottom: TabBar(
+          controller: _tabController,
+          tabs: const [
+            Tab(text: 'Semana', icon: Icon(Icons.calendar_view_week_outlined)),
+            Tab(text: 'Tareas', icon: Icon(Icons.checklist)),
+          ],
+        ),
       ),
       body: Column(
         children: [
           Expanded(
-            child: RefreshIndicator(
-              onRefresh: onRefresh,
-              child: ListView.builder(
-                padding: const EdgeInsets.all(12),
-                itemCount: tareas.length,
-                itemBuilder: (context, i) => _AdminTaskCard(tarea: tareas[i]),
-              ),
-            ),
+            child: _cargandoAsignados
+                ? const Center(child: CircularProgressIndicator())
+                : TabBarView(
+                    controller: _tabController,
+                    children: [
+                      _AdminSemanaTab(
+                        tareas: widget.tareas,
+                        asignados: _asignados,
+                        onRefresh: _recargar,
+                      ),
+                      _AdminListaTab(
+                        tareas: widget.tareas,
+                        asignados: _asignados,
+                        onRefresh: _recargar,
+                      ),
+                    ],
+                  ),
           ),
           Padding(
             padding: const EdgeInsets.all(12),
@@ -155,16 +210,17 @@ class _AdminTasksList extends StatelessWidget {
     final app = context.read<AppProvider>();
     await app.listarUsuarios();
     final usuarios = app.listaUsuarios;
+    if (!context.mounted) return;
     showDialog(
       context: context,
       builder: (_) => _TaskFormDialog(
-        onSaved: (data) => _crearEditarTarea(context, data: data),
+        onSaved: (data) => _crearTareaDesdePestana(context, data: data),
         usuarios: usuarios,
       ),
     );
   }
 
-  Future<void> _crearEditarTarea(BuildContext context,
+  Future<void> _crearTareaDesdePestana(BuildContext context,
       {Map<String, Object?>? data}) async {
     final app = context.read<AppProvider>();
     if (data == null) return;
@@ -184,19 +240,336 @@ class _AdminTasksList extends StatelessWidget {
       integrantesIds: integrantesIds,
       dia: data['dia'] as String? ?? '',
     );
-    if (context.mounted) Navigator.pop(context);
-    await app.listarTareas();
+    await _recargar();
+  }
+}
+
+/// Vista semanal del admin: cada día con sus tareas y quién las tiene,
+/// para repartir la semana y no repetir la misma tarea entre integrantes.
+class _AdminSemanaTab extends StatelessWidget {
+  final List<Task> tareas;
+  final Map<int, List<User>> asignados;
+  final Future<void> Function() onRefresh;
+
+  const _AdminSemanaTab({
+    required this.tareas,
+    required this.asignados,
+    required this.onRefresh,
+  });
+
+  static const _diasOrden = [
+    'lunes',
+    'martes',
+    'miercoles',
+    'jueves',
+    'viernes',
+    'sabado',
+    'domingo',
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final activas = tareas.where((t) => t.activa).toList();
+    final conDia = activas.where((t) => t.dia.isNotEmpty).toList();
+    final sinDia = activas.where((t) => t.dia.isEmpty).toList();
+
+    if (activas.isEmpty) {
+      return const EmptyState(
+        icon: Icons.calendar_view_week_outlined,
+        message: 'Aún no hay tareas activas.',
+        hint: 'Crea una tarea con su día para planificar la semana.',
+      );
+    }
+
+    return RefreshIndicator(
+      onRefresh: onRefresh,
+      child: ListView(
+        padding: const EdgeInsets.all(12),
+        children: [
+          for (final dia in _diasOrden)
+            if (conDia.any((t) => t.dia == dia)) ...[
+              _DiaSemanaHeader(
+                nombre: _nombreDia(dia),
+                total: conDia.where((t) => t.dia == dia).length,
+                esHoy: dia == _IntegranteTasksList._diaHoy,
+              ),
+              ...conDia
+                  .where((t) => t.dia == dia)
+                  .map((t) => _SemanaTaskCard(
+                        tarea: t,
+                        asignados: asignados[t.id] ?? const [],
+                      )),
+              const SizedBox(height: 8),
+            ],
+          if (sinDia.isNotEmpty) ...[
+            const Padding(
+              padding: EdgeInsets.fromLTRB(4, 12, 4, 6),
+              child: Text(
+                'Sin día asignado',
+                style: TextStyle(
+                  fontWeight: FontWeight.w800,
+                  fontSize: 16,
+                  color: AppColors.grisMedio,
+                ),
+              ),
+            ),
+            ...sinDia.map((t) => _SemanaTaskCard(
+                  tarea: t,
+                  asignados: asignados[t.id] ?? const [],
+                )),
+            const SizedBox(height: 8),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _DiaSemanaHeader extends StatelessWidget {
+  final String nombre;
+  final int total;
+  final bool esHoy;
+
+  const _DiaSemanaHeader({
+    required this.nombre,
+    required this.total,
+    this.esHoy = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final color = esHoy ? AppColors.verde : AppColors.azul;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(4, 12, 4, 6),
+      child: Row(
+        children: [
+          Container(
+            width: 8,
+            height: 22,
+            decoration: BoxDecoration(
+              color: color,
+              borderRadius: BorderRadius.circular(4),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            nombre,
+            style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
+          ),
+          if (esHoy) ...[
+            const SizedBox(width: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+              decoration: BoxDecoration(
+                color: AppColors.verde,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Text(
+                'HOY',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ),
+          ],
+          const Spacer(),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+            decoration: BoxDecoration(
+              color: AppColors.linea,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Text(
+              '$total tarea${total == 1 ? '' : 's'}',
+              style: const TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                color: AppColors.grisMedio,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SemanaTaskCard extends StatelessWidget {
+  final Task tarea;
+  final List<User> asignados;
+
+  const _SemanaTaskCard({required this.tarea, required this.asignados});
+
+  @override
+  Widget build(BuildContext context) {
+    final duplicada = asignados.length > 1;
+    return DuoCard(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      margin: const EdgeInsets.only(bottom: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              DuoIconBadge(
+                icon: Icons.checklist,
+                color: _colorPorDificultad(tarea.dificultad),
+                size: 40,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      tarea.titulo,
+                      style: const TextStyle(
+                          fontWeight: FontWeight.w700, fontSize: 14),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      '${tarea.puntos} pts • ${tarea.dificultad.toUpperCase()}'
+                      '${tarea.frecuencia != 'unica' ? ' • ${_capitalizar(tarea.frecuencia)}' : ''}',
+                      style: const TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w800,
+                        color: AppColors.grisMedio,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          if (asignados.isEmpty)
+            const Text(
+              'Sin asignar',
+              style: TextStyle(fontSize: 11, color: AppColors.grisMedio),
+            )
+          else
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: [
+                for (final u in asignados) _IntegrantePill(nombre: u.nombre),
+              ],
+            ),
+          if (duplicada)
+            Container(
+              margin: const EdgeInsets.only(top: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+              decoration: BoxDecoration(
+                color: AppColors.amarillo.withValues(alpha: 0.25),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.warning_amber_rounded,
+                      size: 16, color: AppColors.grisOscuro),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      'Asignada a ${asignados.length} integrantes. '
+                      'Si es para uno solo, edítala y quita a los demás.',
+                      style: const TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.grisOscuro,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _IntegrantePill extends StatelessWidget {
+  final String nombre;
+  const _IntegrantePill({required this.nombre});
+
+  @override
+  Widget build(BuildContext context) {
+    final color = UserAvatar.colorDe(nombre);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: color.withValues(alpha: 0.35)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          UserAvatar(
+              user: User(
+                  nombre: nombre, password: '', rol: 'integrante'),
+              radius: 8),
+          const SizedBox(width: 5),
+          Text(
+            nombre,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              color: color,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AdminListaTab extends StatelessWidget {
+  final List<Task> tareas;
+  final Map<int, List<User>> asignados;
+  final Future<void> Function() onRefresh;
+
+  const _AdminListaTab({
+    required this.tareas,
+    required this.asignados,
+    required this.onRefresh,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return RefreshIndicator(
+      onRefresh: onRefresh,
+      child: ListView.builder(
+        padding: const EdgeInsets.all(12),
+        itemCount: tareas.length,
+        itemBuilder: (context, i) => _AdminTaskCard(
+          tarea: tareas[i],
+          asignados: asignados[tareas[i].id] ?? const [],
+          onRefresh: onRefresh,
+        ),
+      ),
+    );
   }
 }
 
 class _AdminTaskCard extends StatelessWidget {
   final Task tarea;
-  const _AdminTaskCard({required this.tarea});
+  final List<User> asignados;
+  final Future<void> Function()? onRefresh;
+
+  const _AdminTaskCard({
+    required this.tarea,
+    this.asignados = const [],
+    this.onRefresh,
+  });
 
   @override
   Widget build(BuildContext context) {
     return DuoCard(
       padding: EdgeInsets.zero,
+      margin: const EdgeInsets.only(bottom: 8),
       child: ExpansionTile(
         leading: DuoIconBadge(icon: Icons.task_alt, color: AppColors.azul, size: 40),
         title: Text(tarea.titulo, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
@@ -233,7 +606,7 @@ class _AdminTaskCard extends StatelessWidget {
         ),
         children: [
           const Divider(),
-          _CardActionsAdmin(tarea: tarea),
+          _CardActionsAdmin(tarea: tarea, asignados: asignados),
         ],
       ),
     );
@@ -243,6 +616,7 @@ class _AdminTaskCard extends StatelessWidget {
     final app = context.read<AppProvider>();
     await app.listarUsuarios();
     final usuarios = app.listaUsuarios;
+    if (!context.mounted) return;
     showDialog(
       context: context,
       builder: (_) => _TaskFormDialog(
@@ -283,20 +657,21 @@ class _AdminTaskCard extends StatelessWidget {
       await app.editarTarea(tareaEditada, integrantesIds: integrantesIds);
     }
     if (context.mounted) Navigator.pop(context);
-    await app.listarTareas();
+    await onRefresh?.call();
   }
 
   Future<void> _eliminarTarea(BuildContext context, int id) async {
     final app = context.read<AppProvider>();
     await app.eliminarTarea(id);
     if (context.mounted) Navigator.pop(context);
-    await app.listarTareas();
+    await onRefresh?.call();
   }
 }
 
 class _CardActionsAdmin extends StatelessWidget {
   final Task tarea;
-  const _CardActionsAdmin({required this.tarea});
+  final List<User> asignados;
+  const _CardActionsAdmin({required this.tarea, this.asignados = const []});
 
   @override
   Widget build(BuildContext context) {
@@ -316,22 +691,34 @@ class _CardActionsAdmin extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 8),
-        Text('Asignaciones:',
-            style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+        const Text('Asignaciones:',
+            style: TextStyle(fontSize: 12, color: AppColors.grisMedio)),
         const SizedBox(height: 4),
-        _AsignadosList(tareaId: tarea.id!),
+        _AsignadosList(asignados: asignados),
       ],
     );
   }
 }
 
 class _AsignadosList extends StatelessWidget {
-  final int tareaId;
-  const _AsignadosList({required this.tareaId});
+  final List<User> asignados;
+  const _AsignadosList({this.asignados = const []});
 
   @override
   Widget build(BuildContext context) {
-    return const Text('(Detalle de asignaciones)', style: TextStyle(fontSize: 11));
+    if (asignados.isEmpty) {
+      return const Text(
+        'Sin asignar',
+        style: TextStyle(fontSize: 11, color: AppColors.grisMedio),
+      );
+    }
+    return Wrap(
+      spacing: 6,
+      runSpacing: 6,
+      children: [
+        for (final u in asignados) _IntegrantePill(nombre: u.nombre),
+      ],
+    );
   }
 }
 
@@ -639,20 +1026,23 @@ class _MiniTaskCard extends StatelessWidget {
       ),
     );
   }
+}
 
-  Color _colorPorDificultad(String d) {
-    switch (d) {
-      case 'facil':
-        return AppColors.verde;
-      case 'media':
-        return AppColors.amarillo;
-      case 'dificil':
-        return AppColors.rojo;
-      default:
-        return AppColors.azul;
-    }
+Color _colorPorDificultad(String d) {
+  switch (d) {
+    case 'facil':
+      return AppColors.verde;
+    case 'media':
+      return AppColors.amarillo;
+    case 'dificil':
+      return AppColors.rojo;
+    default:
+      return AppColors.azul;
   }
 }
+
+String _capitalizar(String s) =>
+    s.isEmpty ? s : s[0].toUpperCase() + s.substring(1);
 
 class _HistorialCard extends StatelessWidget {
   final Task task;

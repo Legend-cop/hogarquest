@@ -849,6 +849,13 @@ class DatabaseHelper {
     return null;
   }
 
+  /// Todas las asignaciones de todos los integrantes (para la vista semanal
+  /// del admin: saber quién tiene cada tarea).
+  Future<List<Assignment>> getTodasLasAsignaciones() async {
+    final box = _box(_boxAsignaciones);
+    return box.items.map(_mapToAssignment).toList();
+  }
+
   /// Asignaciones no completadas (para detectar tareas vencidas).
   Future<List<Assignment>> getAsignacionesPendientes() async {
     final box = _box(_boxAsignaciones);

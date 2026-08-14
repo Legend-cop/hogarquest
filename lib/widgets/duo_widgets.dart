@@ -130,35 +130,40 @@ class DuoButton extends StatelessWidget {
 class DuoCard extends StatelessWidget {
   final Widget child;
   final EdgeInsetsGeometry padding;
+  final EdgeInsetsGeometry? margin;
   final Color? color;
 
   const DuoCard({
     super.key,
     required this.child,
     this.padding = const EdgeInsets.all(16),
+    this.margin,
     this.color,
   });
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    return Container(
-      decoration: BoxDecoration(
-        color: color ?? (isDark ? AppColors.superficieOscura : Colors.white),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: isDark ? AppColors.grisMedio.withValues(alpha: 0.3) : AppColors.linea,
-          width: 2,
-        ),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x14000000),
-            offset: Offset(0, 4),
-            blurRadius: 0,
+    return Padding(
+      padding: margin ?? EdgeInsets.zero,
+      child: Container(
+        decoration: BoxDecoration(
+          color: color ?? (isDark ? AppColors.superficieOscura : Colors.white),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: isDark ? AppColors.grisMedio.withValues(alpha: 0.3) : AppColors.linea,
+            width: 2,
           ),
-        ],
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x14000000),
+              offset: Offset(0, 4),
+              blurRadius: 0,
+            ),
+          ],
+        ),
+        child: Padding(padding: padding, child: child),
       ),
-      child: Padding(padding: padding, child: child),
     );
   }
 }
