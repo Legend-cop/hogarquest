@@ -244,9 +244,10 @@ class _AdminTasksListState extends State<_AdminTasksList>
   }
 }
 
-/// Vista semanal del admin: cada día con sus tareas y quién las tiene,
-/// para repartir la semana y no repetir la misma tarea entre integrantes.
-class _AdminSemanaTab extends StatelessWidget {
+/// Vista semanal del admin: cada día con sus tareas y quién las tiene.
+/// Permite filtrar por integrante para revisar la semana de cada niño y
+/// evitar repeticiones.
+class _AdminSemanaTab extends StatefulWidget {
   final List<Task> tareas;
   final Map<int, List<User>> asignados;
   final Future<void> Function() onRefresh;
@@ -257,6 +258,11 @@ class _AdminSemanaTab extends StatelessWidget {
     required this.onRefresh,
   });
 
+  @override
+  State<_AdminSemanaTab> createState() => _AdminSemanaTabState();
+}
+
+class _AdminSemanaTabState extends State<_AdminSemanaTab> {
   static const _diasOrden = [
     'lunes',
     'martes',
@@ -267,13 +273,36 @@ class _AdminSemanaTab extends StatelessWidget {
     'domingo',
   ];
 
+  int? _filtroUsuario; // null = todos
+
+  List<User> get _integrantes {
+    final seen = <int>{};
+    final result = <User>[];
+    for (final lista in widget.asignados.values) {
+      for (final u in lista) {
+        if (seen.add(u.id!)) result.add(u);
+      }
+    }
+    return result;
+  }
+
+  List<User> _asignadosDe(Task t) =>
+      widget.asignados[t.id] ?? const <User>[];
+
+  bool _cumpleFiltro(Task t) =>
+      _filtroUsuario == null ||
+      _asignadosDe(t).any((u) => u.id == _filtroUsuario);
+
   @override
   Widget build(BuildContext context) {
-    final activas = tareas.where((t) => t.activa).toList();
-    final conDia = activas.where((t) => t.dia.isNotEmpty).toList();
-    final sinDia = activas.where((t) => t.dia.isEmpty).toList();
+    final activas = widget.tareas.where((t) => t.activa).toList();
+    final conDia =
+        activas.where((t) => t.dia.isNotEmpty && _cumpleFiltro(t)).toList();
+    final sinDia =
+        activas.where((t) => t.dia.isEmpty && _cumpleFiltro(t)).toList();
+    final integrantes = _integrantes;
 
-    if (activas.isEmpty) {
+    if (activas.isEmpty && integrantes.isEmpty) {
       return const EmptyState(
         icon: Icons.calendar_view_week_outlined,
         message: 'Aún no hay tareas activas.',
@@ -281,11 +310,63 @@ class _AdminSemanaTab extends StatelessWidget {
       );
     }
 
+    final elegido = _filtroUsuario == null
+        ? null
+        : integrantes.where((u) => u.id == _filtroUsuario).firstOrNull;
+    var totalTareas = 0;
+    var totalXP = 0;
+    if (elegido != null) {
+      for (final t in activas) {
+        if (!_cumpleFiltro(t)) continue;
+        totalTareas++;
+        totalXP += t.puntos;
+      }
+    }
+
     return RefreshIndicator(
-      onRefresh: onRefresh,
+      onRefresh: widget.onRefresh,
       child: ListView(
         padding: const EdgeInsets.all(12),
         children: [
+          if (integrantes.isNotEmpty)
+            _FiltroSemana(
+              integrantes: integrantes,
+              seleccionado: _filtroUsuario,
+              onSeleccionar: (id) => setState(
+                  () => _filtroUsuario = _filtroUsuario == id ? null : id),
+            ),
+          if (elegido != null)
+            DuoCard(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              color: AppColors.verdeFondo,
+              margin: const EdgeInsets.only(bottom: 8),
+              child: Row(
+                children: [
+                  const Icon(Icons.person,
+                      color: AppColors.verdeOscuro, size: 20),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Semana de ${elegido.nombre}: $totalTareas tareas · $totalXP XP',
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w800,
+                        color: AppColors.verdeOscuro,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          if (_filtroUsuario != null &&
+              conDia.isEmpty &&
+              sinDia.isEmpty) ...[
+            EmptyState(
+              icon: Icons.person_search,
+              message: '${elegido?.nombre ?? 'Este'} no tiene tareas esta semana.',
+              hint: 'Asígnale tareas desde la pestaña Tareas.',
+            ),
+          ],
           for (final dia in _diasOrden)
             if (conDia.any((t) => t.dia == dia)) ...[
               _DiaSemanaHeader(
@@ -297,7 +378,7 @@ class _AdminSemanaTab extends StatelessWidget {
                   .where((t) => t.dia == dia)
                   .map((t) => _SemanaTaskCard(
                         tarea: t,
-                        asignados: asignados[t.id] ?? const [],
+                        asignados: _asignadosDe(t),
                       )),
               const SizedBox(height: 8),
             ],
@@ -305,7 +386,7 @@ class _AdminSemanaTab extends StatelessWidget {
             const Padding(
               padding: EdgeInsets.fromLTRB(4, 12, 4, 6),
               child: Text(
-                'Sin día asignado',
+                'Todos los días',
                 style: TextStyle(
                   fontWeight: FontWeight.w800,
                   fontSize: 16,
@@ -315,11 +396,112 @@ class _AdminSemanaTab extends StatelessWidget {
             ),
             ...sinDia.map((t) => _SemanaTaskCard(
                   tarea: t,
-                  asignados: asignados[t.id] ?? const [],
+                  asignados: _asignadosDe(t),
                 )),
             const SizedBox(height: 8),
           ],
         ],
+      ),
+    );
+  }
+}
+
+/// Píldoras para filtrar la semana por cada integrante.
+class _FiltroSemana extends StatelessWidget {
+  final List<User> integrantes;
+  final int? seleccionado;
+  final ValueChanged<int?> onSeleccionar;
+
+  const _FiltroSemana({
+    required this.integrantes,
+    required this.seleccionado,
+    required this.onSeleccionar,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        children: [
+          _PillFiltro(
+            nombre: 'Todos',
+            usuarioId: null,
+            activo: seleccionado == null,
+            onTap: () => onSeleccionar(null),
+          ),
+          const SizedBox(width: 8),
+          for (final u in integrantes)
+            Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: _PillFiltro(
+                nombre: u.nombre,
+                usuarioId: u.id,
+                avatar: u,
+                activo: seleccionado == u.id,
+                onTap: () => onSeleccionar(u.id),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PillFiltro extends StatelessWidget {
+  final String nombre;
+  final User? avatar;
+  final int? usuarioId;
+  final bool activo;
+  final VoidCallback onTap;
+
+  const _PillFiltro({
+    required this.nombre,
+    required this.usuarioId,
+    required this.activo,
+    required this.onTap,
+    this.avatar,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final color = avatar == null
+        ? AppColors.azul
+        : UserAvatar.colorDe(avatar!.nombre);
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+        decoration: BoxDecoration(
+          color: activo ? color : Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: color, width: 2),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x1A000000),
+              offset: Offset(0, 2),
+              blurRadius: 0,
+            ),
+          ],
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (avatar != null) ...[
+              UserAvatar(user: avatar!, radius: 10),
+              const SizedBox(width: 6),
+            ],
+            Text(
+              nombre,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w800,
+                color: activo ? Colors.white : color,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1115,9 +1297,23 @@ class _TaskFormDialogState extends State<_TaskFormDialog> {
   String _dia = '';
   final Set<int> _integrantesIds = {};
 
+  /// La dificultad se sugiere sola según los puntos: entre más vale la tarea,
+  /// más difícil es (10+ difícil, 6-9 media, 1-5 fácil). El admin puede
+  /// cambiarla después.
+  void _sugerirDificultad() {
+    final pts = int.tryParse(_puntosController.text);
+    if (pts == null) return;
+    final sugerida = pts >= 10
+        ? 'dificil'
+        : (pts >= 6 ? 'media' : 'facil');
+    if (_dificultad != sugerida) setState(() => _dificultad = sugerida);
+  }
+
   @override
   void initState() {
     super.initState();
+    _puntosController.addListener(_sugerirDificultad);
+    _sugerirDificultad();
     if (widget.initialData != null) {
       final d = widget.initialData!;
       _tituloController.text = d['titulo'] as String? ?? '';
