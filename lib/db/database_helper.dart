@@ -135,9 +135,97 @@ class DatabaseHelper {
       return;
     }
     _sinConexion = false;
-    _aplicar(data);
+    // Se fusiona registro por registro (el más reciente gana) en vez de
+    // reemplazar todo: así un cambio local que aún no se ha subido no se
+    // pierde al llegar datos remotos de otro dispositivo.
+    final victoriaLocal = _mezclar(data);
     _cargado = true;
     await _guardarCache();
+    if (victoriaLocal) {
+      // Hay cambios locales más nuevos que el servidor no conoce: subirlos.
+      await _client.pushDb(_exportar());
+    }
+  }
+
+  /// Combina los datos remotos con los locales igual que el servidor: por
+  /// cada registro gana el de `updated_at` más reciente (LWW) y los
+  /// tombstones de ambos lados se unen. Devuelve true si algún registro
+  /// local ganó (el servidor no lo tenía), para que el llamador lo suba.
+  bool _mezclar(Map data) {
+    var victoriaLocal = false;
+
+    // Unir tombstones de ambos lados (el más reciente por registro gana).
+    final tombstones = <String, Map>{
+      for (final t in _tombstones) '${t['box']}|${t['k']}': t,
+    };
+    final borradas = data['deleted'];
+    if (borradas is List) {
+      for (final t in borradas) {
+        if (t is! Map) continue;
+        final clave = '${t['box']}|${t['k']}';
+        final previo = tombstones[clave];
+        if (previo == null ||
+            (t['updated_at'] as int? ?? 0) >
+                (previo['updated_at'] as int? ?? 0)) {
+          tombstones[clave] = Map<String, dynamic>.from(t);
+        }
+      }
+    }
+    _tombstones
+      ..clear()
+      ..addAll(tombstones.values);
+
+    for (final entry in data.entries) {
+      if (entry.key == 'deleted') continue;
+      final boxName = entry.key;
+      final box = _box(boxName);
+      final lista = entry.value;
+      if (lista is! List) continue;
+
+      final locales = <String, Map>{
+        for (final m in box.items) _idKey(m, boxName): m,
+      };
+      final remotos = <String, Map>{};
+      for (final e in lista) {
+        if (e is! Map) continue;
+        final m = Map<String, dynamic>.from(e);
+        remotos[_idKey(m, boxName)] = m;
+      }
+
+      // Resolver cada registro: gana el de updated_at más reciente.
+      final resueltos = <Map>[];
+      for (final entrada in remotos.entries) {
+        final remoto = entrada.value;
+        final local = locales[entrada.key];
+        if (local != null &&
+            (local['updated_at'] as int? ?? 0) >
+                (remoto['updated_at'] as int? ?? 0)) {
+          resueltos.add(local);
+          victoriaLocal = true;
+        } else {
+          resueltos.add(remoto);
+        }
+      }
+      // Los registros locales que el servidor no tiene se conservan.
+      for (final loc in locales.values) {
+        if (!remotos.containsKey(_idKey(loc, boxName))) {
+          resueltos.add(loc);
+          victoriaLocal = true;
+        }
+      }
+
+      // Aplicar tombstones: un borrado más reciente que el registro lo quita.
+      final vivos = resueltos.where((r) {
+        final d = tombstones['$boxName|${_idKey(r, boxName)}'];
+        return !(d != null &&
+            (d['updated_at'] as int? ?? 0) > (r['updated_at'] as int? ?? 0));
+      }).toList();
+
+      box.items
+        ..clear()
+        ..addAll(vivos);
+    }
+    return victoriaLocal;
   }
 
   /// Guarda la copia actual completa de la base en el dispositivo.
@@ -1234,9 +1322,17 @@ class DatabaseHelper {
 class _Box {
   final List<Map> items = [];
 
+  /// Asigna un id único por caja (máximo existente + 1). No usa la posición
+  /// como id: al borrar registros del medio, dos dispositivos podrían asignar
+  /// el mismo id a personas/tareas distintas y el merge los confundiría.
   int add(Map map) {
     items.add(map);
-    return items.length - 1;
+    var maxId = 0;
+    for (final m in items) {
+      final id = m['id'];
+      if (id is int && id > maxId) maxId = id;
+    }
+    return maxId + 1;
   }
 
   bool get isEmpty => items.isEmpty;

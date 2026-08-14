@@ -5,7 +5,7 @@ import '../models/user.dart';
 
 /// Avatar de usuario: foto de perfil si existe, si no iniciales del nombre
 /// sobre un color determinista (sin emojis, que llegan corruptos de los datos).
-class UserAvatar extends StatelessWidget {
+class UserAvatar extends StatefulWidget {
   const UserAvatar({
     super.key,
     required this.user,
@@ -17,7 +17,13 @@ class UserAvatar extends StatelessWidget {
   final double radius;
   final String? foto;
 
-  /// Color estable por nombre, para que cada persona siempre tenga el mismo.
+  @override
+  State<UserAvatar> createState() => _UserAvatarState();
+}
+
+class _UserAvatarState extends State<UserAvatar> {
+  bool _fallo = false;
+
   static const _paleta = [
     Color(0xFF2E7D32), // verde
     Color(0xFF1565C0), // azul
@@ -55,7 +61,7 @@ class UserAvatar extends StatelessWidget {
   }
 
   String get _fotoUrl {
-    final f = foto ?? user.foto;
+    final f = widget.foto ?? widget.user.foto;
     if (f.isEmpty) return '';
     if (f.startsWith('http')) return f;
     return '${ServerConfig.baseUrl}$f';
@@ -64,21 +70,24 @@ class UserAvatar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final url = _fotoUrl;
-    if (url.isNotEmpty) {
+    if (url.isNotEmpty && !_fallo) {
       return CircleAvatar(
-        radius: radius,
+        radius: widget.radius,
         backgroundColor: Colors.grey.shade300,
         backgroundImage: NetworkImage(url),
-        onBackgroundImageError: (_, _) {},
+        onBackgroundImageError: (_, _) {
+          if (mounted) setState(() => _fallo = true);
+        },
       );
     }
+    final nombre = widget.user.nombre;
     return CircleAvatar(
-      radius: radius,
-      backgroundColor: colorDe(user.nombre),
+      radius: widget.radius,
+      backgroundColor: colorDe(nombre),
       child: Text(
-        iniciales(user.nombre),
+        iniciales(nombre),
         style: TextStyle(
-          fontSize: radius * 0.8,
+          fontSize: widget.radius * 0.8,
           fontWeight: FontWeight.w700,
           color: Colors.white,
         ),

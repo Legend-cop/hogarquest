@@ -11,6 +11,18 @@ const WRITE_TOKEN = config.writeToken;
 const MONGODB_URI = process.env.MONGODB_URI || '';
 let mongo = null;
 let mongoReady = false;
+let MongoMod = null; // módulo 'mongodb' importado dinámicamente
+let bucket = null;
+
+// Bucket GridFS para las fotos de perfil. Las fotos viven en MongoDB (no en
+// el disco del servidor), porque Render borra el disco local en cada redeploy.
+function getBucket() {
+  if (bucket) return bucket;
+  if (mongoReady && mongo && MongoMod) {
+    bucket = new MongoMod.GridFSBucket(mongo.db(), { bucketName: 'fotos' });
+  }
+  return bucket;
+}
 
 if (!fs.existsSync(fotosDir)) fs.mkdirSync(fotosDir, { recursive: true });
 
@@ -34,8 +46,9 @@ function saveDb() {
 async function initMongo() {
   if (!MONGODB_URI) return;
   try {
-    const { MongoClient } = await import('mongodb');
-    mongo = new MongoClient(MONGODB_URI, { serverSelectionTimeoutMS: 8000 });
+    const mod = await import('mongodb');
+    MongoMod = mod;
+    mongo = new MongoMod.MongoClient(MONGODB_URI, { serverSelectionTimeoutMS: 8000 });
     await mongo.connect();
     const col = mongo.db().collection('db');
     const doc = await col.findOne({ _id: 'hogarquest' });
@@ -326,9 +339,30 @@ const server = http.createServer((req, res) => {
     });
     req.on('end', () => {
       try {
-        const ext = (req.headers['content-type'] || '').includes('png') ? 'png' : 'jpg';
+        const mime = req.headers['content-type'] || 'image/jpeg';
+        const ext = mime.includes('png') ? 'png' : 'jpg';
         const name = Date.now() + '-' + Math.random().toString(36).slice(2, 8) + '.' + ext;
-        fs.writeFileSync(path.join(fotosDir, name), Buffer.concat(chunks));
+        const buf = Buffer.concat(chunks);
+        const b = getBucket();
+        if (b) {
+          // Con MongoDB: la foto se guarda en GridFS, dura a través de los
+          // redespliegues de Render (el disco local es efímero).
+          const up = b.openUploadStream(name, { contentType: mime });
+          up.on('error', (e) => {
+            try {
+              res.writeHead(400, { 'Content-Type': 'application/json' });
+              res.end(JSON.stringify({ ok: false, error: String(e) }));
+            } catch (_) {}
+          });
+          up.on('finish', () => {
+            const idHex = up.id.toHexString();
+            res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+            res.end(JSON.stringify({ ok: true, url: '/fotos/' + idHex }));
+          });
+          up.end(buf);
+          return;
+        }
+        fs.writeFileSync(path.join(fotosDir, name), buf);
         res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
         res.end(JSON.stringify({ ok: true, url: '/fotos/' + name }));
       } catch (e) {
@@ -339,9 +373,31 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  // Fotos de perfil guardadas junto al servidor.
+  // Fotos de perfil: se sirven desde GridFS (MongoDB) si está disponible,
+  // con respaldo en el archivo local cuando no hay conexión a Mongo.
   if (url.startsWith('/fotos/')) {
-    const f = path.join(fotosDir, path.basename(url));
+    const name = path.basename(url).toLowerCase();
+    const b = getBucket();
+    const esObjectId = /^[0-9a-f]{24}$/.test(name);
+    if (b && esObjectId) {
+      (async () => {
+        try {
+          const files = await b.find({ _id: MongoMod.ObjectId.createFromHexString(name) }).toArray();
+          if (files.length === 0) {
+            res.writeHead(404); res.end('Not found'); return;
+          }
+          const dl = b.openDownloadStream(files[0]._id);
+          res.writeHead(200, { 'Content-Type': files[0].contentType || 'image/jpeg' });
+          dl.on('error', () => { try { res.destroy(); } catch (_) {} });
+          dl.pipe(res);
+        } catch (e) {
+          res.writeHead(500, { 'Content-Type': 'text/plain' });
+          res.end('error');
+        }
+      })();
+      return;
+    }
+    const f = path.join(fotosDir, name);
     fs.readFile(f, (err, data) => {
       if (err) { res.writeHead(404); res.end('Not found'); return; }
       res.writeHead(200, { 'Content-Type': 'image/jpeg' });
