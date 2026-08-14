@@ -3,18 +3,15 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 /// Configuración del servidor HogarQuest para la app.
 ///
 /// - En **Web** las llamadas usan rutas relativas (`/api/...`), porque el
-///   navegador carga la web desde el mismo servidor (nube o local).
-/// - En **Android/Windows** la app prueba las direcciones en orden: la nube
-///   primero (funciona en cualquier parte) y luego la red local (en casa).
+///   navegador carga la web desde el mismo servidor (nube).
+/// - En **Android/Windows** la app se conecta siempre a la nube (Render),
+///   así las fotos y los datos viven en el mismo sitio que la web.
 class ServerConfig {
-  /// URL pública en la nube (Render/Railway). Pon aquí tu servicio cuando exista.
+  /// URL pública en la nube (Render).
   static const String cloudUrl = 'https://hogarquest.onrender.com';
 
-  /// Dirección local de la PC que corre el servidor en casa.
-  static const String localUrl = 'http://192.168.1.14:8080';
-
-  /// Orden en que la app nativa probará las direcciones.
-  static const List<String> candidateUrls = [cloudUrl, localUrl];
+  /// Orden en que la app nativa probará las direcciones (solo la nube).
+  static const List<String> candidateUrls = [cloudUrl];
 
   static const String writeToken = 'hq-aCOYOzECZhLg04xREE1a1WlAoRJp3exLGJB63cQB';
 
