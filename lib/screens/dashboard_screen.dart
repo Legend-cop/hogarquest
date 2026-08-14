@@ -170,7 +170,7 @@ class _IntegranteDashboard extends StatelessWidget {
                           _RachaPill(
                               icon: Icons.stars,
                               value: user.puntos,
-                              label: 'puntos XP'),
+                              label: 'XP acumulado'),
                         ],
                       ),
                     ],

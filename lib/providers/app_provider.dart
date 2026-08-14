@@ -606,6 +606,19 @@ Future<List<(User, int)>> ranking(String periodo) async {
     final inicio = periodo == 'semanal'
         ? hoy.subtract(const Duration(days: 6))
         : DateTime(hoy.year, hoy.month, 1);
+    // Retos finalizados de la semana incluida en el periodo: suman sus puntos
+    // bonus a quienes fueron aprobados.
+    final retos = await _db.getRetos();
+    final retosPuntos = <int, int>{};
+    for (final r in retos) {
+      if (!r.finalizado) continue;
+      final inicioReto =
+          DateTime(r.fechaInicio.year, r.fechaInicio.month, r.fechaInicio.day);
+      if (inicioReto.isBefore(inicio) || inicioReto.isAfter(hoy)) continue;
+      for (final uid in r.aprobados) {
+        retosPuntos[uid] = (retosPuntos[uid] ?? 0) + r.puntos;
+      }
+    }
     final resultado = <(User, int)>[];
     for (final u in usuarios) {
       final aps = await _db.getAsignacionesAprobadasDeUsuarioEnRango(
@@ -618,6 +631,7 @@ Future<List<(User, int)>> ranking(String periodo) async {
         final t = await _db.getTareaById(a.tareaId);
         pts += t?.puntos ?? 0;
       }
+      pts += retosPuntos[u.id!] ?? 0;
       resultado.add((u, pts));
     }
     resultado.sort((a, b) => b.$2.compareTo(a.$2));

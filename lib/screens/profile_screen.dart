@@ -234,7 +234,7 @@ class _AvatarCard extends StatelessWidget {
         ),
         const SizedBox(height: 8),
         Text(
-          '${user.puntos} puntos XP',
+          '${user.puntos} pts XP acumulados',
           style: const TextStyle(
               color: AppColors.grisMedio, fontWeight: FontWeight.w700),
         ),

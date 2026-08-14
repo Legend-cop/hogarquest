@@ -110,6 +110,10 @@ class _RankingScreenState extends State<RankingScreen>
           dias: periodo == 'semanal' ? 7 : 30);
       resultado.add((user, pts, perdidos));
     }
+    // Se ordena por el NETO del periodo (ganado - perdido), que es el que
+    // le queda al integrante.
+    resultado.sort((a, b) =>
+        (b.$2 - b.$3).compareTo(a.$2 - a.$3));
     return resultado;
   }
 
@@ -344,6 +348,13 @@ class _RankingList extends StatelessWidget {
                 fontSize: 20, fontWeight: FontWeight.w800, color: AppColors.grisOscuro),
           ),
         ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
+          child: Text(
+            'XP del periodo = tareas + retos − castigos. El orden es por el resultado final (neto).',
+            style: const TextStyle(fontSize: 11, color: AppColors.grisMedio),
+          ),
+        ),
         if (resumen != null)
           Padding(
             padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
@@ -513,6 +524,7 @@ class _RankRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final neto = puntos - perdidos;
     return DuoCard(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       color: destacado ? null : Colors.white,
@@ -554,16 +566,22 @@ class _RankRow extends StatelessWidget {
           Column(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              Text(
-                '$puntos XP',
-                style: const TextStyle(
-                    fontWeight: FontWeight.w800,
-                    fontSize: 15,
-                    color: AppColors.verdeOscuro),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text('$puntos',
+                      style: const TextStyle(
+                          fontWeight: FontWeight.w800,
+                          fontSize: 15,
+                          color: AppColors.verdeOscuro)),
+                  Text(' XP',
+                      style: const TextStyle(
+                          fontSize: 11, color: AppColors.grisMedio)),
+                ],
               ),
               if (perdidos > 0)
                 Text(
-                  '-$perdidos xp perdidos',
+                  '−$perdidos castigos',
                   style: const TextStyle(
                       fontSize: 11,
                       fontWeight: FontWeight.w700,
@@ -573,6 +591,14 @@ class _RankRow extends StatelessWidget {
                 Text('Nivel ${user.nivel}',
                     style: const TextStyle(
                         fontSize: 11, color: AppColors.grisMedio)),
+              Text(
+                '= $neto pts',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w800,
+                  color: neto >= 0 ? AppColors.verdeOscuro : AppColors.rojo,
+                ),
+              ),
             ],
           ),
         ],
