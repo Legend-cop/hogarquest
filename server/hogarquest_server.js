@@ -14,7 +14,7 @@ let mongoReady = false;
 
 if (!fs.existsSync(fotosDir)) fs.mkdirSync(fotosDir, { recursive: true });
 
-const EMPTY = { usuarios: [], tareas: [], asignaciones: [], recompensas: [], canjes: [], insignias: [], castigos: [], retos: [], meta: [] };
+const EMPTY = { usuarios: [], tareas: [], asignaciones: [], recompensas: [], canjes: [], insignias: [], castigos: [], retos: [], catalogos: [], meta: [] };
 const BOXES = Object.keys(EMPTY);
 let db = EMPTY;
 if (fs.existsSync(dataFile)) {

@@ -10,6 +10,7 @@ import '../models/castigo.dart';
 import '../models/redemption.dart';
 import '../models/reto.dart';
 import '../models/reward.dart';
+import '../models/tarea_catalogo.dart';
 import '../models/task.dart';
 import '../models/user.dart';
 import '../services/security_service.dart';
@@ -29,6 +30,7 @@ class DatabaseHelper {
   static const _boxInsignias = 'insignias';
   static const _boxCastigos = 'castigos';
   static const _boxRetos = 'retos';
+  static const _boxCatalogos = 'catalogos';
   static const _boxMeta = 'meta';
 
   final SyncClient _client = SyncClient();
@@ -84,6 +86,7 @@ class DatabaseHelper {
     _migrarContrasenas();
     await _seedIfEmpty();
     await _seedPerfilesSemana();
+    await _seedCatalogo();
     _migrarContrasenas();
     _persistir();
     _client.listen(() async {
@@ -266,6 +269,35 @@ class DatabaseHelper {
       await _addConId(insignias, _badgeToMap(Badge(id: 5, nombre: 'Racha de 7 días', descripcion: 'Mantuviste una racha de 7 días.', icono: 'local_fire_department')));
       await _addConId(insignias, _badgeToMap(Badge(id: 6, nombre: 'Experto del hogar', descripcion: 'Alcanzaste el nivel 5.', icono: 'emoji_events')));
     }
+  }
+
+  /// Catálogo por defecto de tareas con sus puntos. Solo se siembra si la caja
+  /// está vacía, para que las ediciones del admin se respeten.
+  Future<void> _seedCatalogo() async {
+    final box = _box(_boxCatalogos);
+    if (box.items.isNotEmpty) return;
+    const defs = <(String, int)>[
+      ('Orar', 10),
+      ('Leer la Biblia', 10),
+      ('Ir a la iglesia', 15),
+      ('Cocinar', 8),
+      ('Lavar baño', 7),
+      ('Lavar ropa', 6),
+      ('Trapear', 5),
+      ('Organizar patio', 5),
+      ('Organizar nevera', 5),
+      ('Lavar loza', 4),
+      ('Arreglar multimueble', 3),
+      ('Arreglar peinadora', 3),
+      ('Barrer', 2),
+      ('Doblar ropa', 2),
+      ('Ordenar cuarto', 1),
+    ];
+    for (final (titulo, puntos) in defs) {
+      await _addConId(
+          box, _catalogoToMap(TareaCatalogo(titulo: titulo, puntos: puntos)));
+    }
+    _marcar();
   }
 
   Future<void> _seedPerfilesSemana() async {
@@ -1108,6 +1140,59 @@ class DatabaseHelper {
       final m = box.items[i];
       if (m != null && m['id'] == id) {
         _tombstone(_boxRetos, m);
+        box.items.removeAt(i);
+        _marcar();
+        return;
+      }
+    }
+  }
+
+  // ---------------------------------------------------------------
+  // CATÁLOGO DE TAREAS
+  // ---------------------------------------------------------------
+  Map<String, dynamic> _catalogoToMap(TareaCatalogo c) {
+    return {'id': c.id, 'titulo': c.titulo, 'puntos': c.puntos};
+  }
+
+  TareaCatalogo _mapToCatalogo(Map map) {
+    return TareaCatalogo(
+      id: map['id'] as int?,
+      titulo: (map['titulo'] as String?) ?? '',
+      puntos: (map['puntos'] as int?) ?? 0,
+    );
+  }
+
+  Future<List<TareaCatalogo>> getCatalogo() async {
+    final box = _box(_boxCatalogos);
+    return box.items.map(_mapToCatalogo).toList();
+  }
+
+  Future<int> insertCatalogo(TareaCatalogo c) async {
+    final box = _box(_boxCatalogos);
+    return _addConId(box, _catalogoToMap(c));
+  }
+
+  Future<int> updateCatalogo(TareaCatalogo c) async {
+    final box = _box(_boxCatalogos);
+    for (var i = 0; i < box.items.length; i++) {
+      final m = box.items[i];
+      if (m != null && m['id'] == c.id) {
+        final nuevo = _catalogoToMap(c);
+        _sellar(nuevo);
+        box.items[i] = nuevo;
+        _marcar();
+        return i;
+      }
+    }
+    return _addConId(box, _catalogoToMap(c));
+  }
+
+  Future<void> deleteCatalogo(int id) async {
+    final box = _box(_boxCatalogos);
+    for (var i = box.items.length - 1; i >= 0; i--) {
+      final m = box.items[i];
+      if (m != null && m['id'] == id) {
+        _tombstone(_boxCatalogos, m);
         box.items.removeAt(i);
         _marcar();
         return;

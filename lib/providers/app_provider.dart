@@ -11,6 +11,7 @@ import '../services/push_service.dart';
 import '../models/redemption.dart';
 import '../models/reto.dart';
 import '../models/reward.dart';
+import '../models/tarea_catalogo.dart';
 import '../models/task.dart';
 import '../models/user.dart';
 import '../services/gamification_service.dart';
@@ -745,7 +746,40 @@ Future<List<(User, int)>> ranking(String periodo) async {
 
   Future<List<Reto>> listarRetos() => _db.getRetos();
 
-  /// Reto vigente de la semana en curso (si el admin creó uno).
+  // ---------------------------------------------------------------
+  // CATÁLOGO DE TAREAS (puntos por defecto)
+  // ---------------------------------------------------------------
+
+  Future<List<TareaCatalogo>> listarCatalogo() => _db.getCatalogo();
+
+  Future<void> crearCatalogo({
+    required String titulo,
+    required int puntos,
+  }) async {
+    await _db.insertCatalogo(TareaCatalogo(titulo: titulo, puntos: puntos));
+    notifyListeners();
+  }
+
+  Future<void> editarCatalogo(TareaCatalogo c) async {
+    await _db.updateCatalogo(c);
+    notifyListeners();
+  }
+
+  Future<void> eliminarCatalogo(int id) async {
+    await _db.deleteCatalogo(id);
+    notifyListeners();
+  }
+
+  /// Busca los puntos por defecto del catálogo para un título (si existe).
+  TareaCatalogo? buscarEnCatalogo(List<TareaCatalogo> catalogo, String titulo) {
+    final t = titulo.trim().toLowerCase();
+    if (t.isEmpty) return null;
+    for (final c in catalogo) {
+      if (c.titulo.trim().toLowerCase() == t) return c;
+    }
+    return null;
+  }
+
   Future<Reto?> retoDeLaSemana() async {
     final retos = await _db.getRetos();
     final hoy = DateTime.now();

@@ -7,6 +7,7 @@ import '../widgets/confetti.dart';
 import '../widgets/duo_widgets.dart';
 import '../widgets/empty_state.dart';
 import '../widgets/user_avatar.dart';
+import '../models/tarea_catalogo.dart';
 import '../models/task.dart';
 import '../models/assignment.dart';
 import '../models/user.dart';
@@ -126,12 +127,16 @@ class _AdminTasksListState extends State<_AdminTasksList>
     with SingleTickerProviderStateMixin {
   late final TabController _tabController;
   Map<int, List<User>> _asignados = {};
+  List<TareaCatalogo> _catalogo = [];
   bool _cargandoAsignados = true;
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
+    _tabController = TabController(length: 3, vsync: this);
+    _tabController.addListener(() {
+      if (mounted) setState(() {});
+    });
     _cargarAsignados();
   }
 
@@ -143,10 +148,14 @@ class _AdminTasksListState extends State<_AdminTasksList>
 
   Future<void> _cargarAsignados() async {
     final app = context.read<AppProvider>();
-    final map = await app.asignadosPorTarea();
+    final results = await Future.wait([
+      app.asignadosPorTarea(),
+      app.listarCatalogo(),
+    ]);
     if (!mounted) return;
     setState(() {
-      _asignados = map;
+      _asignados = results[0] as Map<int, List<User>>;
+      _catalogo = results[1] as List<TareaCatalogo>;
       _cargandoAsignados = false;
     });
   }
@@ -158,6 +167,7 @@ class _AdminTasksListState extends State<_AdminTasksList>
 
   @override
   Widget build(BuildContext context) {
+    final enCatalogo = _tabController.index == 2;
     return Scaffold(
       appBar: AppBar(
         title: const Text('Tareas del hogar'),
@@ -166,6 +176,7 @@ class _AdminTasksListState extends State<_AdminTasksList>
           tabs: const [
             Tab(text: 'Semana', icon: Icon(Icons.calendar_view_week_outlined)),
             Tab(text: 'Tareas', icon: Icon(Icons.checklist)),
+            Tab(text: 'Catálogo', icon: Icon(Icons.menu_book_outlined)),
           ],
         ),
       ),
@@ -185,7 +196,12 @@ class _AdminTasksListState extends State<_AdminTasksList>
                       _AdminListaTab(
                         tareas: widget.tareas,
                         asignados: _asignados,
+                        catalogo: _catalogo,
                         onRefresh: _recargar,
+                      ),
+                      _AdminCatalogoTab(
+                        catalogo: _catalogo,
+                        onChanged: _recargar,
                       ),
                     ],
                   ),
@@ -195,9 +211,11 @@ class _AdminTasksListState extends State<_AdminTasksList>
             child: SizedBox(
               width: double.infinity,
               child: DuoButton(
-                label: 'Nueva tarea',
+                label: enCatalogo ? 'Nueva en el catálogo' : 'Nueva tarea',
                 icon: Icons.add,
-                onPressed: () => _nuevaTarea(context),
+                onPressed: () => enCatalogo
+                    ? _nuevaEntradaCatalogo(context)
+                    : _nuevaTarea(context),
               ),
             ),
           ),
@@ -216,8 +234,32 @@ class _AdminTasksListState extends State<_AdminTasksList>
       builder: (_) => _TaskFormDialog(
         onSaved: (data) => _crearTareaDesdePestana(context, data: data),
         usuarios: usuarios,
+        catalogo: _catalogo,
       ),
     );
+  }
+
+  void _nuevaEntradaCatalogo(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (_) => _CatalogoFormDialog(
+        onSaved: (data) => _guardarCatalogo(context, data: data),
+      ),
+    );
+  }
+
+  Future<void> _guardarCatalogo(BuildContext context,
+      {Map<String, Object?>? data, int? id}) async {
+    final app = context.read<AppProvider>();
+    if (data == null) return;
+    final titulo = (data['titulo'] as String?) ?? '';
+    final puntos = (data['puntos'] as int?) ?? 0;
+    if (id == null) {
+      await app.crearCatalogo(titulo: titulo, puntos: puntos);
+    } else {
+      await app.editarCatalogo(TareaCatalogo(id: id, titulo: titulo, puntos: puntos));
+    }
+    await _recargar();
   }
 
   Future<void> _crearTareaDesdePestana(BuildContext context,
@@ -711,27 +753,301 @@ class _IntegrantePill extends StatelessWidget {
 class _AdminListaTab extends StatelessWidget {
   final List<Task> tareas;
   final Map<int, List<User>> asignados;
+  final List<TareaCatalogo> catalogo;
   final Future<void> Function() onRefresh;
 
   const _AdminListaTab({
     required this.tareas,
     required this.asignados,
+    required this.catalogo,
     required this.onRefresh,
   });
 
+  static const _diasOrden = [
+    'lunes',
+    'martes',
+    'miercoles',
+    'jueves',
+    'viernes',
+    'sabado',
+    'domingo',
+  ];
+
   @override
   Widget build(BuildContext context) {
+    final activas = tareas.where((t) => t.activa).toList();
+    final inactivas = tareas.where((t) => !t.activa).toList();
+    final conDia = activas.where((t) => t.dia.isNotEmpty).toList();
+    final sinDia = activas.where((t) => t.dia.isEmpty).toList();
+
+    if (tareas.isEmpty) {
+      return const EmptyState(
+        icon: Icons.checklist,
+        message: 'Aún no hay tareas registradas.',
+        hint: 'Pulsa "Nueva tarea" para crear la primera.',
+      );
+    }
+
     return RefreshIndicator(
       onRefresh: onRefresh,
-      child: ListView.builder(
+      child: ListView(
         padding: const EdgeInsets.all(12),
-        itemCount: tareas.length,
-        itemBuilder: (context, i) => _AdminTaskCard(
-          tarea: tareas[i],
-          asignados: asignados[tareas[i].id] ?? const [],
-          onRefresh: onRefresh,
+        children: [
+          for (final dia in _diasOrden)
+            if (conDia.any((t) => t.dia == dia)) ...[
+              _DiaSemanaHeader(
+                nombre: _nombreDia(dia),
+                total: conDia.where((t) => t.dia == dia).length,
+                esHoy: dia == _IntegranteTasksList._diaHoy,
+              ),
+              ...conDia
+                  .where((t) => t.dia == dia)
+                  .map((t) => _AdminTaskCard(
+                        tarea: t,
+                        asignados: asignados[t.id] ?? const [],
+                        catalogo: catalogo,
+                        onRefresh: onRefresh,
+                      )),
+              const SizedBox(height: 8),
+            ],
+          if (sinDia.isNotEmpty) ...[
+            const Padding(
+              padding: EdgeInsets.fromLTRB(4, 12, 4, 6),
+              child: Text(
+                'Todos los días',
+                style: TextStyle(
+                  fontWeight: FontWeight.w800,
+                  fontSize: 16,
+                  color: AppColors.grisMedio,
+                ),
+              ),
+            ),
+            ...sinDia.map((t) => _AdminTaskCard(
+                  tarea: t,
+                  asignados: asignados[t.id] ?? const [],
+                  catalogo: catalogo,
+                  onRefresh: onRefresh,
+                )),
+            const SizedBox(height: 8),
+          ],
+          if (inactivas.isNotEmpty) ...[
+            const Padding(
+              padding: EdgeInsets.fromLTRB(4, 12, 4, 6),
+              child: Text(
+                'Inactivas',
+                style: TextStyle(
+                  fontWeight: FontWeight.w800,
+                  fontSize: 16,
+                  color: AppColors.grisMedio,
+                ),
+              ),
+            ),
+            ...inactivas.map((t) => _AdminTaskCard(
+                  tarea: t,
+                  asignados: asignados[t.id] ?? const [],
+                  catalogo: catalogo,
+                  onRefresh: onRefresh,
+                )),
+            const SizedBox(height: 8),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _AdminCatalogoTab extends StatelessWidget {
+  final List<TareaCatalogo> catalogo;
+  final Future<void> Function() onChanged;
+
+  const _AdminCatalogoTab({required this.catalogo, required this.onChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    if (catalogo.isEmpty) {
+      return const EmptyState(
+        icon: Icons.menu_book_outlined,
+        message: 'Registra tus tareas con sus puntos.',
+        hint: 'Pulsa "Nueva en el catálogo" para empezar. Al crear una tarea, '
+            'los puntos se rellenarán solos según el título.',
+      );
+    }
+
+    return RefreshIndicator(
+      onRefresh: onChanged,
+      child: ListView(
+        padding: const EdgeInsets.all(12),
+        children: [
+          const Padding(
+            padding: EdgeInsets.fromLTRB(4, 0, 4, 6),
+            child: Text(
+              'Puntos por defecto de cada tarea. Se prellenan al crear una '
+              'tarea nueva y se pueden editar.',
+              style: TextStyle(fontSize: 12, color: AppColors.grisMedio),
+            ),
+          ),
+          for (final c in catalogo) _CatalogoCard(entrada: c, onChanged: onChanged),
+        ],
+      ),
+    );
+  }
+}
+
+class _CatalogoCard extends StatelessWidget {
+  final TareaCatalogo entrada;
+  final Future<void> Function() onChanged;
+
+  const _CatalogoCard({required this.entrada, required this.onChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    final color = _colorPorDificultad(_dificultadPara(entrada.puntos));
+    return DuoCard(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      margin: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        children: [
+          DuoIconBadge(icon: Icons.menu_book, color: color, size: 38),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  entrada.titulo,
+                  style: const TextStyle(
+                      fontWeight: FontWeight.w700, fontSize: 14),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  '${entrada.puntos} pts · ${_capitalizar(_dificultadPara(entrada.puntos))}',
+                  style: const TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.grisMedio),
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.edit, color: AppColors.azul),
+            onPressed: () => _editar(context),
+          ),
+          IconButton(
+            icon: const Icon(Icons.delete, color: AppColors.rojo),
+            onPressed: () => _eliminar(context),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _dificultadPara(int puntos) {
+    if (puntos >= 10) return 'dificil';
+    if (puntos >= 6) return 'media';
+    return 'facil';
+  }
+
+  void _editar(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (_) => _CatalogoFormDialog(
+        inicial: entrada,
+        onSaved: (data) => _guardar(context, data: data, id: entrada.id),
+      ),
+    );
+  }
+
+  Future<void> _guardar(BuildContext context,
+      {required Map<String, Object?> data, int? id}) async {
+    final app = context.read<AppProvider>();
+    final titulo = (data['titulo'] as String?) ?? '';
+    final puntos = (data['puntos'] as int?) ?? 0;
+    await app.editarCatalogo(
+        TareaCatalogo(id: id, titulo: titulo, puntos: puntos));
+    await onChanged();
+  }
+
+  void _eliminar(BuildContext context) async {
+    final app = context.read<AppProvider>();
+    await app.eliminarCatalogo(entrada.id!);
+    await onChanged();
+  }
+}
+
+class _CatalogoFormDialog extends StatefulWidget {
+  final TareaCatalogo? inicial;
+  final Function(Map<String, Object?>)? onSaved;
+
+  const _CatalogoFormDialog({this.inicial, this.onSaved});
+
+  @override
+  State<_CatalogoFormDialog> createState() => _CatalogoFormDialogState();
+}
+
+class _CatalogoFormDialogState extends State<_CatalogoFormDialog> {
+  final _formKey = GlobalKey<FormState>();
+  late final TextEditingController _tituloController;
+  late final TextEditingController _puntosController;
+
+  @override
+  void initState() {
+    super.initState();
+    _tituloController =
+        TextEditingController(text: widget.inicial?.titulo ?? '');
+    _puntosController =
+        TextEditingController(text: (widget.inicial?.puntos ?? 0).toString());
+  }
+
+  @override
+  void dispose() {
+    _tituloController.dispose();
+    _puntosController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text(widget.inicial == null ? 'Nueva entrada' : 'Editar entrada'),
+      content: Form(
+        key: _formKey,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextFormField(
+              controller: _tituloController,
+              decoration: const InputDecoration(labelText: 'Título'),
+              validator: (v) => v == null || v.isEmpty ? 'Requerido' : null,
+            ),
+            const SizedBox(height: 12),
+            TextFormField(
+              controller: _puntosController,
+              decoration: const InputDecoration(labelText: 'Puntos'),
+              keyboardType: TextInputType.number,
+              validator: (v) =>
+                  (v == null || int.tryParse(v) == null) ? 'Número válido' : null,
+            ),
+          ],
         ),
       ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancelar'),
+        ),
+        FilledButton(
+          onPressed: () {
+            if (!_formKey.currentState!.validate()) return;
+            widget.onSaved?.call({
+              'titulo': _tituloController.text,
+              'puntos': int.tryParse(_puntosController.text) ?? 0,
+            });
+            Navigator.pop(context);
+          },
+          child: const Text('Guardar'),
+        ),
+      ],
     );
   }
 }
@@ -739,11 +1055,13 @@ class _AdminListaTab extends StatelessWidget {
 class _AdminTaskCard extends StatelessWidget {
   final Task tarea;
   final List<User> asignados;
+  final List<TareaCatalogo> catalogo;
   final Future<void> Function()? onRefresh;
 
   const _AdminTaskCard({
     required this.tarea,
     this.asignados = const [],
+    this.catalogo = const [],
     this.onRefresh,
   });
 
@@ -814,6 +1132,7 @@ class _AdminTaskCard extends StatelessWidget {
         },
         onSaved: (data) => _crearEditarTarea(context, data: data, id: tarea.id),
         usuarios: usuarios,
+        catalogo: catalogo,
       ),
     );
   }
@@ -1279,8 +1598,14 @@ class _TaskFormDialog extends StatefulWidget {
   final Map<String, Object?>? initialData;
   final Function(Map<String, Object?>)? onSaved;
   final List<User> usuarios;
+  final List<TareaCatalogo> catalogo;
 
-  const _TaskFormDialog({this.initialData, this.onSaved, this.usuarios = const []});
+  const _TaskFormDialog({
+    this.initialData,
+    this.onSaved,
+    this.usuarios = const [],
+    this.catalogo = const [],
+  });
 
   @override
   State<_TaskFormDialog> createState() => _TaskFormDialogState();
@@ -1296,6 +1621,23 @@ class _TaskFormDialogState extends State<_TaskFormDialog> {
   String _frecuencia = 'unica';
   String _dia = '';
   final Set<int> _integrantesIds = {};
+  bool _puntosManual = false;
+
+  /// Si el título coincide con el catálogo y el admin no tocó los puntos,
+  /// rellena los puntos por defecto (y la dificultad se sugiere sola).
+  void _autofillDesdeCatalogo() {
+    if (_puntosManual || widget.catalogo.isEmpty) return;
+    final t = _tituloController.text.trim().toLowerCase();
+    if (t.isEmpty) return;
+    for (final c in widget.catalogo) {
+      if (c.titulo.trim().toLowerCase() == t) {
+        if (_puntosController.text != c.puntos.toString()) {
+          _puntosController.text = c.puntos.toString();
+        }
+        return;
+      }
+    }
+  }
 
   /// La dificultad se sugiere sola según los puntos: entre más vale la tarea,
   /// más difícil es (10+ difícil, 6-9 media, 1-5 fácil). El admin puede
@@ -1313,7 +1655,7 @@ class _TaskFormDialogState extends State<_TaskFormDialog> {
   void initState() {
     super.initState();
     _puntosController.addListener(_sugerirDificultad);
-    _sugerirDificultad();
+    _tituloController.addListener(_autofillDesdeCatalogo);
     if (widget.initialData != null) {
       final d = widget.initialData!;
       _tituloController.text = d['titulo'] as String? ?? '';
@@ -1331,6 +1673,7 @@ class _TaskFormDialogState extends State<_TaskFormDialog> {
         }
       }
     }
+    _sugerirDificultad();
   }
 
   @override
@@ -1362,6 +1705,7 @@ class _TaskFormDialogState extends State<_TaskFormDialog> {
                       controller: _puntosController,
                       decoration: const InputDecoration(labelText: 'Puntos'),
                       keyboardType: TextInputType.number,
+                      onChanged: (_) => _puntosManual = true,
                       validator: (v) =>
                           (v == null || int.tryParse(v) == null)
                               ? 'Número válido'
