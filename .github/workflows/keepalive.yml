@@ -1,0 +1,20 @@
+name: Keepalive HogarQuest
+
+# Mantiene despierto el servidor gratuito (Koyeb) avisándole cada 4 minutos.
+# GitHub Actions es gratis e ilimitado en repositorios públicos.
+on:
+  schedule:
+    - cron: '*/4 * * * *'
+  workflow_dispatch:
+
+env:
+  SERVER_URL: ${{ vars.SERVER_URL || 'https://hogarquest.koyeb.app' }}
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping API para evitar que el servidor se duerma
+        run: |
+          curl -fsS -o /dev/null -m 30 "$SERVER_URL/api/db" \
+            || curl -fsS -o /dev/null -m 30 "$SERVER_URL/"
