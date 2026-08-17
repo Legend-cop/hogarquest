@@ -395,12 +395,13 @@ class DatabaseHelper {
     final meta = _box(_boxMeta);
 
     // La semana se regenera sola: al cambiar la versión del horario o al
-    // empezar una semana nueva (lunes). Solo se crean tareas desde HOY en
+    // empezar una semana nueva (domingo). Solo se crean tareas desde HOY en
     // adelante, así un reinicio a mitad de semana no genera tareas ya
-    // vencidas (y por lo tanto no castiga al instante).
-    const versionSeed = 5;
+    // vencidas (y por lo tanto no castiga al instante). La semana va de
+    // domingo a sábado (domingo = primer día).
+    const versionSeed = 6;
     final hoy = DateTime.now();
-    final inicioSemana = hoy.subtract(Duration(days: hoy.weekday - 1));
+    final inicioSemana = hoy.subtract(Duration(days: hoy.weekday % 7));
     final claveSemana =
         '${inicioSemana.year}-${inicioSemana.month}-${inicioSemana.day}';
     final semilla = meta.get('seed_horario');
@@ -414,11 +415,10 @@ class DatabaseHelper {
     }
 
     const dias = [
-      'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado', 'domingo',
+      'domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado',
     ];
-    // 0 = lunes … 6 = domingo. Los días anteriores a hoy no se crean.
-    final desdeHoy = hoy.weekday - 1;
-    int idxDia(String d) => dias.indexOf(d);
+    // 0 = domingo … 6 = sábado. Los días anteriores a hoy no se crean.
+    final desdeHoy = hoy.weekday % 7;
 
     int? idUsuario(String nombre) {
       for (final m in usuarios.items) {
@@ -482,84 +482,150 @@ class DatabaseHelper {
       )));
     }
 
-    await crearUsuario('Natalia', '👩');
+    final nataliaId = await crearUsuario('Natalia', '👩');
     final emanuelId = await crearUsuario('Emanuel', '👦');
     final saraisId = await crearUsuario('Sarais', '👧');
-    final nataliaId = await crearUsuario('Natalia', '👩');
 
-    // Reparto justo: las tareas individuales rotan entre los 3 niños.
-    final ninos = [emanuelId, saraisId, nataliaId];
-    var rot = 0;
-    int proximo() {
-      final k = ninos[rot % ninos.length];
-      rot++;
-      return k;
-    }
+    final ids = <String, int>{
+      'Natalia': nataliaId,
+      'Emanuel': emanuelId,
+      'Sarais': saraisId,
+    };
+
+    String dificultad(int puntos) =>
+        puntos >= 10 ? 'dificil' : (puntos >= 6 ? 'media' : 'facil');
 
     Future<void> conjunta(int tareaId) async {
-      for (final n in ninos) {
-        await asignar(n, tareaId);
+      for (final id in ids.values) {
+        await asignar(id, tareaId);
       }
     }
 
-    // --- DIARIAS CONJUNTAS (las más importantes): oración y devocional. ---
+    // Distribución semanal de tareas del hogar: [día][niño] -> tareas.
+    // Cada tarea: (título, descripción, puntos).
+    const planHogar = <String, Map<String, List<(String, String, int)>>>{
+      'domingo': {
+        'Natalia': [
+          ('Cocinar', 'Preparar la comida del día.', 8),
+          ('Lavar ropa', 'Lavar la ropa de la semana.', 6),
+        ],
+        'Emanuel': [
+          ('Lavar loza', 'Lavar los platos de las 3 comidas.', 4),
+          ('Lavar baño', 'Lavar el baño completo.', 7),
+          ('Arreglar peinadora', 'Arreglar las peinadoras.', 3),
+        ],
+        'Sarais': [
+          ('Barrer', 'Barrer el piso de la casa.', 2),
+          ('Ordenar cuarto', 'Organizar y ordenar el cuarto.', 1),
+          ('Trapear', 'Trapear el piso.', 5),
+          ('Doblar ropa', 'Doblar la ropa limpia.', 2),
+          ('Arreglar multimueble', 'Arreglar el multimueble.', 3),
+        ],
+      },
+      'lunes': {
+        'Natalia': [
+          ('Barrer', 'Barrer el piso de la casa.', 2),
+          ('Ordenar cuarto', 'Organizar y ordenar el cuarto.', 1),
+          ('Organizar patio', 'Organizar el patio.', 5),
+        ],
+        'Emanuel': [
+          ('Cocinar', 'Preparar la comida del día.', 8),
+        ],
+        'Sarais': [
+          ('Lavar loza', 'Lavar los platos de las 3 comidas.', 4),
+        ],
+      },
+      'martes': {
+        'Natalia': [
+          ('Lavar loza', 'Lavar los platos de las 3 comidas.', 4),
+          ('Lavar ropa', 'Lavar la ropa de la semana.', 6),
+        ],
+        'Emanuel': [
+          ('Cocinar', 'Preparar la comida del día.', 8),
+          ('Trapear', 'Trapear el piso.', 5),
+        ],
+        'Sarais': [
+          ('Barrer', 'Barrer el piso de la casa.', 2),
+          ('Ordenar cuarto', 'Organizar y ordenar el cuarto.', 1),
+          ('Doblar ropa', 'Doblar la ropa limpia.', 2),
+        ],
+      },
+      'miercoles': {
+        'Natalia': [
+          ('Cocinar', 'Preparar la comida del día.', 8),
+          ('Arreglar multimueble', 'Arreglar el multimueble.', 3),
+          ('Arreglar peinadora', 'Arreglar las peinadoras.', 3),
+        ],
+        'Emanuel': [
+          ('Ordenar cuarto', 'Organizar y ordenar el cuarto.', 1),
+          ('Lavar baño', 'Lavar el baño completo.', 7),
+        ],
+        'Sarais': [
+          ('Barrer', 'Barrer el piso de la casa.', 2),
+          ('Lavar loza', 'Lavar los platos de las 3 comidas.', 4),
+        ],
+      },
+      'jueves': {
+        'Natalia': [
+          ('Barrer', 'Barrer el piso de la casa.', 2),
+          ('Ordenar cuarto', 'Organizar y ordenar el cuarto.', 1),
+          ('Lavar ropa', 'Lavar la ropa de la semana.', 6),
+        ],
+        'Emanuel': [
+          ('Trapear', 'Trapear el piso.', 5),
+          ('Organizar nevera', 'Organizar la nevera.', 5),
+        ],
+        'Sarais': [
+          ('Cocinar', 'Preparar la comida del día.', 8),
+          ('Lavar loza', 'Lavar los platos de las 3 comidas.', 4),
+          ('Doblar ropa', 'Doblar la ropa limpia.', 2),
+        ],
+      },
+      'viernes': {
+        'Emanuel': [
+          ('Barrer', 'Barrer el piso de la casa.', 2),
+        ],
+        'Sarais': [
+          ('Ordenar cuarto', 'Organizar y ordenar el cuarto.', 1),
+          ('Cocinar', 'Preparar la comida del día.', 8),
+          ('Lavar loza', 'Lavar los platos de las 3 comidas.', 4),
+        ],
+        // Natalia: descanso, sin tareas del hogar.
+      },
+      // 'sabado': DÍA DEL SEÑOR, sin tareas del hogar.
+    };
+
+    // --- TAREAS DEL HOGAR (distribución fija por día y niño). ---
     for (var i = desdeHoy; i < dias.length; i++) {
       final dia = dias[i];
-      final oracion = await crearTarea('Orar', 'Hacer oración en familia.', 10, 'facil', dia);
-      final devocional = await crearTarea('Hacer el devocional', 'Realizar el devocional del día.', 10, 'facil', dia);
+      final porPersona = planHogar[dia];
+      if (porPersona == null) continue;
+      for (final entry in porPersona.entries) {
+        final usuarioId = ids[entry.key];
+        if (usuarioId == null) continue;
+        for (final (titulo, descripcion, puntos) in entry.value) {
+          final tareaId = await crearTarea(
+              titulo, descripcion, puntos, dificultad(puntos), dia);
+          await asignar(usuarioId, tareaId);
+        }
+      }
+    }
+
+    // --- VIDA ESPIRITUAL (todos): oración y Biblia cada día.
+    // --- Sábado (DÍA DEL SEÑOR): además, ir a la iglesia. ---
+    for (var i = desdeHoy; i < dias.length; i++) {
+      final dia = dias[i];
+      final oracion =
+          await crearTarea('Orar', 'Hacer oración en familia.', 10, 'facil', dia);
       await conjunta(oracion);
-      await conjunta(devocional);
-    }
-
-    // --- SÁBADO: ir a la iglesia (conjunta, importante). ---
-    if (idxDia('sabado') >= desdeHoy) {
-      final iglesia = await crearTarea('Ir a la iglesia', 'Asistir al servicio en familia.', 10, 'facil', 'sabado');
-      await conjunta(iglesia);
-    }
-
-    // --- BASURA (conjunta): domingos, martes y jueves. ---
-    for (final dia in ['domingo', 'martes', 'jueves']) {
-      if (idxDia(dia) < desdeHoy) continue;
-      final basura = await crearTarea('Botar la basura', 'Botar la basura del día.', 15, 'facil', dia);
-      await conjunta(basura);
-    }
-
-    // --- ESCALERAS (conjunta, cada 3 días): martes y viernes. ---
-    for (final dia in ['martes', 'viernes']) {
-      if (idxDia(dia) < desdeHoy) continue;
-      final escaleras = await crearTarea('Lavar las escaleras', 'Lavar las escaleras de la casa.', 25, 'media', dia);
-      await conjunta(escaleras);
-    }
-
-    // --- DIARIAS INDIVIDUALES (rotan justo entre los 3). ---
-    for (var i = desdeHoy; i < dias.length; i++) {
-      final dia = dias[i];
-      if (dia == 'sabado') continue;
-      final barrer = await crearTarea('Barrer', 'Barrer el piso de la casa.', 20, 'facil', dia);
-      final loza = await crearTarea('Lavar la loza', 'Lavar los platos de las 3 comidas.', 25, 'media', dia);
-      final cuarto = await crearTarea('Arreglar el cuarto', 'Organizar y ordenar el cuarto.', 20, 'facil', dia);
-      await asignar(proximo(), barrer);
-      await asignar(proximo(), loza);
-      await asignar(proximo(), cuarto);
-    }
-
-    // --- BAÑO (cada 3 días): lunes, jueves, domingo. ---
-    for (final dia in ['lunes', 'jueves', 'domingo']) {
-      if (idxDia(dia) < desdeHoy) continue;
-      final bano = await crearTarea('Lavar el baño', 'Lavar el baño completo.', 35, 'dificil', dia);
-      await asignar(proximo(), bano);
-    }
-
-    // --- INTERMEDIAS: lavar ropa y peinadoras. ---
-    for (final dia in ['miercoles', 'viernes']) {
-      if (idxDia(dia) < desdeHoy) continue;
-      final ropa = await crearTarea('Lavar la ropa', 'Lavar la ropa de la semana.', 40, 'dificil', dia);
-      await asignar(proximo(), ropa);
-    }
-    for (final dia in ['miercoles', 'viernes']) {
-      if (idxDia(dia) < desdeHoy) continue;
-      final peinadoras = await crearTarea('Arreglar las peinadoras', 'Arreglar las peinadoras.', 15, 'facil', dia);
-      await asignar(proximo(), peinadoras);
+      final biblia = await crearTarea(
+          'Leer la Biblia', 'Leer la Biblia en familia.', 10, 'facil', dia);
+      await conjunta(biblia);
+      if (dia == 'sabado') {
+        final iglesia = await crearTarea(
+            'Ir a la iglesia', 'Asistir al servicio en familia.', 10, 'facil', dia);
+        await conjunta(iglesia);
+      }
     }
   }
 
