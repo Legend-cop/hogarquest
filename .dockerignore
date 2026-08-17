@@ -1,0 +1,7 @@
+**/node_modules
+**/build
+.git
+**/fotos
+server/fotos
+firebase-credentials.json
+*.log
