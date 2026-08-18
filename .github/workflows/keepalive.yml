@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
 
 env:
-  SERVER_URL: ${{ vars.SERVER_URL || 'https://hogarquest.koyeb.app' }}
+  SERVER_URL: ${{ vars.SERVER_URL || 'https://hogarquest-75f7c.containers.snapdeploy.app' }}
 
 jobs:
   ping:

@@ -7,8 +7,8 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 /// - En **Android/Windows** la app se conecta siempre a la nube (Render),
 ///   así las fotos y los datos viven en el mismo sitio que la web.
 class ServerConfig {
-  /// URL pública en la nube (Render).
-  static const String cloudUrl = 'https://hogarquest.onrender.com';
+  /// URL pública en la nube (SnapDeploy, servidor gratis).
+  static const String cloudUrl = 'https://hogarquest-75f7c.containers.snapdeploy.app';
 
   /// Orden en que la app nativa probará las direcciones (solo la nube).
   static const List<String> candidateUrls = [cloudUrl];
