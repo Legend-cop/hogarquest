@@ -311,6 +311,12 @@ function broadcast() {
 const server = http.createServer((req, res) => {
   const url = req.url.split('?')[0];
 
+  if (url === '/health') {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ ok: true, up: true }));
+    return;
+  }
+
   if (url === '/api/events') {
     res.writeHead(200, {
       'Content-Type': 'text/event-stream',
