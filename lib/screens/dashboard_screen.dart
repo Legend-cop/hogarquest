@@ -107,7 +107,6 @@ class _IntegranteDashboard extends StatelessWidget {
             GamificationService.puntosParaSiguiente(user.puntos, user.nivel);
 
         final dias = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
-        final fechaBase = DateTime.now();
 
         return Center(
           child: ConstrainedBox(
@@ -180,11 +179,7 @@ class _IntegranteDashboard extends StatelessWidget {
                 DuoCard(
                   child: BarChart(
                     data: puntosPorDia,
-                    labelFor: (d) {
-                      final diff = fechaBase.difference(d).inDays;
-                      final idx = (6 - diff).clamp(0, 6);
-                      return dias[idx];
-                    },
+                    labelFor: (d) => dias[d.weekday - 1],
                   ),
                 ),
                 SectionHeader(
@@ -297,7 +292,6 @@ class _AdminDashboardState extends State<_AdminDashboard> {
         final integrantes = (est['usuarios'] as int?) ?? 0;
 
         final dias = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
-        final fechaBase = DateTime.now();
 
         return Center(
           child: ConstrainedBox(
@@ -401,11 +395,7 @@ class _AdminDashboardState extends State<_AdminDashboard> {
                 DuoCard(
                   child: BarChart(
                     data: puntosPorDia,
-                    labelFor: (d) {
-                      final diff = fechaBase.difference(d).inDays;
-                      final idx = (6 - diff).clamp(0, 6);
-                      return dias[idx];
-                    },
+                    labelFor: (d) => dias[d.weekday - 1],
                   ),
                 ),
                 SectionHeader(key: _keyAprobaciones, title: 'Pendientes de aprobación'),

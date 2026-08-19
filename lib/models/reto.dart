@@ -6,6 +6,7 @@ class Reto {
   final String descripcion;
   final int puntos;
   final DateTime fechaInicio; // lunes de la semana del reto
+  final DateTime? fechaFin; // fecha y hora límite (opcional); si no se pone, vence al terminar la semana
   final List<int> cumplidos; // ids de usuarios que lo cumplieron
   final List<int> aprobados; // ids de usuarios aprobados (reciben puntos)
   final bool finalizado;
@@ -16,6 +17,7 @@ class Reto {
     required this.descripcion,
     required this.puntos,
     required this.fechaInicio,
+    this.fechaFin,
     this.cumplidos = const [],
     this.aprobados = const [],
     this.finalizado = false,
@@ -30,12 +32,20 @@ class Reto {
 
   bool get vigente => !finalizado;
 
+  /// True si ya pasó la fecha y hora límite del reto.
+  bool vencido(DateTime ahora) {
+    final f = fechaFin;
+    if (f == null) return false;
+    return ahora.isAfter(f);
+  }
+
   Reto copyWith({
     int? id,
     String? titulo,
     String? descripcion,
     int? puntos,
     DateTime? fechaInicio,
+    DateTime? fechaFin,
     List<int>? cumplidos,
     List<int>? aprobados,
     bool? finalizado,
@@ -46,6 +56,7 @@ class Reto {
       descripcion: descripcion ?? this.descripcion,
       puntos: puntos ?? this.puntos,
       fechaInicio: fechaInicio ?? this.fechaInicio,
+      fechaFin: fechaFin ?? this.fechaFin,
       cumplidos: cumplidos ?? this.cumplidos,
       aprobados: aprobados ?? this.aprobados,
       finalizado: finalizado ?? this.finalizado,
@@ -59,6 +70,7 @@ class Reto {
       'descripcion': descripcion,
       'puntos': puntos,
       'fecha_inicio': fechaInicio.toIso8601String(),
+      'fecha_fin': fechaFin?.toIso8601String(),
       'cumplidos': cumplidos,
       'aprobados': aprobados,
       'finalizado': finalizado ? 1 : 0,
@@ -73,6 +85,7 @@ class Reto {
       puntos: (map['puntos'] as int?) ?? 0,
       fechaInicio: DateTime.tryParse((map['fecha_inicio'] as String?) ?? '') ??
           DateTime.now(),
+      fechaFin: DateTime.tryParse((map['fecha_fin'] as String?) ?? ''),
       cumplidos: (map['cumplidos'] as List?)?.cast<int>() ?? const [],
       aprobados: (map['aprobados'] as List?)?.cast<int>() ?? const [],
       finalizado: (map['finalizado'] as int? ?? 0) == 1,

@@ -1352,6 +1352,7 @@ class DatabaseHelper {
       'descripcion': r.descripcion,
       'puntos': r.puntos,
       'fecha_inicio': r.fechaInicio.toIso8601String(),
+      'fecha_fin': r.fechaFin?.toIso8601String(),
       'cumplidos': r.cumplidos,
       'aprobados': r.aprobados,
       'finalizado': r.finalizado ? 1 : 0,

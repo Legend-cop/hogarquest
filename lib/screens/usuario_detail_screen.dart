@@ -482,7 +482,6 @@ class _GraficoCumplimiento extends StatelessWidget {
   Widget build(BuildContext context) {
     final app = context.read<AppProvider>();
     final dias = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
-    final fechaBase = DateTime.now();
 
     return DuoCard(
       padding: const EdgeInsets.all(12),
@@ -501,11 +500,7 @@ class _GraficoCumplimiento extends StatelessWidget {
                 final datos = snap.data ?? const <(DateTime, int)>[];
                 return BarChart(
                   data: datos,
-                  labelFor: (d) {
-                    final diff = fechaBase.difference(d).inDays;
-                    final idx = (6 - diff).clamp(0, 6);
-                    return dias[idx];
-                  },
+                  labelFor: (d) => dias[d.weekday - 1],
                 );
               },
             ),

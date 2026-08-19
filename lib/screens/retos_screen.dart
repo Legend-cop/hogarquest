@@ -12,6 +12,14 @@ import '../widgets/confetti.dart';
 import '../widgets/duo_widgets.dart';
 import '../widgets/section_header.dart';
 
+String _formatoFecha(DateTime f) {
+  final d = f.day.toString().padLeft(2, '0');
+  final m = f.month.toString().padLeft(2, '0');
+  final h = f.hour.toString().padLeft(2, '0');
+  final min = f.minute.toString().padLeft(2, '0');
+  return '$d/$m/${f.year} $h:$min';
+}
+
 class RetosScreen extends StatefulWidget {
   const RetosScreen({super.key});
 
@@ -121,6 +129,13 @@ class _NuevoRetoDialogState extends State<_NuevoRetoDialog> {
   late final TextEditingController _puntos = TextEditingController(
       text: (widget.inicial?.puntos ?? 30).toString());
   String _categoria = 'limpieza';
+  DateTime? _fechaFin;
+
+  @override
+  void initState() {
+    super.initState();
+    _fechaFin = widget.inicial?.fechaFin;
+  }
 
   static const _categorias = {
     'limpieza': 'Limpieza en equipo',
@@ -181,6 +196,15 @@ class _NuevoRetoDialogState extends State<_NuevoRetoDialog> {
                 labelText: 'Puntos bonus por integrante',
               ),
             ),
+            const SizedBox(height: 12),
+            Text('Vencimiento (opcional)',
+                style: const TextStyle(
+                    fontSize: 13, fontWeight: FontWeight.w700)),
+            const SizedBox(height: 6),
+            _FechaFinPicker(
+              fechaFin: _fechaFin,
+              onChanged: (v) => setState(() => _fechaFin = v),
+            ),
           ],
         ),
       ),
@@ -205,12 +229,16 @@ class _NuevoRetoDialogState extends State<_NuevoRetoDialog> {
             final inicial = widget.inicial;
             if (inicial == null) {
               await app.crearReto(
-                  titulo: titulo, descripcion: descripcion, puntos: pts);
+                  titulo: titulo,
+                  descripcion: descripcion,
+                  puntos: pts,
+                  fechaFin: _fechaFin);
             } else {
               await app.editarReto(inicial.copyWith(
                 titulo: titulo,
                 descripcion: descripcion,
                 puntos: pts,
+                fechaFin: _fechaFin,
               ));
             }
             if (context.mounted) Navigator.pop(context);
@@ -218,6 +246,71 @@ class _NuevoRetoDialogState extends State<_NuevoRetoDialog> {
           child: Text(editando ? 'Guardar' : 'Crear reto'),
         ),
       ],
+    );
+  }
+}
+
+/// Selector de fecha y hora límite para el reto (opcional).
+class _FechaFinPicker extends StatelessWidget {
+  final DateTime? fechaFin;
+  final ValueChanged<DateTime?> onChanged;
+
+  const _FechaFinPicker({required this.fechaFin, required this.onChanged});
+
+  String _formato(DateTime f) => _formatoFecha(f);
+
+  Future<void> _elegir(BuildContext context) async {
+    final ahora = DateTime.now();
+    final fecha = await showDatePicker(
+      context: context,
+      initialDate: fechaFin ?? ahora,
+      firstDate: ahora.subtract(const Duration(days: 1)),
+      lastDate: DateTime(ahora.year + 1),
+    );
+    if (fecha == null || !context.mounted) return;
+    final hora = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.fromDateTime(fechaFin ?? ahora),
+    );
+    if (hora == null) return;
+    onChanged(
+        DateTime(fecha.year, fecha.month, fecha.day, hora.hour, hora.minute));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final f = fechaFin;
+    return DuoCard(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      color: AppColors.verdeFondo,
+      child: Row(
+        children: [
+          Icon(
+            f == null ? Icons.schedule : Icons.event_available,
+            size: 20,
+            color: f == null ? AppColors.grisMedio : AppColors.verdeOscuro,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              f == null
+                  ? 'Sin límite (vence al terminar la semana)'
+                  : 'Vence el ${_formato(f!)}',
+              style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600),
+            ),
+          ),
+          TextButton(
+            onPressed: () => _elegir(context),
+            child: const Text('Elegir'),
+          ),
+          if (f != null)
+            IconButton(
+              icon: const Icon(Icons.close, size: 18),
+              tooltip: 'Quitar fecha límite',
+              onPressed: () => onChanged(null),
+            ),
+        ],
+      ),
     );
   }
 }
@@ -342,6 +435,20 @@ class _RetoCard extends StatelessWidget {
           const SizedBox(height: 8),
           Text(reto.descripcion,
               style: const TextStyle(fontSize: 14, height: 1.4)),
+          if (reto.fechaFin != null) ...[
+            const SizedBox(height: 6),
+            Row(
+              children: [
+                const Icon(Icons.schedule, size: 14, color: AppColors.grisMedio),
+                const SizedBox(width: 4),
+                Text('Vence el ${_formatoFecha(reto.fechaFin!)}',
+                    style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.grisMedio)),
+              ],
+            ),
+          ],
           const SizedBox(height: 16),
           Text(
             'Cumplido por ${reto.cumplidos.length} integrante${reto.cumplidos.length == 1 ? '' : 's'}',
@@ -357,20 +464,24 @@ class _RetoCard extends StatelessWidget {
                     onPressed: () => app.marcarRetoCumplido(reto),
                   )
           else ...[
-            if (reto.cumplidos.isNotEmpty && !reto.finalizado)
-Center(
-                  child: TextButton.icon(
-                    onPressed: () {
-                      lanzarConfeti(context);
-                      unawaited(CelebrationService.instance.success());
-                      app.aprobarReto(reto);
-                    },
-                    icon: const Icon(Icons.check_circle, color: AppColors.verde),
-                    label: const Text('Aprobar y dar puntos',
-                        style: TextStyle(color: AppColors.verde)),
+            if (!reto.finalizado)
+              Center(
+                child: TextButton.icon(
+                  onPressed: () {
+                    lanzarConfeti(context);
+                    unawaited(CelebrationService.instance.success());
+                    app.aprobarReto(reto);
+                  },
+                  icon: const Icon(Icons.check_circle, color: AppColors.verde),
+                  label: Text(
+                    reto.cumplidos.isEmpty
+                        ? 'Finalizar reto'
+                        : 'Finalizar y dar puntos',
+                    style: const TextStyle(color: AppColors.verde),
                   ),
-                )
-            else if (reto.finalizado)
+                ),
+              )
+            else
               const Text('Reto finalizado',
                   style: TextStyle(color: AppColors.grisMedio, fontSize: 12)),
           ],

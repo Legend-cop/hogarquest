@@ -46,6 +46,7 @@ class AppProvider extends ChangeNotifier {
     }
     _db.onRemoteChange = _datosRemotos;
     await aplicarCastigosVencidos();
+    await finalizarRetosVencidos();
     _cargando = false;
     _sinConexion = _db.sinConexion;
     notifyListeners();
@@ -74,6 +75,7 @@ class AppProvider extends ChangeNotifier {
       if (u != null) _usuarioActual = u;
     }
     await aplicarCastigosVencidos();
+    await finalizarRetosVencidos();
     notifyListeners();
   }
 
@@ -828,6 +830,7 @@ Future<List<(User, int)>> ranking(String periodo) async {
 
   /// Todos los retos vigentes de la semana actual (puede haber varios).
   Future<List<Reto>> retosDeLaSemana() async {
+    await finalizarRetosVencidos(notificar: false);
     final retos = await _db.getRetos();
     final hoy = DateTime.now();
     return retos.where((r) => r.vigente && r.perteneceASemana(hoy)).toList();
@@ -837,6 +840,7 @@ Future<List<(User, int)>> ranking(String periodo) async {
     required String titulo,
     required String descripcion,
     required int puntos,
+    DateTime? fechaFin,
   }) async {
     final hoy = DateTime.now();
     final lunes =
@@ -847,6 +851,7 @@ Future<List<(User, int)>> ranking(String periodo) async {
       descripcion: descripcion,
       puntos: puntos,
       fechaInicio: inicio,
+      fechaFin: fechaFin,
     ));
     notifyListeners();
   }
@@ -874,8 +879,10 @@ Future<List<(User, int)>> ranking(String periodo) async {
     notifyListeners();
   }
 
-  /// El admin aprueba el reto: otorga los puntos bonus a quienes lo cumplieron.
-  Future<void> aprobarReto(Reto reto) async {
+  /// Otorga los puntos bonus del reto a quienes lo cumplieron y lo marca
+  /// finalizado. Usado tanto por la aprobación manual del admin como por el
+  /// vencimiento automático.
+  Future<void> _otorgarPuntosReto(Reto reto) async {
     final cumplidos = reto.cumplidos;
     for (final uid in cumplidos) {
       final user = await _db.getUserById(uid);
@@ -890,7 +897,28 @@ Future<List<(User, int)>> ranking(String periodo) async {
       aprobados: cumplidos,
       finalizado: true,
     ));
-    if (cumplidos.isNotEmpty) notifyListeners();
+  }
+
+  /// El admin aprueba el reto: otorga los puntos bonus a quienes lo cumplieron.
+  Future<void> aprobarReto(Reto reto) async {
+    await _otorgarPuntosReto(reto);
+    if (reto.cumplidos.isNotEmpty) notifyListeners();
+  }
+
+  /// Cierra automáticamente los retos vencidos: da los puntos a quienes ya lo
+  /// cumplieron y los quita de los retos vigentes. Nunca descuenta puntos.
+  Future<void> finalizarRetosVencidos({bool notificar = true}) async {
+    final retos = await _db.getRetos();
+    final hoy = DateTime.now();
+    var huboCambio = false;
+    for (final r in retos) {
+      if (r.finalizado) continue;
+      final vencido = r.vencido(hoy) || !r.perteneceASemana(hoy);
+      if (!vencido) continue;
+      await _otorgarPuntosReto(r);
+      huboCambio = true;
+    }
+    if (huboCambio && notificar) notifyListeners();
   }
 
   /// Revierte un castigo (lo perdona): devuelve los puntos al integrante,
@@ -952,7 +980,14 @@ Future<List<(User, int)>> ranking(String periodo) async {
 
   /// Fecha límite de una tarea según su día de la semana o fecha explícita.
   DateTime? _fechaVencimiento(Task t) {
-    if (t.fechaLimite != null) return t.fechaLimite;
+    if (t.fechaLimite != null) {
+      final fl = t.fechaLimite!;
+      // Si solo se eligió fecha (medianoche), la tarea vence al final de ese día.
+      if (fl.hour == 0 && fl.minute == 0 && fl.second == 0) {
+        return DateTime(fl.year, fl.month, fl.day, 23, 59);
+      }
+      return fl;
+    }
     if (t.dia.isEmpty) return null;
     // La semana empieza en domingo (día 0), igual que el plan semanal.
     const dias = [
