@@ -320,6 +320,7 @@ class _AdminTasksListState extends State<_AdminTasksList>
       integrantesIds: integrantesIds,
       dia: data['dia'] as String? ?? '',
     );
+    if (context.mounted) Navigator.pop(context);
     await _recargar();
   }
 }
@@ -344,13 +345,13 @@ class _AdminSemanaTab extends StatefulWidget {
 
 class _AdminSemanaTabState extends State<_AdminSemanaTab> {
   static const _diasOrden = [
+    'domingo',
     'lunes',
     'martes',
     'miercoles',
     'jueves',
     'viernes',
     'sabado',
-    'domingo',
   ];
 
   int? _filtroUsuario; // null = todos
@@ -827,13 +828,13 @@ class _AdminListaTab extends StatelessWidget {
   });
 
   static const _diasOrden = [
+    'domingo',
     'lunes',
     'martes',
     'miercoles',
     'jueves',
     'viernes',
     'sabado',
-    'domingo',
   ];
 
   @override
@@ -1310,13 +1311,13 @@ class _IntegranteTasksList extends StatelessWidget {
   const _IntegranteTasksList({required this.misTareas});
 
   static const _diasOrden = [
+    'domingo',
     'lunes',
     'martes',
     'miercoles',
     'jueves',
     'viernes',
     'sabado',
-    'domingo',
   ];
 
   @override
@@ -1395,10 +1396,11 @@ class _IntegranteTasksList extends StatelessWidget {
 
   /// Día de hoy en minúsculas según la semana (mismo formato que `Task.dia`).
   static String get _diaHoy {
+    // Semana que empieza en domingo (índice 0).
     const nombres = [
-      'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado', 'domingo',
+      'domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado',
     ];
-    return nombres[DateTime.now().weekday - 1];
+    return nombres[DateTime.now().weekday % 7];
   }
 }
 
@@ -1850,13 +1852,13 @@ class _TaskFormDialogState extends State<_TaskFormDialog> {
                 hint: const Text('Día de la semana'),
                 decoration: const InputDecoration(labelText: 'Día'),
                 items: const [
+                  DropdownMenuItem(value: 'domingo', child: Text('Domingo')),
                   DropdownMenuItem(value: 'lunes', child: Text('Lunes')),
                   DropdownMenuItem(value: 'martes', child: Text('Martes')),
                   DropdownMenuItem(value: 'miercoles', child: Text('Miércoles')),
                   DropdownMenuItem(value: 'jueves', child: Text('Jueves')),
                   DropdownMenuItem(value: 'viernes', child: Text('Viernes')),
                   DropdownMenuItem(value: 'sabado', child: Text('Sábado')),
-                  DropdownMenuItem(value: 'domingo', child: Text('Domingo')),
                 ],
                 onChanged: (v) => setState(() => _dia = v ?? ''),
               ),

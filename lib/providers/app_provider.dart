@@ -817,12 +817,15 @@ Future<List<(User, int)>> ranking(String periodo) async {
   }
 
   Future<Reto?> retoDeLaSemana() async {
+    final retos = await retosDeLaSemana();
+    return retos.isEmpty ? null : retos.first;
+  }
+
+  /// Todos los retos vigentes de la semana actual (puede haber varios).
+  Future<List<Reto>> retosDeLaSemana() async {
     final retos = await _db.getRetos();
     final hoy = DateTime.now();
-    for (final r in retos) {
-      if (r.vigente && r.perteneceASemana(hoy)) return r;
-    }
-    return null;
+    return retos.where((r) => r.vigente && r.perteneceASemana(hoy)).toList();
   }
 
   Future<void> crearReto({
@@ -834,26 +837,25 @@ Future<List<(User, int)>> ranking(String periodo) async {
     final lunes =
         hoy.subtract(Duration(days: hoy.weekday - 1));
     final inicio = DateTime(lunes.year, lunes.month, lunes.day);
-    // Si ya existe un reto vigente esta semana, lo reemplaza.
-    final existente = await retoDeLaSemana();
-    if (existente != null) {
-      await _db.updateReto(existente.copyWith(
-        titulo: titulo,
-        descripcion: descripcion,
-        puntos: puntos,
-        fechaInicio: inicio,
-        cumplidos: const [],
-        aprobados: const [],
-        finalizado: false,
-      ));
-    } else {
-      await _db.insertReto(Reto(
-        titulo: titulo,
-        descripcion: descripcion,
-        puntos: puntos,
-        fechaInicio: inicio,
-      ));
-    }
+    await _db.insertReto(Reto(
+      titulo: titulo,
+      descripcion: descripcion,
+      puntos: puntos,
+      fechaInicio: inicio,
+    ));
+    notifyListeners();
+  }
+
+  /// El admin edita un reto (título, descripción o puntos).
+  Future<void> editarReto(Reto reto) async {
+    await _db.updateReto(reto);
+    notifyListeners();
+  }
+
+  /// El admin elimina un reto (solo se quita el reto; los puntos ya
+  /// otorgados por retos aprobados no se tocan).
+  Future<void> eliminarReto(int id) async {
+    await _db.eliminarReto(id);
     notifyListeners();
   }
 
@@ -942,14 +944,15 @@ Future<List<(User, int)>> ranking(String periodo) async {
   DateTime? _fechaVencimiento(Task t) {
     if (t.fechaLimite != null) return t.fechaLimite;
     if (t.dia.isEmpty) return null;
+    // La semana empieza en domingo (día 0), igual que el plan semanal.
     const dias = [
-      'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado', 'domingo',
+      'domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado',
     ];
     final idx = dias.indexOf(t.dia);
     if (idx < 0) return null;
     final hoy = DateTime.now();
-    // Fecha del día asignado en la semana actual.
-    final diff = hoy.weekday - 1 - idx;
+    // weekday%7: domingo=0, lunes=1 … sábado=6 (mismo índice que `dias`).
+    final diff = hoy.weekday % 7 - idx;
     final fecha = hoy.subtract(Duration(days: diff));
     return DateTime(fecha.year, fecha.month, fecha.day, 23, 59);
   }

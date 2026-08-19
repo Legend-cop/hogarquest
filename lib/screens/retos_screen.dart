@@ -44,26 +44,46 @@ class _RetosScreenState extends State<RetosScreen> {
     final user = app.usuarioActual;
     if (user == null) return const SizedBox.shrink();
     return Scaffold(
-      appBar: AppBar(title: const Text('Retos de la semana')),
+      appBar: AppBar(
+        title: const Text('Retos de la semana'),
+        actions: [
+          if (user.esAdmin)
+            IconButton(
+              icon: const Icon(Icons.add_circle_outline),
+              tooltip: 'Nuevo reto',
+              onPressed: () => _abrirRetoDialog(context),
+            ),
+        ],
+      ),
       body: RefreshIndicator(
         onRefresh: () async => setState(() {}),
-        child: FutureBuilder<Reto?>(
-          future: app.retoDeLaSemana(),
+        child: FutureBuilder<List<Reto>>(
+          future: app.retosDeLaSemana(),
           builder: (context, snap) {
             if (snap.connectionState != ConnectionState.done) {
               return const Center(child: CircularProgressIndicator());
             }
-            final reto = snap.data;
+            final retos = snap.data ?? const <Reto>[];
             return Center(
               child: ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 760),
                 child: ListView(
                   padding: const EdgeInsets.all(16),
                   children: [
-                    if (reto == null)
+                    if (retos.isEmpty)
                       _SinRetoCard(esAdmin: user.esAdmin)
-                    else
-                      _RetoCard(reto: reto, user: user),
+                    else ...[
+                      for (final reto in retos)
+                        _RetoCard(reto: reto, user: user),
+                      if (user.esAdmin) ...[
+                        const SizedBox(height: 8),
+                        DuoButton(
+                          label: 'Agregar otro reto',
+                          icon: Icons.add_circle_outline,
+                          onPressed: () => _abrirRetoDialog(context),
+                        ),
+                      ],
+                    ],
                     const SizedBox(height: 16),
                     _RetosPasados(esAdmin: user.esAdmin),
                   ],
@@ -75,20 +95,31 @@ class _RetosScreenState extends State<RetosScreen> {
       ),
     );
   }
+
+  void _abrirRetoDialog(BuildContext context, {Reto? inicial}) {
+    showDialog(
+      context: context,
+      builder: (_) => _NuevoRetoDialog(inicial: inicial),
+    );
+  }
 }
 
-/// Crea un reto semanal (solo admin).
+/// Crea o edita un reto semanal (solo admin).
 class _NuevoRetoDialog extends StatefulWidget {
-  const _NuevoRetoDialog();
+  final Reto? inicial;
+  const _NuevoRetoDialog({this.inicial});
 
   @override
   State<_NuevoRetoDialog> createState() => _NuevoRetoDialogState();
 }
 
 class _NuevoRetoDialogState extends State<_NuevoRetoDialog> {
-  final _titulo = TextEditingController();
-  final _descripcion = TextEditingController();
-  final _puntos = TextEditingController(text: '30');
+  late final TextEditingController _titulo =
+      TextEditingController(text: widget.inicial?.titulo ?? '');
+  late final TextEditingController _descripcion =
+      TextEditingController(text: widget.inicial?.descripcion ?? '');
+  late final TextEditingController _puntos = TextEditingController(
+      text: (widget.inicial?.puntos ?? 30).toString());
   String _categoria = 'limpieza';
 
   static const _categorias = {
@@ -108,8 +139,10 @@ class _NuevoRetoDialogState extends State<_NuevoRetoDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final editando = widget.inicial != null;
     return AlertDialog(
-      title: const Text('Nuevo reto de la semana'),
+      title: Text(
+          editando ? 'Editar reto de la semana' : 'Nuevo reto de la semana'),
       content: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -168,12 +201,21 @@ class _NuevoRetoDialogState extends State<_NuevoRetoDialog> {
               );
               return;
             }
-            await context
-                .read<AppProvider>()
-                .crearReto(titulo: titulo, descripcion: descripcion, puntos: pts);
+            final app = context.read<AppProvider>();
+            final inicial = widget.inicial;
+            if (inicial == null) {
+              await app.crearReto(
+                  titulo: titulo, descripcion: descripcion, puntos: pts);
+            } else {
+              await app.editarReto(inicial.copyWith(
+                titulo: titulo,
+                descripcion: descripcion,
+                puntos: pts,
+              ));
+            }
             if (context.mounted) Navigator.pop(context);
           },
-          child: const Text('Crear reto'),
+          child: Text(editando ? 'Guardar' : 'Crear reto'),
         ),
       ],
     );
@@ -224,6 +266,34 @@ class _RetoCard extends StatelessWidget {
   final User user;
   const _RetoCard({required this.reto, required this.user});
 
+  Future<void> _confirmarEliminar(BuildContext context, Reto reto) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('¿Eliminar reto?'),
+        content: Text(
+            'Se eliminará "${reto.titulo}". Los puntos ya otorgados por '
+            'retos aprobados no se modifican.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Eliminar'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    if (!context.mounted) return;
+    final id = reto.id;
+    if (id != null) {
+      await context.read<AppProvider>().eliminarReto(id);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final app = context.read<AppProvider>();
@@ -245,6 +315,22 @@ class _RetoCard extends StatelessWidget {
                     style: const TextStyle(
                         fontSize: 18, fontWeight: FontWeight.w800)),
               ),
+              if (esAdmin) ...[
+                IconButton(
+                  icon: const Icon(Icons.edit, color: AppColors.azul, size: 20),
+                  tooltip: 'Editar reto',
+                  onPressed: () => showDialog(
+                    context: context,
+                    builder: (_) => _NuevoRetoDialog(inicial: reto),
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.delete_outline,
+                      color: AppColors.rojo, size: 20),
+                  tooltip: 'Eliminar reto',
+                  onPressed: () => _confirmarEliminar(context, reto),
+                ),
+              ],
               Chip(
                 avatar: const Icon(Icons.stars, size: 16),
                 label: Text('+${reto.puntos} pts',
