@@ -446,9 +446,22 @@ class DatabaseHelper {
     Future<int> crearUsuario(String nombre, String avatar) async {
       final id = idUsuario(nombre);
       if (id != null) return id;
+      String colorLibre() {
+        final usados = <String>{
+          for (final m in usuarios.items)
+            if (User.claveColor(m['color_tema'] as String?) != null)
+              User.claveColor(m['color_tema'] as String?)!,
+        };
+        for (final n in User.nombresPaleta) {
+          if (!usados.contains(n)) return n;
+        }
+        return User.nombresPaleta.first;
+      }
+
       return _addConId(usuarios, _userToMap(User(
         nombre: nombre,
         avatar: avatar,
+        colorTema: colorLibre(),
         password: '1234',
         rol: 'integrante',
       )));
@@ -811,7 +824,12 @@ class DatabaseHelper {
 
   Future<int> insertUsuario(User u) async {
     final box = _box(_boxUsuarios);
-    return _addConId(box, _userToMap(_asegurarHash(u)));
+    var usuario = u;
+    if (User.claveColor(u.colorTema) == null) {
+      final integrantes = await getIntegrantes(soloActivos: false);
+      usuario = u.copyWith(colorTema: User.colorLibre(integrantes));
+    }
+    return _addConId(box, _userToMap(_asegurarHash(usuario)));
   }
 
   Future<List<User>> getUsuarios() async {

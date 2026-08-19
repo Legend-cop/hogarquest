@@ -33,6 +33,45 @@ class User {
 
   bool get esAdmin => rol == 'admin';
 
+  /// Paleta de colores para los integrantes (cada uno con uno distinto).
+  static const List<String> nombresPaleta = [
+    'verde', 'azul', 'morado', 'rojo', 'naranja', 'cian', 'rosado', 'cafe',
+  ];
+
+  /// Normaliza el color guardado (ej: 'Rojo', 'Café', 'cafe') a una clave.
+  static String? claveColor(String? tema) {
+    final t = (tema ?? '').trim().toLowerCase();
+    if (t.isEmpty) return null;
+    for (final n in nombresPaleta) {
+      if (t == n) return n;
+    }
+    if (t.startsWith('cafe') || t.startsWith('marr') || t == 'café') {
+      return 'cafe';
+    }
+    if (t.startsWith('naran') || t.startsWith('anaranj') || t == 'orange') {
+      return 'naranja';
+    }
+    if (t.startsWith('ros') || t == 'pink') return 'rosado';
+    if (t.startsWith('cian') || t == 'cyan') return 'cian';
+    if (t.startsWith('rojo') || t == 'red') return 'rojo';
+    if (t.startsWith('verde') || t == 'green') return 'verde';
+    if (t.startsWith('azul') || t == 'blue') return 'azul';
+    if (t.startsWith('mora') || t == 'purple' || t == 'violeta') return 'morado';
+    return null;
+  }
+
+  /// Elige un color de la paleta que ningún integrante esté usando todavía.
+  static String colorLibre(List<User> usuarios) {
+    final usados = <String>{
+      for (final u in usuarios)
+        if (claveColor(u.colorTema) != null) claveColor(u.colorTema)!,
+    };
+    for (final n in nombresPaleta) {
+      if (!usados.contains(n)) return n;
+    }
+    return nombresPaleta.first;
+  }
+
   User copyWith({
     int? id,
     String? nombre,

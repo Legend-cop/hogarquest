@@ -331,6 +331,24 @@ class _AdminSemanaTabState extends State<_AdminSemanaTab> {
   List<User> _asignadosDe(Task t) =>
       widget.asignados[t.id] ?? const <User>[];
 
+  /// Claves "dia|titulo" donde la misma tarea se repite para la misma persona
+  /// el mismo día (duplicado real que conviene revisar).
+  Set<String> _duplicadasEn(List<Task> tareas) {
+    final porDiaTitulo = <String, Map<int, int>>{};
+    for (final t in tareas) {
+      if (t.dia.isEmpty) continue;
+      final key = '${t.dia}|${t.titulo}';
+      final mapa = porDiaTitulo.putIfAbsent(key, () => <int, int>{});
+      for (final u in _asignadosDe(t)) {
+        mapa[u.id ?? -1] = (mapa[u.id ?? -1] ?? 0) + 1;
+      }
+    }
+    return {
+      for (final e in porDiaTitulo.entries)
+        if (e.value.values.any((c) => c > 1)) e.key,
+    };
+  }
+
   bool _cumpleFiltro(Task t) =>
       _filtroUsuario == null ||
       _asignadosDe(t).any((u) => u.id == _filtroUsuario);
@@ -343,6 +361,7 @@ class _AdminSemanaTabState extends State<_AdminSemanaTab> {
     final sinDia =
         activas.where((t) => t.dia.isEmpty && _cumpleFiltro(t)).toList();
     final integrantes = _integrantes;
+    final duplicadas = _duplicadasEn(conDia);
 
     if (activas.isEmpty && integrantes.isEmpty) {
       return const EmptyState(
@@ -421,6 +440,7 @@ class _AdminSemanaTabState extends State<_AdminSemanaTab> {
                   .map((t) => _SemanaTaskCard(
                         tarea: t,
                         asignados: _asignadosDe(t),
+                        duplicada: duplicadas.contains('${t.dia}|${t.titulo}'),
                       )),
               const SizedBox(height: 8),
             ],
@@ -439,6 +459,7 @@ class _AdminSemanaTabState extends State<_AdminSemanaTab> {
             ...sinDia.map((t) => _SemanaTaskCard(
                   tarea: t,
                   asignados: _asignadosDe(t),
+                  duplicada: false,
                 )),
             const SizedBox(height: 8),
           ],
@@ -510,7 +531,7 @@ class _PillFiltro extends StatelessWidget {
   Widget build(BuildContext context) {
     final color = avatar == null
         ? AppColors.azul
-        : UserAvatar.colorDe(avatar!.nombre);
+        : UserAvatar.colorDe(avatar!);
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -623,12 +644,16 @@ class _DiaSemanaHeader extends StatelessWidget {
 class _SemanaTaskCard extends StatelessWidget {
   final Task tarea;
   final List<User> asignados;
+  final bool duplicada;
 
-  const _SemanaTaskCard({required this.tarea, required this.asignados});
+  const _SemanaTaskCard({
+    required this.tarea,
+    required this.asignados,
+    required this.duplicada,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final duplicada = asignados.length > 1;
     return DuoCard(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       margin: const EdgeInsets.only(bottom: 8),
@@ -696,8 +721,7 @@ class _SemanaTaskCard extends StatelessWidget {
                   const SizedBox(width: 6),
                   Expanded(
                     child: Text(
-                      'Asignada a ${asignados.length} integrantes. '
-                      'Si es para uno solo, edítala y quita a los demás.',
+                      'La misma tarea se repite para la misma persona el mismo día.',
                       style: const TextStyle(
                         fontSize: 11,
                         fontWeight: FontWeight.w700,
@@ -720,7 +744,8 @@ class _IntegrantePill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = UserAvatar.colorDe(nombre);
+    final color = UserAvatar.colorDe(
+        User(nombre: nombre, password: '', rol: 'integrante'));
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(

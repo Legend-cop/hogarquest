@@ -29,7 +29,15 @@ class UserAvatar extends StatefulWidget {
     Color(0xFF5D4037), // café
   ];
 
-  static Color colorDe(String nombre) {
+  /// Color de la paleta según una clave de color ('verde', 'naranja', ...).
+  static Color? colorPorClave(String? clave) {
+    final c = User.claveColor(clave);
+    if (c == null) return null;
+    return _paleta[User.nombresPaleta.indexOf(c)];
+  }
+
+  /// Color estable por nombre (solo de respaldo para usuarios sin color).
+  static Color colorDeNombre(String nombre) {
     final nombreNormal = nombre.trim().toLowerCase();
     if (nombreNormal.isEmpty) return _paleta.first;
     var h = 0;
@@ -38,6 +46,10 @@ class UserAvatar extends StatefulWidget {
     }
     return _paleta[h % _paleta.length];
   }
+
+  /// Color del usuario: el guardado si existe, si no el del nombre.
+  static Color colorDe(User u) =>
+      colorPorClave(u.colorTema) ?? colorDeNombre(u.nombre);
 
   static String iniciales(String nombre) {
     final partes = nombre
@@ -84,7 +96,7 @@ class _UserAvatarState extends State<UserAvatar> {
     final nombre = widget.user.nombre;
     return CircleAvatar(
       radius: widget.radius,
-      backgroundColor: UserAvatar.colorDe(nombre),
+      backgroundColor: UserAvatar.colorDe(widget.user),
       child: Text(
         UserAvatar.iniciales(nombre),
         style: TextStyle(
