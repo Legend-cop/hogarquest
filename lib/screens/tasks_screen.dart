@@ -171,6 +171,13 @@ class _AdminTasksListState extends State<_AdminTasksList>
     return Scaffold(
       appBar: AppBar(
         title: const Text('Tareas del hogar'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.settings_outlined),
+            tooltip: 'Castigos automáticos',
+            onPressed: () => _ajustesCastigos(context),
+          ),
+        ],
         bottom: TabBar(
           controller: _tabController,
           tabs: const [
@@ -220,6 +227,37 @@ class _AdminTasksListState extends State<_AdminTasksList>
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  void _ajustesCastigos(BuildContext context) async {
+    final app = context.read<AppProvider>();
+    var auto = await app.getAutoCastigos();
+    if (!context.mounted) return;
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setLocal) => AlertDialog(
+          title: const Text('Castigos automáticos'),
+          content: SwitchListTile(
+            title: const Text('Descontar por tareas vencidas'),
+            subtitle: const Text(
+                'Si está apagado, las tareas vencidas no quitan puntos '
+                'automáticamente. Tú decides los castigos.'),
+            value: auto,
+            onChanged: (v) async {
+              setLocal(() => auto = v);
+              await app.setAutoCastigos(v);
+            },
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Listo'),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1187,10 +1225,29 @@ class _AdminTaskCard extends StatelessWidget {
   }
 
   Future<void> _eliminarTarea(BuildContext context, int id) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('¿Eliminar tarea?'),
+        content: const Text(
+            'Se eliminará la tarea y sus asignaciones. Si había castigos por '
+            'esa tarea, se devolverán los puntos a los integrantes.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Eliminar'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
     final app = context.read<AppProvider>();
     await app.eliminarTarea(id);
-    if (context.mounted) Navigator.pop(context);
-    await onRefresh?.call();
+    if (context.mounted) await onRefresh?.call();
   }
 }
 

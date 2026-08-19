@@ -1294,6 +1294,28 @@ class DatabaseHelper {
   }
 
   // ---------------------------------------------------------------
+  // CONFIGURACIÓN (meta)
+  // ---------------------------------------------------------------
+
+  /// ¿Los castigos automáticos por tareas vencidas están activados?
+  Future<bool> getAutoCastigos() async {
+    final meta = _box(_boxMeta);
+    final item = meta.get('auto_castigos');
+    final valor = item?['valor'];
+    return valor is bool ? valor : true;
+  }
+
+  /// Activa o desactiva los castigos automáticos. Se guarda en `meta` para
+  /// que el ajuste se sincronice entre todos los dispositivos.
+  Future<void> setAutoCastigos(bool valor) async {
+    final meta = _box(_boxMeta);
+    final registro = {'k': 'auto_castigos', 'valor': valor};
+    _sellar(registro);
+    meta.put('auto_castigos', registro);
+    _marcar();
+  }
+
+  // ---------------------------------------------------------------
   // RETOS
   // ---------------------------------------------------------------
   Map<String, dynamic> _retoToMap(Reto r) {

@@ -306,7 +306,37 @@ class AppProvider extends ChangeNotifier {
   }
 
   Future<void> eliminarTarea(int id) async {
+    // Si la tarea tenía castigos automáticos, se revierten al eliminarla
+    // (se devuelven los puntos que se descontaron).
+    final castigos = await _db.getCastigos();
+    for (final c in castigos) {
+      if (c.tipo == 'tarea' && c.tareaId == id) {
+        final user = await _db.getUserById(c.usuarioId);
+        if (user != null) {
+          final nuevos = user.puntos + c.puntos;
+          await _db.updateUsuario(user.copyWith(
+            puntos: nuevos,
+            nivel: GamificationService.nivelPara(nuevos),
+          ));
+          if (_usuarioActual?.id == c.usuarioId) {
+            final u = await _db.getUserById(c.usuarioId);
+            if (u != null) _usuarioActual = u;
+          }
+        }
+        final cid = c.id;
+        if (cid != null) await _db.eliminarCastigo(cid);
+      }
+    }
     await _db.deleteTarea(id);
+    notifyListeners();
+  }
+
+  /// ¿Están activados los castigos automáticos por tareas vencidas?
+  Future<bool> getAutoCastigos() => _db.getAutoCastigos();
+
+  /// Cambia los castigos automáticos (se sincroniza entre dispositivos).
+  Future<void> setAutoCastigos(bool valor) async {
+    await _db.setAutoCastigos(valor);
     notifyListeners();
   }
 
@@ -668,6 +698,8 @@ Future<List<(User, int)>> ranking(String periodo) async {
   /// Aplica castigo automático por tareas vencidas. Se invoca al iniciar y
   /// cuando llegan datos remotos, para que ningún dispositivo pierda castigos.
   Future<void> aplicarCastigosVencidos() async {
+    final auto = await _db.getAutoCastigos();
+    if (!auto) return;
     final pendientes = await _db.getAsignacionesPendientes();
     final hoy = DateTime.now();
     for (final a in pendientes) {
@@ -676,27 +708,31 @@ Future<List<(User, int)>> ranking(String periodo) async {
       if (t == null) continue;
       final vence = _fechaVencimiento(t);
       // Solo se castiga si el día/plazo ya pasó y la tarea sigue activa.
-      if (vence != null && hoy.isAfter(vence) && t.activa) {
-        final user = await _db.getUserById(a.usuarioId);
-        if (user == null) continue;
-        final castigo = Castigo(
-          usuarioId: a.usuarioId,
-          motivo: 'Tarea sin cumplir: ${t.titulo}',
-          puntos: _puntosCastigo(t),
-          tipo: 'tarea',
-          tareaId: t.id,
-          fecha: hoy,
-        );
-        await _db.insertCastigo(castigo);
-        await _db.updateAsignacion(a.copyWith(castigada: true));
-        await _db.updateUsuario(user.copyWith(
-          puntos: user.puntos - _puntosCastigo(t),
-          nivel: GamificationService.nivelPara(user.puntos - _puntosCastigo(t)),
-        ));
-        if (_usuarioActual?.id == a.usuarioId) {
-          final u = await _db.getUserById(a.usuarioId);
-          if (u != null) _usuarioActual = u;
-        }
+      if (vence == null || !hoy.isAfter(vence) || !t.activa) continue;
+      // No castigar tareas asignadas a un día que ya había vencido cuando se
+      // crearon (retroactivas): p. ej. agregar una tarea para el domingo el
+      // martes no debe descontar puntos al instante.
+      final asignada = a.fechaAsignada;
+      if (asignada != null && asignada.isAfter(vence)) continue;
+      final user = await _db.getUserById(a.usuarioId);
+      if (user == null) continue;
+      final castigo = Castigo(
+        usuarioId: a.usuarioId,
+        motivo: 'Tarea sin cumplir: ${t.titulo}',
+        puntos: _puntosCastigo(t),
+        tipo: 'tarea',
+        tareaId: t.id,
+        fecha: hoy,
+      );
+      await _db.insertCastigo(castigo);
+      await _db.updateAsignacion(a.copyWith(castigada: true));
+      await _db.updateUsuario(user.copyWith(
+        puntos: user.puntos - _puntosCastigo(t),
+        nivel: GamificationService.nivelPara(user.puntos - _puntosCastigo(t)),
+      ));
+      if (_usuarioActual?.id == a.usuarioId) {
+        final u = await _db.getUserById(a.usuarioId);
+        if (u != null) _usuarioActual = u;
       }
     }
     notifyListeners();
@@ -885,7 +921,10 @@ Future<List<(User, int)>> ranking(String periodo) async {
       final t = await _db.getTareaById(a.tareaId);
       if (t == null) continue;
       final vence = _fechaVencimiento(t);
-      if (vence != null && hoy.isAfter(vence) && t.activa) return true;
+      if (vence == null || !hoy.isAfter(vence) || !t.activa) continue;
+      final asignada = a.fechaAsignada;
+      if (asignada != null && asignada.isAfter(vence)) continue;
+      return true;
     }
     return false;
   }
