@@ -714,6 +714,11 @@ Future<List<(User, int)>> ranking(String periodo) async {
       // martes no debe descontar puntos al instante.
       final asignada = a.fechaAsignada;
       if (asignada != null && asignada.isAfter(vence)) continue;
+      // Tampoco castigar asignaciones de semanas anteriores a la actual.
+      final inicio =
+          hoy.subtract(Duration(days: hoy.weekday % 7));
+      final inicioDia = DateTime(inicio.year, inicio.month, inicio.day);
+      if (asignada != null && asignada.isBefore(inicioDia)) continue;
       final user = await _db.getUserById(a.usuarioId);
       if (user == null) continue;
       final castigo = Castigo(
@@ -926,6 +931,11 @@ Future<List<(User, int)>> ranking(String periodo) async {
       if (vence == null || !hoy.isAfter(vence) || !t.activa) continue;
       final asignada = a.fechaAsignada;
       if (asignada != null && asignada.isAfter(vence)) continue;
+      // Asignaciones de semanas anteriores no cuentan como vencidas.
+      final inicio =
+          hoy.subtract(Duration(days: hoy.weekday % 7));
+      final inicioDia = DateTime(inicio.year, inicio.month, inicio.day);
+      if (asignada != null && asignada.isBefore(inicioDia)) continue;
       return true;
     }
     return false;

@@ -405,23 +405,50 @@ class DatabaseHelper {
     final claveSemana =
         '${inicioSemana.year}-${inicioSemana.month}-${inicioSemana.day}';
     final semilla = meta.get('seed_horario');
-    if (semilla is! Map ||
-        semilla['version'] != versionSeed ||
-        semilla['semana'] != claveSemana) {
-      // Al regenerar se eliminan las tareas y asignaciones viejas: se marcan
-      // con tombstones para que el borrado llegue al servidor y no reaparezcan
-      // en otros dispositivos (evita castigos por tareas de semanas pasadas).
-      for (final t in tareas.items) {
-        _tombstone('tareas', t);
-      }
-      for (final a in asignaciones.items) {
-        _tombstone('asignaciones', a);
-      }
-      asignaciones.items.clear();
-      tareas.items.clear();
-      meta.put('seed_horario',
-          {'version': versionSeed, 'semana': claveSemana});
+
+    // Regeneración NO destructiva:
+    //  * La limpieza solo ocurre cuando la semana guardada es ANTERIOR a la
+    //    actual (empezó un domingo nuevo), y borra únicamente asignaciones
+    //    PENDIENTES de semanas pasadas (las completadas quedan como historial).
+    //  * Nunca borra asignaciones de la semana actual ni las completadas/
+    //    aprobadas, ni tareas (algunas las crea el admin). Así un reinicio a
+    //    mitad de semana o un celular con datos viejos NO puede borrar el
+    //    trabajo ya hecho.
+    //  * Si el marcador falta o la versión cambió pero es la misma semana,
+    //    solo se actualiza el marcador y se crea lo que falte (crear es
+    //    idempotente: no duplica).
+    final inicio =
+        DateTime(inicioSemana.year, inicioSemana.month, inicioSemana.day);
+
+    bool esSemanaAnterior(String? s) {
+      if (s is! String) return false;
+      final p = s.split('-');
+      if (p.length != 3) return false;
+      final a = int.tryParse(p[0]);
+      final m = int.tryParse(p[1]);
+      final d = int.tryParse(p[2]);
+      if (a == null || m == null || d == null) return false;
+      return DateTime(a, m, d).isBefore(inicio);
     }
+
+    final semanaGuardada = semilla is Map ? semilla['semana'] : null;
+    if (esSemanaAnterior(semanaGuardada)) {
+      for (var i = asignaciones.items.length - 1; i >= 0; i--) {
+        final a = asignaciones.items[i];
+        final fa = DateTime.tryParse(a['fecha_asignada'] ?? '');
+        final completada = a['completada'] == 1 || a['aprobada'] == 1;
+        if (fa != null && fa.isBefore(inicio) && !completada) {
+          _tombstone(_boxAsignaciones, a);
+          asignaciones.items.removeAt(i);
+        }
+      }
+    }
+
+    // Marcador con hora: así se propaga entre dispositivos (LWW) y la
+    // regeneración de otros teléfonos se vuelve inofensiva.
+    final registro = {'version': versionSeed, 'semana': claveSemana};
+    _sellar(registro);
+    meta.put('seed_horario', registro);
 
     const dias = [
       'domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado',
