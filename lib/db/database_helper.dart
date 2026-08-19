@@ -408,6 +408,15 @@ class DatabaseHelper {
     if (semilla is! Map ||
         semilla['version'] != versionSeed ||
         semilla['semana'] != claveSemana) {
+      // Al regenerar se eliminan las tareas y asignaciones viejas: se marcan
+      // con tombstones para que el borrado llegue al servidor y no reaparezcan
+      // en otros dispositivos (evita castigos por tareas de semanas pasadas).
+      for (final t in tareas.items) {
+        _tombstone('tareas', t);
+      }
+      for (final a in asignaciones.items) {
+        _tombstone('asignaciones', a);
+      }
       asignaciones.items.clear();
       tareas.items.clear();
       meta.put('seed_horario',
