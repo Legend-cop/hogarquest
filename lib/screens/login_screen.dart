@@ -39,9 +39,6 @@ class _LoginScreenState extends State<LoginScreen> {
       final ok = await app.login(_usuario.text.trim(), _password.text);
       if (mounted && !ok) {
         setState(() => _enviando = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(app.error ?? 'Error al iniciar sesión')),
-        );
       }
     } catch (e) {
       debugPrint('Error al iniciar sesión: $e');
@@ -56,6 +53,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final app = context.watch<AppProvider>();
     return Scaffold(
       body: Container(
         decoration: const BoxDecoration(
@@ -146,6 +144,36 @@ class _LoginScreenState extends State<LoginScreen> {
                             ),
                           ),
                           const SizedBox(height: 20),
+                          if (app.error != null) ...[
+                            Container(
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: AppColors.rojo.withValues(alpha: 0.08),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: AppColors.rojo.withValues(alpha: 0.35),
+                                ),
+                              ),
+                              child: Row(
+                                children: [
+                                  const Icon(Icons.error_outline,
+                                      color: AppColors.rojo, size: 22),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: Text(
+                                      app.error!,
+                                      style: const TextStyle(
+                                        color: AppColors.rojo,
+                                        fontWeight: FontWeight.w600,
+                                        fontSize: 13.5,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                          ],
                           DuoButton(
                             label: _enviando ? 'Ingresando…' : 'Entrar',
                             icon: _enviando ? null : Icons.rocket_launch,

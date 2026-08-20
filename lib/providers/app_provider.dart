@@ -25,11 +25,13 @@ class AppProvider extends ChangeNotifier {
   User? _usuarioActual;
   bool _cargando = true;
   String? _error;
+  bool _errorInicializacion = false;
   bool _sinConexion = false;
 
   User? get usuarioActual => _usuarioActual;
   bool get cargando => _cargando;
   String? get error => _error;
+  bool get huboErrorInicializacion => _errorInicializacion;
   bool get sinConexion => _sinConexion;
   List<User> get listaUsuarios => _usuarios;
   List<User> _usuarios = [];
@@ -37,11 +39,13 @@ class AppProvider extends ChangeNotifier {
   Future<void> init() async {
     _cargando = true;
     _error = null;
+    _errorInicializacion = false;
     notifyListeners();
     try {
       await _db.init();
       await _restaurarSesion();
     } catch (e) {
+      _errorInicializacion = true;
       _error = e.toString();
     }
     _db.onRemoteChange = _datosRemotos;
@@ -145,6 +149,7 @@ class AppProvider extends ChangeNotifier {
 
   void logout() {
     _usuarioActual = null;
+    _error = null;
     notifyListeners();
     unawaited(_limpiarSesion());
     unawaited(_cleanupLogout());

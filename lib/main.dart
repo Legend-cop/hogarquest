@@ -69,7 +69,7 @@ class _Root extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final app = context.watch<AppProvider>();
-    if (app.error != null && app.usuarioActual == null) {
+    if (app.huboErrorInicializacion && app.usuarioActual == null) {
       return Scaffold(
         body: Center(
           child: Padding(
