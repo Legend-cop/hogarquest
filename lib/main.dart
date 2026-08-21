@@ -10,6 +10,7 @@ import 'providers/theme_controller.dart';
 import 'screens/admin_usuarios_screen.dart';
 import 'screens/home_shell.dart';
 import 'screens/login_screen.dart';
+import 'screens/pin_gate_screen.dart';
 import 'screens/splash_screen.dart';
 import 'services/push_service.dart';
 import 'theme/app_theme.dart';
@@ -95,8 +96,11 @@ class _Root extends StatelessWidget {
       );
     }
     if (app.cargando) return const SplashScreen();
-        return app.usuarioActual == null
-        ? const LoginScreen()
-        : HomeShell();
+    final u = app.usuarioActual;
+    if (u == null) return const LoginScreen();
+    if (u.esAdmin && u.pin.isNotEmpty && !app.adminDesbloqueado) {
+      return const PinGateScreen();
+    }
+    return HomeShell();
   }
 }

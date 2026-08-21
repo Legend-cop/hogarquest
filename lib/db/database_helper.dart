@@ -696,7 +696,7 @@ class DatabaseHelper {
       'salt': u.salt,
       'rol': u.rol,
       'activo': u.activo ? 1 : 0,
-      'insignias_obtenidas': u.insigniasObtenidas ?? [],
+      'pin': u.pin,
     };
   }
 
@@ -714,8 +714,8 @@ class DatabaseHelper {
       password: (map['password'] as String?) ?? '',
       salt: (map['salt'] as String?) ?? '',
       rol: (map['rol'] as String?) ?? 'integrante',
-      activo: (map['activo'] as int?) != 0,
-      insigniasObtenidas: (map['insignias_obtenidas'] as List?)?.cast<int>(),
+      activo: (map['activo'] as int? ?? 1) == 1,
+      pin: (map['pin'] as String?) ?? '',
     );
   }
 
@@ -1002,6 +1002,13 @@ class DatabaseHelper {
       }
     }
   }
+
+  // ---------------------------------------------------------------
+  // RESPALDO
+  // ---------------------------------------------------------------
+
+  /// Devuelve una copia completa de la base de datos local (para respaldo).
+  Map<String, dynamic> exportarDb() => _exportar();
 
   // ---------------------------------------------------------------
   // TAREAS

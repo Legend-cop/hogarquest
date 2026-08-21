@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -27,11 +28,13 @@ class AppProvider extends ChangeNotifier {
   String? _error;
   bool _errorInicializacion = false;
   bool _sinConexion = false;
+  bool _adminDesbloqueado = false;
 
   User? get usuarioActual => _usuarioActual;
   bool get cargando => _cargando;
   String? get error => _error;
   bool get huboErrorInicializacion => _errorInicializacion;
+  bool get adminDesbloqueado => _adminDesbloqueado;
   bool get sinConexion => _sinConexion;
   List<User> get listaUsuarios => _usuarios;
   List<User> _usuarios = [];
@@ -104,6 +107,7 @@ class AppProvider extends ChangeNotifier {
     _intentosFallidos = 0;
     _bloqueadoHasta = null;
     _usuarioActual = user;
+    _adminDesbloqueado = false;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setInt(_claveSesion, user.id!);
     notifyListeners();
@@ -150,6 +154,7 @@ class AppProvider extends ChangeNotifier {
   void logout() {
     _usuarioActual = null;
     _error = null;
+    _adminDesbloqueado = false;
     notifyListeners();
     unawaited(_limpiarSesion());
     unawaited(_cleanupLogout());
@@ -217,6 +222,32 @@ class AppProvider extends ChangeNotifier {
     await _db.updateUsuario(u);
     if (_usuarioActual?.id == u.id) _usuarioActual = u;
     notifyListeners();
+  }
+
+  /// Marca la sesión de administrador como desbloqueada (tras el PIN).
+  void desbloquearAdmin() {
+    _adminDesbloqueado = true;
+    notifyListeners();
+  }
+
+  /// Comprueba el PIN contra el del usuario actual.
+  bool verificarPin(String pin) => _usuarioActual?.pin == pin;
+
+  /// Guarda (o borra, con cadena vacía) el PIN del administrador actual.
+  Future<void> fijarPin(String pin) async {
+    final u = _usuarioActual;
+    if (u == null || u.id == null) return;
+    final actualizado = u.copyWith(pin: pin);
+    await _db.updateUsuario(actualizado);
+    _usuarioActual = actualizado;
+    notifyListeners();
+  }
+
+  /// Genera una copia de seguridad completa de la base de datos en JSON.
+  Future<String> exportarRespaldo() async {
+    final db = _db.exportarDb();
+    db['exportadoEn'] = DateTime.now().toIso8601String();
+    return jsonEncode(db);
   }
 
   Future<void> eliminarUsuario(int id) async {

@@ -12,6 +12,7 @@ class User {
   final String salt;
   final String rol;
   final bool activo;
+  final String pin;
   final List<int>? insigniasObtenidas;
 
   const User({
@@ -28,6 +29,7 @@ class User {
     this.salt = '',
     this.rol = 'integrante',
     this.activo = true,
+    this.pin = '',
     this.insigniasObtenidas,
   });
 
@@ -86,6 +88,7 @@ class User {
     String? salt,
     String? rol,
     bool? activo,
+    String? pin,
     List<int>? insigniasObtenidas,
   }) {
     return User(
@@ -102,6 +105,7 @@ class User {
       salt: salt ?? this.salt,
       rol: rol ?? this.rol,
       activo: activo ?? this.activo,
+      pin: pin ?? this.pin,
       insigniasObtenidas: insigniasObtenidas ?? this.insigniasObtenidas,
     );
   }
@@ -121,6 +125,7 @@ class User {
       'salt': salt,
       'rol': rol,
       'activo': activo ? 1 : 0,
+      'pin': pin,
       'insignias_obtenidas': insigniasObtenidas,
     };
   }
@@ -139,7 +144,8 @@ class User {
       password: (map['password'] as String?) ?? '',
       salt: (map['salt'] as String?) ?? '',
       rol: (map['rol'] as String?) ?? 'integrante',
-      activo: (map['activo'] as int?) != 0,
+      activo: (map['activo'] as int? ?? 1) == 1,
+      pin: (map['pin'] as String?) ?? '',
       insigniasObtenidas: (map['insignias_obtenidas'] as List?)?.cast<int>(),
     );
   }

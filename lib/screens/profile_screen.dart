@@ -1,4 +1,8 @@
+import 'dart:convert';
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
+import 'package:file_saver/file_saver.dart';
 import 'package:provider/provider.dart';
 
 import '../db/photo_picker.dart';
@@ -103,6 +107,36 @@ class _ProfileScreenState extends State<ProfileScreen> {
             _RedemptionsSection(user: user),
             const SizedBox(height: 20),
             _CastigosSection(userId: user.id!),
+            if (user.esAdmin) ...[
+              const SizedBox(height: 20),
+              const Divider(),
+              SectionHeader(title: 'Administración'),
+              DuoCard(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    ListTile(
+                      leading: const Icon(Icons.pin, color: AppColors.azul),
+                      title: const Text('PIN de administrador'),
+                      subtitle: const Text(
+                          'Protege el acceso al panel de administración.'),
+                      trailing: const Icon(Icons.chevron_right),
+                      onTap: () => _configurarPin(context),
+                    ),
+                    const Divider(),
+                    ListTile(
+                      leading:
+                          const Icon(Icons.download, color: AppColors.verdeOscuro),
+                      title: const Text('Exportar respaldo'),
+                      subtitle: const Text(
+                          'Descarga una copia completa de la base de datos.'),
+                      trailing: const Icon(Icons.chevron_right),
+                      onTap: () => _exportarRespaldo(context),
+                    ),
+                  ],
+                ),
+              ),
+            ],
             const SizedBox(height: 32),
             DuoButton(
               label: 'Cerrar sesión',
@@ -117,6 +151,97 @@ class _ProfileScreenState extends State<ProfileScreen> {
         ),
       ),
     );
+  }
+
+  Future<void> _configurarPin(BuildContext context) async {
+    final pin = TextEditingController();
+    final confirmar = TextEditingController();
+    final nuevo = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('PIN de administrador'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              'Crea un PIN de 4 a 6 dígitos. Se pedirá cada vez que '
+              'inicies sesión como administrador.',
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: pin,
+              keyboardType: TextInputType.number,
+              maxLength: 6,
+              obscureText: true,
+              decoration: const InputDecoration(labelText: 'Nuevo PIN'),
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: confirmar,
+              keyboardType: TextInputType.number,
+              maxLength: 6,
+              obscureText: true,
+              decoration: const InputDecoration(labelText: 'Confirmar PIN'),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () {
+              if (pin.text.length < 4 || pin.text != confirmar.text) {
+                ScaffoldMessenger.of(ctx).showSnackBar(
+                  const SnackBar(
+                    content: Text('Los PIN no coinciden o son muy cortos.'),
+                  ),
+                );
+                return;
+              }
+              Navigator.pop(ctx, pin.text);
+            },
+            child: const Text('Guardar'),
+          ),
+        ],
+      ),
+    );
+    if (nuevo == null) return;
+    final app = context.read<AppProvider>();
+    await app.fijarPin(nuevo);
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('PIN de administrador configurado.')),
+      );
+    }
+  }
+
+  Future<void> _exportarRespaldo(BuildContext context) async {
+    try {
+      final app = context.read<AppProvider>();
+      final json = await app.exportarRespaldo();
+      final bytes = Uint8List.fromList(utf8.encode(json));
+      final nombre =
+          'hogarquest_respaldo_${DateTime.now().toIso8601String().substring(0, 10)}';
+      await FileSaver.instance.saveFile(
+        name: nombre,
+        bytes: bytes,
+        fileExtension: 'json',
+        mimeType: MimeType.other,
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Respaldo descargado.')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('No se pudo exportar: $e')),
+        );
+      }
+    }
   }
 
   Future<void> _cambiarFoto() async {
