@@ -797,6 +797,7 @@ class DatabaseHelper {
       'nombre': r.nombre,
       'descripcion': r.descripcion,
       'costo_puntos': r.costoPuntos,
+      'foto': r.foto,
     };
   }
 
@@ -806,6 +807,7 @@ class DatabaseHelper {
       nombre: map['nombre'] as String,
       descripcion: (map['descripcion'] as String?) ?? '',
       costoPuntos: (map['costo_puntos'] as int?) ?? 0,
+      foto: (map['foto'] as String?) ?? '',
     );
   }
 

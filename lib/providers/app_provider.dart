@@ -483,9 +483,14 @@ class AppProvider extends ChangeNotifier {
     required String nombre,
     String descripcion = '',
     required int costoPuntos,
+    String foto = '',
   }) async {
-    await _db.insertRecompensa(
-        Reward(nombre: nombre, descripcion: descripcion, costoPuntos: costoPuntos));
+    await _db.insertRecompensa(Reward(
+      nombre: nombre,
+      descripcion: descripcion,
+      costoPuntos: costoPuntos,
+      foto: foto,
+    ));
     notifyListeners();
   }
 

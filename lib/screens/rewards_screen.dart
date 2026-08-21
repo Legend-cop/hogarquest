@@ -1,6 +1,11 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../db/photo_picker.dart';
+import '../db/server_config.dart';
+import '../db/upload_client.dart';
 import '../providers/app_provider.dart';
 import '../theme/app_theme.dart';
 import '../widgets/duo_widgets.dart';
@@ -8,6 +13,13 @@ import '../widgets/empty_state.dart';
 import '../models/reward.dart';
 import '../models/redemption.dart';
 import '../models/user.dart';
+
+/// Resuelve una ruta de foto (relativa o absoluta) a una URL mostrable.
+String _resolverFoto(String foto) {
+  if (foto.isEmpty) return '';
+  if (foto.startsWith('http')) return foto;
+  return '${ServerConfig.baseUrl}$foto';
+}
 
 class RewardsScreen extends StatelessWidget {
   const RewardsScreen({super.key});
@@ -78,6 +90,7 @@ class _AdminRewardsViewState extends State<_AdminRewardsView> {
       nombre: data['nombre'] as String? ?? '',
       descripcion: data['descripcion'] as String? ?? '',
       costoPuntos: (data['costoPuntos'] as int?) ?? 0,
+      foto: data['foto'] as String? ?? '',
     );
     if (context.mounted) Navigator.pop(context);
     _cargarDatos();
@@ -103,6 +116,7 @@ class _AdminRewardsViewState extends State<_AdminRewardsView> {
       nombre: data['nombre'] as String? ?? reward.nombre,
       descripcion: data['descripcion'] as String? ?? reward.descripcion,
       costoPuntos: (data['costoPuntos'] as int?) ?? reward.costoPuntos,
+      foto: data['foto'] as String? ?? reward.foto,
     );
     await widget.app.editarRecompensa(recompensasEditada);
     if (context.mounted) Navigator.pop(context);
@@ -154,10 +168,24 @@ class _AdminRewardsViewState extends State<_AdminRewardsView> {
                     return DuoCard(
                       padding: EdgeInsets.zero,
                       child: ListTile(
-                        leading: DuoIconBadge(
-                            icon: Icons.card_giftcard,
-                            color: AppColors.azul,
-                            size: 42),
+                        leading: r.foto.isNotEmpty
+                            ? ClipRRect(
+                                borderRadius: BorderRadius.circular(10),
+                                child: Image.network(
+                                  _resolverFoto(r.foto),
+                                  width: 42,
+                                  height: 42,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (_, __, ___) => const DuoIconBadge(
+                                      icon: Icons.card_giftcard,
+                                      color: AppColors.azul,
+                                      size: 42),
+                                ),
+                              )
+                            : const DuoIconBadge(
+                                icon: Icons.card_giftcard,
+                                color: AppColors.azul,
+                                size: 42),
                         title: Text(r.nombre,
                             style: const TextStyle(fontWeight: FontWeight.w700)),
                         subtitle: Text('${r.descripcion}\n• ${r.costoPuntos} pts'),
@@ -291,6 +319,8 @@ class _RewardFormDialogState extends State<_RewardFormDialog> {
   final _nombreController = TextEditingController();
   final _descripcionController = TextEditingController();
   final _costoPuntosController = TextEditingController();
+  String _foto = '';
+  bool _subiendo = false;
 
   @override
   void initState() {
@@ -300,6 +330,28 @@ class _RewardFormDialogState extends State<_RewardFormDialog> {
       _nombreController.text = d['nombre'] as String? ?? '';
       _descripcionController.text = d['descripcion'] as String? ?? '';
       _costoPuntosController.text = (d['costoPuntos'] as int?)?.toString() ?? '0';
+      _foto = d['foto'] as String? ?? '';
+    }
+  }
+
+  Future<void> _elegirFoto() async {
+    try {
+      final resultado = await elegirFoto();
+      if (resultado == null) return;
+      final (bytes, mime) = resultado;
+      if (!mounted) return;
+      setState(() => _subiendo = true);
+      final url = await UploadClient().subirFoto(bytes, mime: mime);
+      if (!mounted) return;
+      if (url != null) {
+        setState(() => _foto = url);
+      } else if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No se pudo subir la foto')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _subiendo = false);
     }
   }
 
@@ -333,6 +385,38 @@ class _RewardFormDialogState extends State<_RewardFormDialog> {
                     ? 'Número válido requerido'
                     : null,
               ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  if (_foto.isNotEmpty)
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(10),
+                      child: Image.network(
+                        _resolverFoto(_foto),
+                        width: 56,
+                        height: 56,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => const Icon(Icons.image),
+                      ),
+                    ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: DuoButton(
+                      label: _foto.isEmpty ? 'Añadir foto' : 'Cambiar foto',
+                      icon: Icons.photo_camera,
+                      fullWidth: false,
+                      loading: _subiendo,
+                      onPressed: _subiendo ? null : _elegirFoto,
+                    ),
+                  ),
+                  if (_foto.isNotEmpty)
+                    IconButton(
+                      icon: const Icon(Icons.clear, color: AppColors.rojo),
+                      tooltip: 'Quitar foto',
+                      onPressed: () => setState(() => _foto = ''),
+                    ),
+                ],
+              ),
             ],
           ),
         ),
@@ -349,6 +433,7 @@ class _RewardFormDialogState extends State<_RewardFormDialog> {
               'nombre': _nombreController.text,
               'descripcion': _descripcionController.text,
               'costoPuntos': int.tryParse(_costoPuntosController.text) ?? 0,
+              'foto': _foto,
             };
             widget.onSaved?.call(data);
           },
@@ -479,11 +564,31 @@ class _UserRewardsViewState extends State<_UserRewardsView> {
                           horizontal: 12, vertical: 12),
                       child: Row(
                         children: [
-                          DuoIconBadge(
-                            icon: jaCambiado ? Icons.check : Icons.card_giftcard,
-                            color: jaCambiado ? AppColors.grisMedio : AppColors.verde,
-                            size: 42,
-                          ),
+                          if (r.foto.isNotEmpty)
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(10),
+                              child: Image.network(
+                                _resolverFoto(r.foto),
+                                width: 42,
+                                height: 42,
+                                fit: BoxFit.cover,
+                                errorBuilder: (_, __, ___) => DuoIconBadge(
+                                  icon: jaCambiado
+                                      ? Icons.check
+                                      : Icons.card_giftcard,
+                                  color: jaCambiado
+                                      ? AppColors.grisMedio
+                                      : AppColors.verde,
+                                  size: 42,
+                                ),
+                              ),
+                            )
+                          else
+                            DuoIconBadge(
+                              icon: jaCambiado ? Icons.check : Icons.card_giftcard,
+                              color: jaCambiado ? AppColors.grisMedio : AppColors.verde,
+                              size: 42,
+                            ),
                           const SizedBox(width: 12),
                           Expanded(
                             child: Column(
