@@ -1,0 +1,20 @@
+services:
+  hogarquest:
+    build: .
+    container_name: hogarquest
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - PORT=3000
+      - WEB_ROOT=/app/web
+      - DATA_FILE=/data/hogarquest_data.json
+      - FOTOS_DIR=/data/fotos
+      - WRITE_TOKEN=hq-aCOYOzECZhLg04xREE1a1WlAoRJp3exLGJB63cQB
+      # Para activar push: añade FIREBASE_CREDENTIALS o FIREBASE_CREDENTIALS_B64
+      # - FIREBASE_CREDENTIALS_B64=
+    volumes:
+      - hogarquest_data:/data
+
+volumes:
+  hogarquest_data:

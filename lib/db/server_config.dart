@@ -2,13 +2,20 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 
 /// Configuración del servidor HogarQuest para la app.
 ///
-/// - En **Web** las llamadas usan rutas relativas (`/api/...`), porque el
-///   navegador carga la web desde el mismo servidor (nube).
-/// - En **Android/Windows** la app se conecta siempre a la nube (Render),
-///   así las fotos y los datos viven en el mismo sitio que la web.
+/// - En **Web** (GitHub Pages) y en **Android/Windows** la app se conecta
+///   siempre a la API en la nube (DigitalOcean, vía crédito educación),
+///   porque la web y la API viven en orígenes distintos.
 class ServerConfig {
-  /// URL pública en la nube (SnapDeploy, servidor gratis).
-  static const String cloudUrl = 'https://hogarquest-75f7c.containers.snapdeploy.app';
+  /// URL pública de la API (DigitalOcean, vía crédito GitHub Education).
+  /// Se pasa en el build con --dart-define=API_BASE_URL=..., de modo que no
+  /// hay que editar el código. Por defecto queda un marcador.
+  static const String apiBaseUrl = String.fromEnvironment(
+    'API_BASE_URL',
+    defaultValue: 'https://CAMBIA-POR-LA-URL-DEL-DROPLET',
+  );
+
+  /// URL que usa la app nativa (Android/Windows) para hablar con la nube.
+  static const String cloudUrl = apiBaseUrl;
 
   /// Orden en que la app nativa probará las direcciones (solo la nube).
   static const List<String> candidateUrls = [cloudUrl];
@@ -19,6 +26,6 @@ class ServerConfig {
   static String activaUrl = candidateUrls.first;
 
   /// Base URL visible para el resto de la app.
-  /// En web devuelve vacío (rutas relativas al servidor actual).
-  static String get baseUrl => kIsWeb ? '' : activaUrl;
+  /// Tanto en web como en nativo apunta a la API absoluta en la nube.
+  static String get baseUrl => kIsWeb ? apiBaseUrl : activaUrl;
 }

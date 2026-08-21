@@ -311,6 +311,17 @@ function broadcast() {
 const server = http.createServer((req, res) => {
   const url = req.url.split('?')[0];
 
+  // CORS: permite que la web (GitHub Pages) y las apps llamen a la API
+  // desde un origen distinto al del servidor.
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, x-write-token, authorization');
+  if (req.method === 'OPTIONS') {
+    res.writeHead(204);
+    res.end();
+    return;
+  }
+
   if (url === '/health') {
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ ok: true, up: true }));

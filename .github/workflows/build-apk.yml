@@ -1,0 +1,31 @@
+name: Build APK Release
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+      - run: flutter pub get
+      - name: Build APK
+        run: flutter build apk --release --dart-define=API_BASE_URL=${{ vars.API_BASE_URL }}
+      - name: Upload to Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: build/app/outputs/flutter-apk/app-release.apk
+          name: HogarQuest APK
+          tag_name: ${{ github.ref_name }}
+          body: 'APK compilada automáticamente. Instala en Android.'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
