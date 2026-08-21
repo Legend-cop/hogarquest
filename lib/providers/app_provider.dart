@@ -425,6 +425,14 @@ class AppProvider extends ChangeNotifier {
     for (final badgeId in ganadas) {
       await _db.otorgarInsignia(a.usuarioId, badgeId);
     }
+    // Avisar al niño que su tarea fue aprobada (push, si el servidor tiene
+    // FIREBASE_CREDENTIALS configurado). El niño también ve confeti en su
+    // dispositivo cuando suben sus puntos.
+    unawaited(_db.enviarPush(
+      a.usuarioId,
+      '¡Tarea aprobada!',
+      'Ganaste ${tarea.puntos} puntos con "${tarea.titulo}".',
+    ));
     notifyListeners();
   }
 

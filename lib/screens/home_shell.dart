@@ -1,7 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../providers/app_provider.dart';
+import '../services/celebration_service.dart';
+import '../theme/app_theme.dart';
+import '../widgets/confetti.dart';
 import 'dashboard_screen.dart';
 import 'profile_screen.dart';
 import 'ranking_screen.dart';
@@ -24,21 +29,55 @@ class HomeShell extends StatefulWidget {
 
 class _HomeShellState extends State<HomeShell> {
   int _index = 0;
+  int? _puntosPrevios;
 
   @override
   void initState() {
     super.initState();
     HomeTabs.index.addListener(_onTabChange);
+    final app = context.read<AppProvider>();
+    _puntosPrevios = app.usuarioActual?.puntos ?? 0;
+    app.addListener(_onAppChange);
   }
 
   @override
   void dispose() {
     HomeTabs.index.removeListener(_onTabChange);
+    context.read<AppProvider>().removeListener(_onAppChange);
     super.dispose();
   }
 
   void _onTabChange() {
     if (mounted) setState(() => _index = HomeTabs.index.value);
+  }
+
+  /// Celebra en el dispositivo del niño cuando le aprueban una tarea y suben
+  /// sus puntos (el admin ya celebra al pulsar "Aprobar").
+  void _onAppChange() {
+    final app = context.read<AppProvider>();
+    final u = app.usuarioActual;
+    if (u == null) return;
+    final antes = _puntosPrevios;
+    _puntosPrevios = u.puntos;
+    if (u.esAdmin) return;
+    if (antes != null && u.puntos > antes && mounted) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        lanzarConfeti(context);
+        unawaited(CelebrationService.instance.success());
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            behavior: SnackBarBehavior.floating,
+            backgroundColor: AppColors.verde,
+            content: Text(
+              '¡Bien hecho! +${u.puntos - antes} puntos',
+              style: const TextStyle(
+                  color: Colors.white, fontWeight: FontWeight.w800),
+            ),
+          ),
+        );
+      });
+    }
   }
 
   void _cambiarTab(int i) {

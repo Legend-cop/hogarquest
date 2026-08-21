@@ -349,13 +349,19 @@ class DatabaseHelper {
     }
 
     final insignias = _box(_boxInsignias);
-    if (insignias.isEmpty) {
-      await _addConId(insignias, _badgeToMap(Badge(id: 1, nombre: 'Maestro de limpieza', descripcion: 'Completaste 10 tareas de limpieza.', icono: 'cleaning_services')));
-      await _addConId(insignias, _badgeToMap(Badge(id: 2, nombre: 'Rey de la cocina', descripcion: 'Completaste 10 tareas de cocina.', icono: 'restaurant')));
-      await _addConId(insignias, _badgeToMap(Badge(id: 3, nombre: 'Orden perfecto', descripcion: 'Completaste 10 tareas de orden.', icono: 'inventory_2')));
-      await _addConId(insignias, _badgeToMap(Badge(id: 4, nombre: 'Puntual', descripcion: 'Completaste 5 tareas antes de la fecha límite.', icono: 'schedule')));
-      await _addConId(insignias, _badgeToMap(Badge(id: 5, nombre: 'Racha de 7 días', descripcion: 'Mantuviste una racha de 7 días.', icono: 'local_fire_department')));
-      await _addConId(insignias, _badgeToMap(Badge(id: 6, nombre: 'Experto del hogar', descripcion: 'Alcanzaste el nivel 5.', icono: 'emoji_events')));
+    final catalogoInsignias = [
+      Badge(id: 1, nombre: 'Maestro de limpieza', descripcion: 'Completaste 10 tareas de limpieza.', icono: 'cleaning_services'),
+      Badge(id: 2, nombre: 'Rey de la cocina', descripcion: 'Completaste 10 tareas de cocina.', icono: 'restaurant'),
+      Badge(id: 3, nombre: 'Orden perfecto', descripcion: 'Completaste 10 tareas de orden.', icono: 'inventory_2'),
+      Badge(id: 4, nombre: 'Puntual', descripcion: 'Completaste 5 tareas antes de la fecha límite.', icono: 'schedule'),
+      Badge(id: 5, nombre: 'Racha de 7 días', descripcion: 'Mantuviste una racha de 7 días.', icono: 'local_fire_department'),
+      Badge(id: 6, nombre: 'Experto del hogar', descripcion: 'Alcanzaste el nivel 5.', icono: 'emoji_events'),
+      Badge(id: 7, nombre: '5 tareas en un día', descripcion: 'Completaste 5 tareas en un solo día.', icono: 'flash_on'),
+    ];
+    for (final b in catalogoInsignias) {
+      final existe =
+          insignias.items.where((m) => m['id'] == b.id).isNotEmpty;
+      if (!existe) await _addConId(insignias, _badgeToMap(b));
     }
   }
 

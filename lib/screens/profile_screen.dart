@@ -14,9 +14,12 @@ import '../widgets/section_header.dart';
 import '../widgets/user_avatar.dart';
 import '../models/user.dart';
 import '../models/badge.dart' as badge_model;
+import '../models/assignment.dart';
 import '../models/castigo.dart';
 import '../models/redemption.dart';
 import '../models/reward.dart';
+import '../models/task.dart';
+import '../services/gamification_service.dart';
 import '../services/notification_service.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -524,8 +527,7 @@ class _InsigniasSection extends StatefulWidget {
 }
 
 class _InsigniasSectionState extends State<_InsigniasSection> {
-  List<badge_model.Badge> _insignias = [];
-  List<int> _insigniasIds = [];
+  List<(badge_model.Badge, int, int, bool)> _detalle = [];
   bool _cargando = true;
 
   @override
@@ -536,15 +538,38 @@ class _InsigniasSectionState extends State<_InsigniasSection> {
 
   Future<void> _cargarDatos() async {
     final app = context.read<AppProvider>();
-    final insignias = await app.listarInsignias();
-    final insigniasIds = widget.user.id != null ? await app.insigniasDe(widget.user.id!) : <int>[];
+    final catalogo = await app.listarInsignias();
+    final historial = widget.user.id != null
+        ? await app.historialDe(widget.user.id!)
+        : <(Task, Assignment)>[];
+    final tareas = await app.listarTareas();
+    final asignaciones = historial.map((h) => h.$2).toList();
+    final detalle = GamificationService.detalleInsignias(
+      catalogo: catalogo,
+      puntos: widget.user.puntos,
+      racha: widget.user.racha,
+      aprobadas: asignaciones,
+      tareas: tareas,
+    );
     if (mounted) {
       setState(() {
-        _insignias = insignias;
-        _insigniasIds = insigniasIds;
+        _detalle = detalle;
         _cargando = false;
       });
     }
+  }
+
+  IconData _icono(String nombre) {
+    const mapa = {
+      'cleaning_services': Icons.cleaning_services,
+      'restaurant': Icons.restaurant,
+      'inventory_2': Icons.inventory_2,
+      'schedule': Icons.schedule,
+      'local_fire_department': Icons.local_fire_department,
+      'emoji_events': Icons.emoji_events,
+      'flash_on': Icons.flash_on,
+    };
+    return mapa[nombre] ?? Icons.emoji_events;
   }
 
   @override
@@ -552,23 +577,76 @@ class _InsigniasSectionState extends State<_InsigniasSection> {
     if (_cargando) {
       return const Center(child: CircularProgressIndicator());
     }
-
-    if (_insigniasIds.isEmpty) {
+    if (_detalle.isEmpty) {
       return const Text('Completa tareas para ganar insignias.',
           style: TextStyle(color: Colors.grey));
     }
-
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
+    return Column(
       children: [
-        for (final b in _insignias)
-          if (_insigniasIds.contains(b.id))
-            Chip(
-              avatar: const Icon(Icons.emoji_events, size: 16),
-              label: Text(b.nombre),
-              backgroundColor: AppColors.amarillo.withValues(alpha: 0.15),
+        for (final d in _detalle)
+          DuoCard(
+            margin: const EdgeInsets.only(bottom: 10),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(
+                  _icono(d.$1.icono),
+                  size: 30,
+                  color: d.$4 ? AppColors.amarillo : AppColors.grisMedio,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(d.$1.nombre,
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.w800, fontSize: 15)),
+                          ),
+                          if (d.$4)
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 8, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: AppColors.verdeFondo,
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: const Text('¡Lograda!',
+                                  style: TextStyle(
+                                      color: AppColors.verdeOscuro,
+                                      fontWeight: FontWeight.w800,
+                                      fontSize: 11)),
+                            ),
+                        ],
+                      ),
+                      const SizedBox(height: 2),
+                      Text(d.$1.descripcion,
+                          style: const TextStyle(
+                              color: AppColors.grisMedio, fontSize: 12)),
+                      const SizedBox(height: 8),
+                      LinearProgressIndicator(
+                        value: d.$3 == 0 ? 0 : d.$2 / d.$3,
+                        backgroundColor: AppColors.linea,
+                        valueColor: AlwaysStoppedAnimation<Color>(
+                            d.$4 ? AppColors.verde : AppColors.azul),
+                        minHeight: 8,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        d.$4 ? 'Completada' : '${d.$2}/${d.$3}',
+                        style: const TextStyle(
+                            color: AppColors.grisMedio, fontSize: 12),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
+          ),
       ],
     );
   }
