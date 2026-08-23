@@ -59,14 +59,10 @@ dependencies {
 // otro modo usan el valor por defecto de Flutter (34) y fallan al compilar.
 subprojects {
     afterEvaluate {
-        val ext = extensions.findByName("android") ?: return@afterEvaluate
-        try {
-            ext.javaClass.getMethod("setCompileSdkVersion", Integer.TYPE).invoke(ext, 36)
-        } catch (_: Exception) {
-            try {
-                ext.javaClass.getMethod("setCompileSdk", Integer.TYPE).invoke(ext, 36)
-            } catch (_: Exception) {
-            }
+        val androidExt = extensions.findByName("android")
+        when (androidExt) {
+            is com.android.build.gradle.LibraryExtension -> androidExt.compileSdk = 36
+            is com.android.build.gradle.BaseAppModuleExtension -> androidExt.compileSdk = 36
         }
     }
 }
