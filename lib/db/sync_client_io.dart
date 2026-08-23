@@ -52,6 +52,27 @@ class SyncClient {
     return null;
   }
 
+  Future<Map<String, dynamic>?> loginServerSide(String usuario, String password) async {
+    final base = await encontrarBase();
+    if (base == null) return null;
+    try {
+      final client = HttpClient()..connectionTimeout = const Duration(seconds: 8);
+      final req = await client.postUrl(Uri.parse('$base/api/login'));
+      req.headers.contentType = ContentType.json;
+      req.write(jsonEncode({'usuario': usuario, 'password': password}));
+      final res = await req.close();
+      final body = await res.transform(utf8.decoder).join();
+      client.close();
+      if (res.statusCode == 200 && body.isNotEmpty) {
+        final decoded = jsonDecode(body);
+        if (decoded is Map && decoded['ok'] == true && decoded['user'] is Map) {
+          return Map<String, dynamic>.from(decoded['user']);
+        }
+      }
+    } catch (_) {}
+    return null;
+  }
+
   Future<void> pushDb(Map<String, dynamic> db) async {
     final base = await encontrarBase();
     if (base == null) return;

@@ -256,7 +256,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
         }
       }
     }
-  }
 
   Future<void> _restaurarRespaldo(BuildContext context) async {
     try {

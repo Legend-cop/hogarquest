@@ -904,6 +904,13 @@ class DatabaseHelper {
   }
 
   Future<User?> login(String nombre, String password) async {
+    // Auth server-side: la web ya no descarga las contraseñas.
+    try {
+      final remote = await _client.loginServerSide(nombre, password);
+      if (remote != null) return _mapToUser(remote);
+    } catch (_) {}
+
+    // Fallback local (solo si el servidor no está disponible).
     final box = _box(_boxUsuarios);
     for (var i = 0; i < box.items.length; i++) {
       final m = box.items[i];

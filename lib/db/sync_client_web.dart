@@ -10,10 +10,26 @@ class SyncClient {
 
   Future<Map<String, dynamic>?> fetchDb() async {
     try {
-      final req = await html.HttpRequest.request('$_base/db', method: 'GET');
+      final req = await html.HttpRequest.request('$_base/db-public', method: 'GET');
       final decoded = jsonDecode(req.responseText!);
       if (decoded is Map) {
         return Map<String, dynamic>.from(decoded);
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  Future<Map<String, dynamic>?> loginServerSide(String usuario, String password) async {
+    try {
+      final req = await html.HttpRequest.request(
+        '$_base/login',
+        method: 'POST',
+        sendData: jsonEncode({'usuario': usuario, 'password': password}),
+        requestHeaders: {'Content-Type': 'application/json'},
+      );
+      final decoded = jsonDecode(req.responseText!);
+      if (decoded is Map && decoded['ok'] == true && decoded['user'] is Map) {
+        return Map<String, dynamic>.from(decoded['user']);
       }
     } catch (_) {}
     return null;
