@@ -87,9 +87,9 @@ Esfuerzo: S. Dependencias: ninguna (se puede hacer en cualquier momento).
 Objetivo: solidez a largo plazo.
 
 - **MongoDB real** (ya lo usas para fotos) en vez del archivo único: historial real,
-  mejor concurrencia entre celulares, respaldos automáticos. → ⚠️ PARCIAL (el servidor
-  ya soporta Mongo: fotos en GridFS, tokens de dispositivo, recordatorios, credenciales
-  Firebase; pero `MONGODB_URI` no está configurado)
+  mejor concurrencia entre celulares, respaldos automáticos. → ✅ COMPLETO
+  (`MONGODB_URI` configurado en Azure; `mongo-status` muestra `mongoReady:true`; la BD
+  local se migró sola a Mongo la primera vez que conectó)
 - **Login en el servidor (auth server-side)**: la web ya no descarga las contraseñas.
   Mejora de seguridad si la app se usa fuera de casa. → ⚠️ EN PROGRESO
   (endpoint `/api/login` ya valida credenciales en el servidor; falta cambiar el
@@ -117,7 +117,7 @@ Esfuerzo: L (grande, refactor de sincronización). Dependencias: Fases 1-3 estab
 | 4 | Mantener despierto | ➖ |
 | 4 | APK en Releases | ✅ |
 | 4 | Host gratis sin dormir | ➖ |
-| 5 | MongoDB real | ⚠️ |
+| 5 | MongoDB real | ✅ |
 | 5 | Login server-side | ⚠️ |
 
 ✅ hecho · ⚠️ parcial · ❌ pendiente · ➖ no aplica / ya resuelto
