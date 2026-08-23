@@ -29,13 +29,9 @@ subprojects {
 // del proyecto android raíz, no de :app.
 subprojects {
     afterEvaluate {
-        try {
-            android {
-                compileSdk = 36
-                compileSdkVersion = 36
-            }
-        } catch (_: Exception) {
-        }
+        val androidExt = extensions.findByType(com.android.build.gradle.LibraryExtension::class.java)
+        androidExt?.compileSdk = 36
+        androidExt?.compileSdkVersion = 36
     }
 }
 
