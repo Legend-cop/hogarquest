@@ -564,6 +564,12 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  if (url === '/api/mongo-status' && req.method === 'GET') {
+    res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+    res.end(JSON.stringify({ ok: true, tieneUri: !!MONGODB_URI, mongoReady }));
+    return;
+  }
+
   if (url === '/api/register-token' && req.method === 'POST') {
     if (req.headers['x-write-token'] !== WRITE_TOKEN) {
       res.writeHead(403, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
