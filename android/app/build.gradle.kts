@@ -58,17 +58,3 @@ dependencies {
     implementation(platform("com.google.firebase:firebase-bom:34.17.0"))
     implementation("com.google.firebase:firebase-messaging")
 }
-
-// Los plugins (file_picker, etc.) compilan con el SDK por defecto de Flutter
-// (34) y fallan porque flutter_plugin_android_lifecycle exige 36. Forzamos 36
-// en todos los módulos Android (app + librerías) usando la API de Gradle.
-subprojects {
-    afterEvaluate {
-        extensions.findByType(com.android.build.gradle.LibraryExtension::class.java)?.let {
-            it.compileSdk = 36
-        }
-        extensions.findByType(com.android.build.gradle.BaseAppModuleExtension::class.java)?.let {
-            it.compileSdk = 36
-        }
-    }
-}
