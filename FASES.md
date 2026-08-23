@@ -55,8 +55,13 @@ Objetivo: visibilidad y organización.
 - **Gráfica de 30 días** (hoy solo 7). → ✅ IMPLEMENTADO (dashboard extiende la
   gráfica personal y familiar a 30 días vía `puntosPorDia(dias: 30)` /
   `puntosPorDiaGlobal(dias: 30)`; etiquetas por día del mes)
-- **Vista de calendario semanal** de quién tiene qué pendiente. → ❌ PENDIENTE
-- **Varios admins / copadres** (hoy solo uno). → ❌ PENDIENTE
+- **Vista de calendario semanal** de quién tiene qué pendiente. → ✅ YA IMPLEMENTADO
+  (pestaña "Semana" en la vista de Tareas del admin: `tasks_screen._AdminSemanaTab`,
+  con cada día, tareas asignadas y filtro por integrante)
+- **Varios admins / copadres** (hoy solo uno). → ✅ IMPLEMENTADO (el diálogo de
+  usuario ahora tiene selector de rol Integrante/Administrador y contraseña; la
+  pantalla de gestión lista a todos los usuarios, incluídos los admins, para
+  crear/promover copadres)
 - **Restaurar respaldo** si no se hizo en Fase 1. → ❌ PENDIENTE (depende Fase 1)
 
 Esfuerzo: M. Dependencias: Fase 1.
@@ -104,8 +109,8 @@ Esfuerzo: L (grande, refactor de sincronización). Dependencias: Fases 1-3 estab
 | 2 | Push al niño al aprobar | ✅ |
 | 2 | Tienda con fotos/catálogo | ⚠️ |
 | 3 | Gráfica 30 días | ✅ |
-| 3 | Calendario semanal | ❌ |
-| 3 | Varios admins | ❌ |
+| 3 | Calendario semanal | ✅ |
+| 3 | Varios admins | ✅ |
 | 3 | Restaurar respaldo | ❌ |
 | 4 | Mantener despierto | ➖ |
 | 4 | APK en Releases | ✅ |

@@ -36,7 +36,7 @@ class _AdminUsuariosScreenState extends State<AdminUsuariosScreen> {
   Future<void> _cargar() async {
     setState(() => _cargando = true);
     final app = context.read<AppProvider>();
-    final lista = await app.listarIntegrantes(soloActivos: false);
+    final lista = await app.listarUsuarios();
     if (mounted) {
       setState(() {
         _integrantes = lista;
@@ -58,13 +58,14 @@ class _AdminUsuariosScreenState extends State<AdminUsuariosScreen> {
       builder: (_) => const _UsuarioFormDialog(),
     );
     if (datos == null || !mounted) return;
+    final passNuevo = (datos['password'] as String? ?? '').trim();
     await app.crearUsuario(
       nombre: datos['nombre'] as String,
       avatar: datos['avatar'] as String? ?? '😊',
       edad: (datos['edad'] as int?) ?? 0,
       colorTema: datos['colorTema'] as String? ?? '',
-      password: (datos['password'] as String?) ?? '1234',
-      rol: 'integrante',
+      password: passNuevo.isNotEmpty ? passNuevo : '1234',
+      rol: (datos['rol'] as String?) ?? 'integrante',
     );
     await _cargar();
   }
@@ -76,11 +77,14 @@ class _AdminUsuariosScreenState extends State<AdminUsuariosScreen> {
       builder: (_) => _UsuarioFormDialog(usuario: u),
     );
     if (datos == null || !mounted) return;
+    final passEdit = (datos['password'] as String? ?? '').trim();
     await app.editarUsuario(u.copyWith(
       nombre: datos['nombre'] as String,
       avatar: datos['avatar'] as String? ?? u.avatar,
       edad: (datos['edad'] as int?) ?? u.edad,
       colorTema: datos['colorTema'] as String? ?? u.colorTema,
+      rol: (datos['rol'] as String?) ?? u.rol,
+      password: passEdit.isNotEmpty ? passEdit : u.password,
     ));
     await _cargar();
   }
@@ -429,6 +433,8 @@ class _UsuarioFormDialogState extends State<_UsuarioFormDialog> {
   late final TextEditingController _nombre;
   late final TextEditingController _edad;
   late final TextEditingController _colorTema;
+  late final TextEditingController _password;
+  String _rol = 'integrante';
 
   @override
   void initState() {
@@ -437,6 +443,8 @@ class _UsuarioFormDialogState extends State<_UsuarioFormDialog> {
     _nombre = TextEditingController(text: u?.nombre ?? '');
     _edad = TextEditingController(text: u?.edad.toString() ?? '');
     _colorTema = TextEditingController(text: u?.colorTema ?? '');
+    _password = TextEditingController();
+    _rol = u?.rol ?? 'integrante';
   }
 
   @override
@@ -444,6 +452,7 @@ class _UsuarioFormDialogState extends State<_UsuarioFormDialog> {
     _nombre.dispose();
     _edad.dispose();
     _colorTema.dispose();
+    _password.dispose();
     super.dispose();
   }
 
