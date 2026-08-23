@@ -26,15 +26,13 @@ subprojects {
 // Fuerza compileSdk 36 en los módulos de plugins (file_picker, etc.) que de
 // otro modo usan el valor por defecto de Flutter (34) y fallan al compilar
 // porque flutter_plugin_android_lifecycle exige 36. Los plugins son subprojects
-// del proyecto android raíz, no de :app. Usamos findByName + cast a la interfaz
-// DSL porque el accessor android{} no esta en scope en el script raiz.
+// del proyecto android raíz, no de :app. Usamos plugins.withId para actuar en
+// el momento en que Flutter aplica el plugin Android (afterEvaluate es tarde).
 subprojects {
-    afterEvaluate {
-        val androidExt = extensions.findByName("android") as? com.android.build.api.dsl.LibraryExtension
-        if (androidExt != null) {
-            androidExt.compileSdk = 36
-            androidExt.compileSdkVersion = 36
-        }
+    plugins.withId("com.android.library") {
+        val lib = extensions.getByType(com.android.build.api.dsl.LibraryExtension::class.java)
+        lib.compileSdk = 36
+        lib.compileSdkVersion = 36
     }
 }
 
