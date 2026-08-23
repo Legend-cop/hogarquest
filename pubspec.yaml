@@ -60,6 +60,12 @@ dev_dependencies:
   # rules and activating additional ones.
   flutter_lints: ^6.0.0
 
+# Fija flutter_plugin_android_lifecycle a una versión que exige compileSdk 34
+# (la versión actual del ecosistema exige 36 y el build del APK falla porque
+# los plugins se compilan con el SDK por defecto de Flutter = 34).
+dependency_overrides:
+  flutter_plugin_android_lifecycle: 2.0.20
+
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
 
