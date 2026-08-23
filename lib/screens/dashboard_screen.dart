@@ -80,7 +80,7 @@ class _IntegranteDashboard extends StatelessWidget {
       app.tareasConAsignacionDe(user.id!),
       app.insigniasDe(user.id!),
       app.listarInsignias(),
-      app.puntosPorDia(user.id!, dias: 7),
+      app.puntosPorDia(user.id!, dias: 30),
       app.tareasPendientesDeHoy(user.id!),
     ]);
 
@@ -175,11 +175,11 @@ class _IntegranteDashboard extends StatelessWidget {
                     ],
                   ),
                 ),
-                SectionHeader(title: 'Mi actividad (7 días)'),
+                SectionHeader(title: 'Mi actividad (30 días)'),
                 DuoCard(
                   child: BarChart(
                     data: puntosPorDia,
-                    labelFor: (d) => dias[d.weekday - 1],
+                    labelFor: (d) => d.day.toString(),
                   ),
                 ),
                 SectionHeader(
@@ -272,7 +272,7 @@ class _AdminDashboardState extends State<_AdminDashboard> {
       app.estadisticas(),
       app.pendientesDeAprobacion(),
       app.listarIntegrantes(),
-      app.puntosPorDiaGlobal(dias: 7),
+      app.puntosPorDiaGlobal(dias: 30),
     ]);
 
     return FutureBuilder(
@@ -391,11 +391,11 @@ class _AdminDashboardState extends State<_AdminDashboard> {
                     ),
                   ],
                 ),
-                SectionHeader(title: 'Actividad familiar (7 días)'),
+                SectionHeader(title: 'Actividad familiar (30 días)'),
                 DuoCard(
                   child: BarChart(
                     data: puntosPorDia,
-                    labelFor: (d) => dias[d.weekday - 1],
+                    labelFor: (d) => d.day.toString(),
                   ),
                 ),
                 SectionHeader(key: _keyAprobaciones, title: 'Pendientes de aprobación'),

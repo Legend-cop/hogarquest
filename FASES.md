@@ -52,7 +52,9 @@ Esfuerzo: M. Dependencias: Fase 1 (respaldo sirve de base).
 ## FASE 3 — Más control para padres
 Objetivo: visibilidad y organización.
 
-- **Gráfica de 30 días** (hoy solo 7). → ❌ PENDIENTE
+- **Gráfica de 30 días** (hoy solo 7). → ✅ IMPLEMENTADO (dashboard extiende la
+  gráfica personal y familiar a 30 días vía `puntosPorDia(dias: 30)` /
+  `puntosPorDiaGlobal(dias: 30)`; etiquetas por día del mes)
 - **Vista de calendario semanal** de quién tiene qué pendiente. → ❌ PENDIENTE
 - **Varios admins / copadres** (hoy solo uno). → ❌ PENDIENTE
 - **Restaurar respaldo** si no se hizo en Fase 1. → ❌ PENDIENTE (depende Fase 1)
@@ -101,7 +103,7 @@ Esfuerzo: L (grande, refactor de sincronización). Dependencias: Fases 1-3 estab
 | 2 | Insignias con progreso | ✅ |
 | 2 | Push al niño al aprobar | ✅ |
 | 2 | Tienda con fotos/catálogo | ⚠️ |
-| 3 | Gráfica 30 días | ❌ |
+| 3 | Gráfica 30 días | ✅ |
 | 3 | Calendario semanal | ❌ |
 | 3 | Varios admins | ❌ |
 | 3 | Restaurar respaldo | ❌ |
