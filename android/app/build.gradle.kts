@@ -45,6 +45,10 @@ kotlin {
 
 flutter {
     source = "../.."
+    // Los módulos de plugins (file_picker, etc.) compilan con este valor; debe
+    // ser >= 36 porque flutter_plugin_android_lifecycle lo exige.
+    compileSdkVersion = 36
+    targetSdkVersion = 36
 }
 
 dependencies {
@@ -53,16 +57,4 @@ dependencies {
     // Firebase
     implementation(platform("com.google.firebase:firebase-bom:34.17.0"))
     implementation("com.google.firebase:firebase-messaging")
-}
-
-// Fuerza compileSdk 36 en los módulos de plugins (file_picker, etc.) que de
-// otro modo usan el valor por defecto de Flutter (34) y fallan al compilar.
-subprojects {
-    afterEvaluate {
-        val androidExt = extensions.findByName("android")
-        when (androidExt) {
-            is com.android.build.gradle.LibraryExtension -> androidExt.compileSdk = 36
-            is com.android.build.gradle.BaseAppModuleExtension -> androidExt.compileSdk = 36
-        }
-    }
 }
