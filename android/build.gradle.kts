@@ -29,11 +29,12 @@ subprojects {
 // del proyecto android raíz, no de :app.
 subprojects {
     afterEvaluate {
-        if (project.hasProperty("android")) {
+        try {
             android {
                 compileSdk = 36
                 compileSdkVersion = 36
             }
+        } catch (_: Exception) {
         }
     }
 }
