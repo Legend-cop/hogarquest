@@ -279,6 +279,25 @@ function mergeIncoming(inc) {
     out[box] = mergeBox(db[box] || [], (inc && inc[box]) || [], box === 'meta');
   }
 
+  // Preservar password/salt del servidor cuando un cliente (ej. la web) empuja
+  // usuarios sin ellos porque no los descargó (endpoint /api/db-public).
+  const existentes = new Map();
+  for (const u of (db.usuarios || [])) if (u && u.id != null) existentes.set(u.id, u);
+  if (out.usuarios) {
+    out.usuarios = out.usuarios.map((u) => {
+      if (u && u.id != null && (u.password == null || u.salt == null)) {
+        const e = existentes.get(u.id);
+        if (e) {
+          const c = Object.assign({}, u);
+          if (c.password == null) c.password = e.password;
+          if (c.salt == null) c.salt = e.salt;
+          return c;
+        }
+      }
+      return u;
+    });
+  }
+
   // Unir tombstones de ambos lados (el más reciente por registro gana).
   const del = new Map();
   const todos = (Array.isArray(db.deleted) ? db.deleted : [])
@@ -462,6 +481,14 @@ const server = http.createServer((req, res) => {
   if (url === '/api/db' && req.method === 'GET') {
     res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
     res.end(JSON.stringify(db));
+    return;
+  }
+
+  if (url === '/api/db-public' && req.method === 'GET') {
+    const copia = JSON.parse(JSON.stringify(db));
+    for (const u of (copia.usuarios || [])) { delete u.password; delete u.salt; }
+    res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+    res.end(JSON.stringify(copia));
     return;
   }
 
