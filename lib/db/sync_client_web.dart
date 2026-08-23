@@ -6,7 +6,7 @@ import 'server_config.dart';
 /// Cliente de sincronización para Web: habla con el servidor Node que
 /// guarda la base de datos compartida y notifica cambios vía SSE.
 class SyncClient {
-  static const _base = '/api';
+  static String get _base => '${ServerConfig.baseUrl}/api';
 
   Future<Map<String, dynamic>?> fetchDb() async {
     try {
@@ -33,19 +33,16 @@ class SyncClient {
     } catch (_) {}
   }
 
-  /// Registra el token FCM de este dispositivo para un usuario.
   Future<void> registrarFcmToken(int userId, String token) => _postJson(
-        '/api/register-token',
+        '/register-token',
         {'userId': userId, 'token': token},
       );
 
-  /// Quita el token FCM del usuario (al cerrar sesión).
   Future<void> borrarFcmToken(int userId, String token) => _postJson(
-        '/api/register-token',
+        '/register-token',
         {'userId': userId, 'token': token, 'remove': true},
       );
 
-  /// Pide al servidor que envíe un push real al dispositivo del usuario.
   Future<void> enviarPushFcm(int userId, String titulo, String cuerpo,
       [Map<String, String>? data]) async {
     final payload = <String, dynamic>{
@@ -54,12 +51,11 @@ class SyncClient {
       'body': cuerpo,
     };
     if (data != null) payload['data'] = data;
-    await _postJson('/api/notify', payload);
+    await _postJson('/notify', payload);
   }
 
-  /// Sincroniza la hora del recordatorio diario del usuario con el server.
   Future<void> enviarRecordatorioConfig(int userId, int minutos, int offset) =>
-      _postJson('/api/reminder', {
+      _postJson('/reminder', {
         'userId': userId,
         'minutos': minutos,
         'offset': offset,
