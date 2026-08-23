@@ -54,3 +54,19 @@ dependencies {
     implementation(platform("com.google.firebase:firebase-bom:34.17.0"))
     implementation("com.google.firebase:firebase-messaging")
 }
+
+// Fuerza compileSdk 36 en los módulos de plugins (file_picker, etc.) que de
+// otro modo usan el valor por defecto de Flutter (34) y fallan al compilar.
+subprojects {
+    afterEvaluate {
+        val ext = extensions.findByName("android") ?: return@afterEvaluate
+        try {
+            ext.javaClass.getMethod("setCompileSdkVersion", Integer.TYPE).invoke(ext, 36)
+        } catch (_: Exception) {
+            try {
+                ext.javaClass.getMethod("setCompileSdk", Integer.TYPE).invoke(ext, 36)
+            } catch (_: Exception) {
+            }
+        }
+    }
+}
