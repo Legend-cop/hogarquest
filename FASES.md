@@ -91,7 +91,9 @@ Objetivo: solidez a largo plazo.
   ya soporta Mongo: fotos en GridFS, tokens de dispositivo, recordatorios, credenciales
   Firebase; pero `MONGODB_URI` no está configurado)
 - **Login en el servidor (auth server-side)**: la web ya no descarga las contraseñas.
-  Mejora de seguridad si la app se usa fuera de casa. → ❌ PENDIENTE
+  Mejora de seguridad si la app se usa fuera de casa. → ⚠️ EN PROGRESO
+  (endpoint `/api/login` ya valida credenciales en el servidor; falta cambiar el
+  cliente para usarlo y dejar de descargar contraseñas en `/api/db`)
 
 Esfuerzo: L (grande, refactor de sincronización). Dependencias: Fases 1-3 estables.
 
@@ -116,6 +118,6 @@ Esfuerzo: L (grande, refactor de sincronización). Dependencias: Fases 1-3 estab
 | 4 | APK en Releases | ✅ |
 | 4 | Host gratis sin dormir | ➖ |
 | 5 | MongoDB real | ⚠️ |
-| 5 | Login server-side | ❌ |
+| 5 | Login server-side | ⚠️ |
 
 ✅ hecho · ⚠️ parcial · ❌ pendiente · ➖ no aplica / ya resuelto

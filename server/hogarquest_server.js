@@ -1,6 +1,7 @@
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 const config = require('./config.js');
 
 const root = process.env.WEB_ROOT || process.argv[2] || path.join(__dirname, 'web');
@@ -419,6 +420,41 @@ const server = http.createServer((req, res) => {
       if (err) { res.writeHead(404); res.end('Not found'); return; }
       res.writeHead(200, { 'Content-Type': 'image/jpeg' });
       res.end(data);
+    });
+    return;
+  }
+
+  if (url === '/api/login' && req.method === 'POST') {
+    let body = '';
+    req.on('data', (c) => (body += c));
+    req.on('end', () => {
+      try {
+        const { usuario, password } = JSON.parse(body);
+        const nombre = String(usuario || '').trim().toLowerCase();
+        const u = (db.usuarios || []).find(
+          (x) => x && x.nombre && x.nombre.toLowerCase() === nombre);
+        if (!u) {
+          res.writeHead(401, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+          res.end(JSON.stringify({ ok: false, error: 'Credenciales inválidas' }));
+          return;
+        }
+        const hash = crypto.createHash('sha256')
+          .update((u.salt || '') + '::' + (password || ''))
+          .digest('hex');
+        if (hash !== u.password) {
+          res.writeHead(401, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+          res.end(JSON.stringify({ ok: false, error: 'Credenciales inválidas' }));
+          return;
+        }
+        const limpio = Object.assign({}, u);
+        delete limpio.password;
+        delete limpio.salt;
+        res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+        res.end(JSON.stringify({ ok: true, user: limpio }));
+      } catch (e) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: false, error: String(e) }));
+      }
     });
     return;
   }
