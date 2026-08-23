@@ -32,7 +32,6 @@ subprojects {
     plugins.withId("com.android.library") {
         val lib = extensions.getByType(com.android.build.api.dsl.LibraryExtension::class.java)
         lib.compileSdk = 36
-        lib.compileSdkVersion = 36
     }
 }
 

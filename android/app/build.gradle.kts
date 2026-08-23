@@ -45,10 +45,6 @@ kotlin {
 
 flutter {
     source = "../.."
-    // Los módulos de plugins (file_picker, etc.) compilan con este valor; debe
-    // ser >= 36 porque flutter_plugin_android_lifecycle lo exige.
-    compileSdkVersion = 36
-    targetSdkVersion = 36
 }
 
 dependencies {
