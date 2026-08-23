@@ -250,6 +250,12 @@ class AppProvider extends ChangeNotifier {
     return jsonEncode(db);
   }
 
+  /// Restaura la base de datos desde un respaldo previamente exportado.
+  Future<void> importarRespaldo(Map<String, dynamic> data) async {
+    await _db.importarDb(data);
+    notifyListeners();
+  }
+
   Future<void> eliminarUsuario(int id) async {
     await _db.deleteUsuario(id);
     notifyListeners();

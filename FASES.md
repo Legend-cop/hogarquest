@@ -22,7 +22,9 @@ Objetivo: que tú tengas control y seguridad sin pagar nada.
   tareas, puntos, historial) para guardarlo en tu drive. → ✅ IMPLEMENTADO
   (`profile_screen.dart` → `app.exportarRespaldo()` → `database_helper.exportarDb()`)
 - **Restaurar respaldo** (opcional, en esta fase o la siguiente): cargar ese JSON de
-  vuelta. → ❌ PENDIENTE (no existe método de importación/restauración)
+  vuelta. → ✅ IMPLEMENTADO (`profile_screen.dart` → `app.importarRespaldo` →
+  `database_helper.importarDb`; usa file_picker para elegir el .json y re-sella los
+  registros para que el servidor prefiera la versión restaurada)
 
 Esfuerzo: S (mediano, 1-2 sesiones). Dependencias: ninguna.
 > Falta solo el "Restaurar respaldo" para dar Fase 1 por completa.
@@ -94,7 +96,7 @@ Esfuerzo: L (grande, refactor de sincronización). Dependencias: Fases 1-3 estab
 |------|------|--------|
 | 1 | PIN de admin | ✅ |
 | 1 | Exportar respaldo | ✅ |
-| 1 | Restaurar respaldo | ❌ |
+| 1 | Restaurar respaldo | ✅ |
 | 2 | Celebración al aprobar | ✅ |
 | 2 | Insignias con progreso | ✅ |
 | 2 | Push al niño al aprobar | ✅ |

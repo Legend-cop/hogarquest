@@ -1018,6 +1018,54 @@ class DatabaseHelper {
   /// Devuelve una copia completa de la base de datos local (para respaldo).
   Map<String, dynamic> exportarDb() => _exportar();
 
+  /// Reemplaza la base de datos local por el contenido de un respaldo.
+  /// Sella los registros con la hora actual para que, al sincronizar, el
+  /// servidor prefiera esta versión (merge "último que escribe").
+  Future<void> importarDb(Map<String, dynamic> data) async {
+    final nombres = [
+      _boxUsuarios,
+      _boxTareas,
+      _boxAsignaciones,
+      _boxRecompensas,
+      _boxCanjes,
+      _boxInsignias,
+      _boxCastigos,
+      _boxRetos,
+      _boxCatalogos,
+      _boxMeta,
+    ];
+    for (final nombre in nombres) {
+      final box = _box(nombre);
+      final lista = data[nombre];
+      final items = <Map<String, dynamic>>[];
+      if (lista is List) {
+        for (final raw in lista) {
+          if (raw is Map) {
+            final copia = Map<String, dynamic>.from(raw);
+            _sellar(copia);
+            items.add(copia);
+          }
+        }
+      }
+      box.items.clear();
+      box.items.addAll(items);
+    }
+    _tombstones.clear();
+    final dels = data['deleted'];
+    if (dels is List) {
+      for (final raw in dels) {
+        if (raw is Map) {
+          final copia = Map<String, dynamic>.from(raw);
+          copia['updated_at'] = DateTime.now().millisecondsSinceEpoch;
+          _tombstones.add(copia);
+        }
+      }
+    }
+    _cargado = true;
+    _migrarContrasenas();
+    _persistir();
+  }
+
   // ---------------------------------------------------------------
   // TAREAS
   // ---------------------------------------------------------------

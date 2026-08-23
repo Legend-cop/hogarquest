@@ -3,6 +3,7 @@ import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:file_saver/file_saver.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:provider/provider.dart';
 
 import '../db/photo_picker.dart';
@@ -136,6 +137,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       trailing: const Icon(Icons.chevron_right),
                       onTap: () => _exportarRespaldo(context),
                     ),
+                    const Divider(),
+                    ListTile(
+                      leading: const Icon(Icons.restore, color: AppColors.azul),
+                      title: const Text('Restaurar respaldo'),
+                      subtitle: const Text(
+                          'Carga un respaldo previamente descargado.'),
+                      trailing: const Icon(Icons.chevron_right),
+                      onTap: () => _restaurarRespaldo(context),
+                    ),
                   ],
                 ),
               ),
@@ -238,10 +248,60 @@ class _ProfileScreenState extends State<ProfileScreen> {
           const SnackBar(content: Text('Respaldo descargado.')),
         );
       }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('No se pudo exportar: $e')),
+          );
+        }
+      }
+    }
+  }
+
+  Future<void> _restaurarRespaldo(BuildContext context) async {
+    try {
+      final app = context.read<AppProvider>();
+      final resultado = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: const ['json'],
+      );
+      if (resultado == null || resultado.files.single.bytes == null) return;
+      final contenido = utf8.decode(resultado.files.single.bytes!);
+      final data = jsonDecode(contenido);
+      if (data is! Map<String, dynamic>) {
+        throw Exception('El archivo no es un respaldo válido.');
+      }
+      final confirmar = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Restaurar respaldo'),
+          content: const Text(
+            'Esto reemplazará los datos actuales por el contenido del '
+            'respaldo en este y otros dispositivos. ¿Continuar?',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancelar'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Restaurar'),
+            ),
+          ],
+        ),
+      );
+      if (confirmar != true) return;
+      await app.importarRespaldo(data);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Respaldo restaurado.')),
+        );
+      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('No se pudo exportar: $e')),
+          SnackBar(content: Text('No se pudo restaurar: $e')),
         );
       }
     }
