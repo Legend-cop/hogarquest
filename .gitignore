@@ -52,3 +52,9 @@ server/hogarquest_data.json.bak
 server/hogarquest_data.json.mojibake
 server/firebase-credentials.json
 server/node_modules/
+
+# Build artifacts
+/build.err
+/build.log
+/android/build/reports/
+
