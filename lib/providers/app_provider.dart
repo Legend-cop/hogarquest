@@ -309,6 +309,7 @@ class AppProvider extends ChangeNotifier {
     String frecuencia = 'unica',
     List<int> integrantesIds = const [],
     String dia = '',
+    String categoria = 'General',
   }) async {
     final tarea = Task(
       titulo: titulo,
@@ -318,6 +319,7 @@ class AppProvider extends ChangeNotifier {
       fechaLimite: fechaLimite,
       frecuencia: frecuencia,
       dia: dia,
+      categoria: categoria,
     );
     final tareaId = await _db.insertTarea(tarea);
     for (final uid in integrantesIds) {

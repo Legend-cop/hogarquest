@@ -320,6 +320,7 @@ class _AdminTasksListState extends State<_AdminTasksList>
       frecuencia: data['frecuencia'] as String? ?? 'unica',
       integrantesIds: integrantesIds,
       dia: data['dia'] as String? ?? '',
+      categoria: data['categoria'] as String? ?? 'General',
     );
     if (context.mounted) Navigator.pop(context);
     await _recargar();
@@ -815,7 +816,7 @@ class _IntegrantePill extends StatelessWidget {
   }
 }
 
-class _AdminListaTab extends StatelessWidget {
+class _AdminListaTab extends StatefulWidget {
   final List<Task> tareas;
   final Map<int, List<User>> asignados;
   final List<TareaCatalogo> catalogo;
@@ -827,6 +828,13 @@ class _AdminListaTab extends StatelessWidget {
     required this.catalogo,
     required this.onRefresh,
   });
+
+  @override
+  State<_AdminListaTab> createState() => _AdminListaTabState();
+}
+
+class _AdminListaTabState extends State<_AdminListaTab> {
+  String _filtroCat = 'Todas';
 
   static const _diasOrden = [
     'domingo',
@@ -840,6 +848,12 @@ class _AdminListaTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final tareas = widget.tareas
+        .where((t) => _filtroCat == 'Todas' || t.categoria == _filtroCat)
+        .toList();
+    final onRefresh = widget.onRefresh;
+    final asignados = widget.asignados;
+    final catalogo = widget.catalogo;
     final activas = tareas.where((t) => t.activa).toList();
     final inactivas = tareas.where((t) => !t.activa).toList();
     final conDia = activas.where((t) => t.dia.isNotEmpty).toList();
@@ -853,9 +867,31 @@ class _AdminListaTab extends StatelessWidget {
       );
     }
 
-    return RefreshIndicator(
-      onRefresh: onRefresh,
-      child: ListView(
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                for (final c in ['Todas', ...CategoriaTarea.nombres])
+                  Padding(
+                    padding: const EdgeInsets.only(right: 6),
+                    child: FilterChip(
+                      label: Text(c),
+                      selected: _filtroCat == c,
+                      onSelected: (_) => setState(() => _filtroCat = c),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+        Expanded(
+          child: RefreshIndicator(
+            onRefresh: onRefresh,
+            child: ListView(
         padding: const EdgeInsets.all(12),
         children: [
           for (final dia in _diasOrden)
@@ -917,7 +953,10 @@ class _AdminListaTab extends StatelessWidget {
           ],
         ],
       ),
-    );
+        ),
+      ),
+    ],
+  );
   }
 }
 
@@ -1153,6 +1192,18 @@ class _AdminTaskCard extends StatelessWidget {
                 'Límite: ${_fmtLimite(tarea.fechaLimite!)}',
                 style: const TextStyle(fontSize: 12, color: AppColors.grisMedio),
               ),
+            const SizedBox(height: 6),
+            Chip(
+              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              visualDensity: VisualDensity.compact,
+              avatar: Icon(CategoriaTarea.iconoDe(tarea.categoria),
+                  size: 14, color: Colors.white),
+              label: Text(tarea.categoria),
+              labelStyle: const TextStyle(
+                  fontSize: 11, color: Colors.white, fontWeight: FontWeight.w700),
+              backgroundColor: Color(CategoriaTarea.colorDe(tarea.categoria)),
+              padding: EdgeInsets.zero,
+            ),
             const SizedBox(height: 8),
           ],
         ),
@@ -1193,6 +1244,7 @@ class _AdminTaskCard extends StatelessWidget {
           'fechaLimite': tarea.fechaLimite,
           'frecuencia': tarea.frecuencia,
           'dia': tarea.dia,
+          'categoria': tarea.categoria,
           'integrantes': [],
         },
         onSaved: (data) => _crearEditarTarea(context, data: data, id: tarea.id),
@@ -1219,6 +1271,7 @@ class _AdminTaskCard extends StatelessWidget {
         fechaLimite: data['fechaLimite'] as DateTime? ?? tarea.fechaLimite,
         frecuencia: data['frecuencia'] as String? ?? tarea.frecuencia,
         dia: data['dia'] as String? ?? tarea.dia,
+        categoria: data['categoria'] as String? ?? tarea.categoria,
       );
       await app.editarTarea(tareaEditada, integrantesIds: integrantesIds);
     }
@@ -1574,6 +1627,18 @@ class _MiniTaskCard extends StatelessWidget {
                         fontWeight: FontWeight.w800,
                         color: AppColors.grisMedio),
                   ),
+                  const SizedBox(height: 4),
+                  Chip(
+                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    visualDensity: VisualDensity.compact,
+                    avatar: Icon(CategoriaTarea.iconoDe(task.categoria),
+                        size: 13, color: Colors.white),
+                    label: Text(task.categoria),
+                    labelStyle: const TextStyle(
+                        fontSize: 10, color: Colors.white, fontWeight: FontWeight.w700),
+                    backgroundColor: Color(CategoriaTarea.colorDe(task.categoria)),
+                    padding: EdgeInsets.zero,
+                  ),
                 ],
               ),
             ),
@@ -1716,6 +1781,7 @@ class _TaskFormDialogState extends State<_TaskFormDialog> {
   DateTime? _fechaLimite;
   String _frecuencia = 'unica';
   String _dia = '';
+  String _categoria = 'General';
   final Set<int> _integrantesIds = {};
   bool _puntosManual = false;
 
@@ -1761,6 +1827,7 @@ class _TaskFormDialogState extends State<_TaskFormDialog> {
       _fechaLimite = d['fechaLimite'] as DateTime?;
       _frecuencia = d['frecuencia'] as String? ?? 'unica';
       _dia = d['dia'] as String? ?? '';
+      _categoria = d['categoria'] as String? ?? 'General';
       final iniciales = d['integrantes'] as List? ?? [];
       for (final e in iniciales) {
         if (e is Map) {
@@ -1827,6 +1894,15 @@ class _TaskFormDialogState extends State<_TaskFormDialog> {
                 ],
               ),
               const SizedBox(height: 12),
+              DropdownButtonFormField<String>(
+                value: _categoria,
+                decoration: const InputDecoration(labelText: 'Categoría'),
+                items: [
+                  for (final c in CategoriaTarea.nombres)
+                    DropdownMenuItem(value: c, child: Text(c)),
+                ],
+                onChanged: (v) => setState(() => _categoria = v!),
+              ),
               ListTile(
                 title: Text(
                   _fechaLimite == null
@@ -1924,6 +2000,7 @@ class _TaskFormDialogState extends State<_TaskFormDialog> {
               'fechaLimite': _fechaLimite,
               'frecuencia': _frecuencia,
               'dia': _dia,
+              'categoria': _categoria,
               'integrantes': _integrantesIds.map((id) => {'id': id}).toList(),
             };
             widget.onSaved?.call(data);

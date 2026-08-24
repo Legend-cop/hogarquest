@@ -248,3 +248,141 @@ class DonutChart extends StatelessWidget {
     );
   }
 }
+
+/// Mapa de calor tipo "racha" (estilo GitHub) que muestra la actividad
+/// (puntos) día a día durante las últimas [semanas] semanas.
+class StreakHeatmap extends StatelessWidget {
+  final List<(DateTime, int)> data;
+  final int semanas;
+  final Color color;
+  final bool mostrarLeyenda;
+  final bool mostrarDias;
+
+  const StreakHeatmap({
+    super.key,
+    required this.data,
+    this.semanas = 12,
+    this.color = AppColors.verde,
+    this.mostrarLeyenda = true,
+    this.mostrarDias = true,
+  });
+
+  static int _nivel(int p) {
+    if (p <= 0) return 0;
+    if (p < 5) return 1;
+    if (p < 15) return 2;
+    if (p < 30) return 3;
+    return 4;
+  }
+
+  Color _colorNivel(int n) {
+    if (n == 0) return Colors.grey.withOpacity(0.18);
+    return color.withOpacity(0.3 + n * 0.18);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final map = <DateTime, int>{};
+    for (final d in data) {
+      map[DateTime(d.$1.year, d.$1.month, d.$1.day)] = d.$2;
+    }
+
+    final hoy = DateTime.now();
+    final hoyD = DateTime(hoy.year, hoy.month, hoy.day);
+    final inicio = hoyD.subtract(Duration(days: 7 * semanas - 1));
+    final desplaz = (inicio.weekday - 1) % 7;
+    final start = inicio.subtract(Duration(days: desplaz));
+
+    final columnas = <Widget>[];
+    DateTime cur = start;
+    while (!cur.isAfter(hoyD)) {
+      final celdas = <Widget>[];
+      for (int i = 0; i < 7; i++) {
+        final fecha = cur.add(Duration(days: i));
+        final despues = fecha.isAfter(hoyD);
+        final p = map[fecha] ?? 0;
+        final n = despues ? -1 : _nivel(p);
+        celdas.add(
+          Container(
+            width: 13,
+            height: 13,
+            margin: const EdgeInsets.all(1.5),
+            decoration: BoxDecoration(
+              color: n < 0 ? Colors.transparent : _colorNivel(n),
+              borderRadius: BorderRadius.circular(3),
+            ),
+          ),
+        );
+      }
+      columnas.add(Column(children: celdas));
+      cur = cur.add(const Duration(days: 7));
+    }
+
+    final dias = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (mostrarDias)
+              Column(
+                children: dias
+                    .map(
+                      (l) => SizedBox(
+                        width: 14,
+                        height: 16,
+                        child: Center(
+                          child: Text(
+                            l,
+                            style: const TextStyle(
+                              fontSize: 9,
+                              color: AppColors.grisMedio,
+                            ),
+                          ),
+                        ),
+                      ),
+                    )
+                    .toList(),
+              ),
+            Expanded(
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(children: columnas),
+              ),
+            ),
+          ],
+        ),
+        if (mostrarLeyenda) ...[
+          const SizedBox(height: 8),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              const Text(
+                'Menos',
+                style: TextStyle(fontSize: 10, color: AppColors.grisMedio),
+              ),
+              const SizedBox(width: 6),
+              for (int n = 0; n <= 4; n++)
+                Container(
+                  width: 12,
+                  height: 12,
+                  margin: const EdgeInsets.only(left: 3),
+                  decoration: BoxDecoration(
+                    color: _colorNivel(n),
+                    borderRadius: BorderRadius.circular(3),
+                  ),
+                ),
+              const SizedBox(width: 6),
+              const Text(
+                'Más',
+                style: TextStyle(fontSize: 10, color: AppColors.grisMedio),
+              ),
+            ],
+          ),
+        ],
+      ],
+    );
+  }
+}

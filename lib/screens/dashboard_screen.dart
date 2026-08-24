@@ -82,6 +82,7 @@ class _IntegranteDashboard extends StatelessWidget {
       app.listarInsignias(),
       app.puntosPorDia(user.id!, dias: 30),
       app.tareasPendientesDeHoy(user.id!),
+      app.puntosPorDiaGlobal(dias: 84),
     ]);
 
     return FutureBuilder(
@@ -97,6 +98,9 @@ class _IntegranteDashboard extends StatelessWidget {
         final hoy = (snap.data as List?)?[4]
                 as List<(Task, Assignment)>? ??
             <(Task, Assignment)>[];
+        final puntosGlobal84 = (snap.data as List?)?[5]
+                as List<(DateTime, int)>? ??
+            <(DateTime, int)>[];
 
         final pendientes = tareas
             .where((t) => !t.$2.completada)
@@ -180,6 +184,85 @@ class _IntegranteDashboard extends StatelessWidget {
                   child: BarChart(
                     data: puntosPorDia,
                     labelFor: (d) => d.day.toString(),
+                  ),
+                ),
+                SectionHeader(title: 'Esta semana'),
+                DuoCard(
+                  child: Builder(
+                    builder: (context) {
+                      final h = DateTime.now();
+                      final hd = DateTime(h.year, h.month, h.day);
+                      final ini = hd.subtract(Duration(days: hd.weekday - 1));
+                      final sem = puntosGlobal84
+                          .where((d) => !d.$1.isBefore(ini))
+                          .fold<int>(0, (a, d) => a + d.$2);
+                      final activos = puntosGlobal84
+                          .where((d) => !d.$1.isBefore(ini) && d.$2 > 0)
+                          .length;
+                      return Padding(
+                        padding: const EdgeInsets.all(14),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    sem.toString(),
+                                    style: const TextStyle(
+                                      fontSize: 28,
+                                      fontWeight: FontWeight.w800,
+                                      color: AppColors.verde,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  const Text(
+                                    'puntos esta semana',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: AppColors.grisMedio,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    '$activos / 7',
+                                    style: const TextStyle(
+                                      fontSize: 28,
+                                      fontWeight: FontWeight.w800,
+                                      color: AppColors.azul,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  const Text(
+                                    'días activos',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: AppColors.grisMedio,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+                ),
+                SectionHeader(title: 'Constancia (12 semanas)'),
+                DuoCard(
+                  child: Padding(
+                    padding: const EdgeInsets.all(14),
+                    child: StreakHeatmap(
+                      data: puntosGlobal84,
+                      semanas: 12,
+                    ),
                   ),
                 ),
                 SectionHeader(

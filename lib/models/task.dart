@@ -1,3 +1,5 @@
+import 'package:flutter/material.dart';
+
 class Task {
   final int? id;
   final String titulo;
@@ -8,6 +10,7 @@ class Task {
   final String frecuencia;
   final String estado;
   final String dia;
+  final String categoria;
 
   const Task({
     this.id,
@@ -19,6 +22,7 @@ class Task {
     this.frecuencia = 'unica',
     this.estado = 'activa',
     this.dia = '',
+    this.categoria = 'General',
   });
 
   bool get activa => estado == 'activa';
@@ -33,6 +37,7 @@ class Task {
     String? frecuencia,
     String? estado,
     String? dia,
+    String? categoria,
   }) {
     return Task(
       id: id ?? this.id,
@@ -44,6 +49,7 @@ class Task {
       frecuencia: frecuencia ?? this.frecuencia,
       estado: estado ?? this.estado,
       dia: dia ?? this.dia,
+      categoria: categoria ?? this.categoria,
     );
   }
 
@@ -58,6 +64,7 @@ class Task {
       'frecuencia': frecuencia,
       'estado': estado,
       'dia': dia,
+      'categoria': categoria,
     };
   }
 
@@ -74,6 +81,55 @@ class Task {
       frecuencia: (map['frecuencia'] as String?) ?? 'unica',
       estado: (map['estado'] as String?) ?? 'activa',
       dia: (map['dia'] as String?) ?? '',
+      categoria: (map['categoria'] as String?) ?? 'General',
     );
+  }
+}
+
+/// Metadatos de las categorías de tarea (color y icono para la UI).
+class CategoriaTarea {
+  static const List<String> nombres = [
+    'General',
+    'Escuela',
+    'Limpieza',
+    'Fe',
+    'Responsabilidad',
+    'Salud',
+    'Orden',
+    'Otro',
+  ];
+
+  static const Map<String, int> _color = {
+    'General': 0xFF9E9E9E,
+    'Escuela': 0xFF42A5F5,
+    'Limpieza': 0xFF26C6DA,
+    'Fe': 0xFFAB47BC,
+    'Responsabilidad': 0xFF66BB6A,
+    'Salud': 0xFFef5350,
+    'Orden': 0xFFFFA726,
+    'Otro': 0xFF789262,
+  };
+
+  static int colorDe(String c) => _color[c] ?? 0xFF9E9E9E;
+
+  static IconData iconoDe(String c) {
+    switch (c) {
+      case 'Escuela':
+        return Icons.school;
+      case 'Limpieza':
+        return Icons.cleaning_services;
+      case 'Fe':
+        return Icons.auto_stories;
+      case 'Responsabilidad':
+        return Icons.handshake;
+      case 'Salud':
+        return Icons.favorite;
+      case 'Orden':
+        return Icons.checklist_rtl;
+      case 'Otro':
+        return Icons.label;
+      default:
+        return Icons.category;
+    }
   }
 }
