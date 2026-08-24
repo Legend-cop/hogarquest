@@ -1222,7 +1222,10 @@ class _AdminTaskCard extends StatelessWidget {
         ),
         children: [
           const Divider(),
-          _CardActionsAdmin(tarea: tarea, asignados: asignados),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 14),
+            child: _CardActionsAdmin(tarea: tarea, asignados: asignados),
+          ),
         ],
       ),
     );
