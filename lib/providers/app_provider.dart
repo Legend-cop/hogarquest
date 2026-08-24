@@ -253,6 +253,8 @@ class AppProvider extends ChangeNotifier {
   /// Restaura la base de datos desde un respaldo previamente exportado.
   Future<void> importarRespaldo(Map<String, dynamic> data) async {
     await _db.importarDb(data);
+    // Recarga la caché en memoria para que la UI refleje el cambio en caliente.
+    await listarUsuarios();
     notifyListeners();
   }
 

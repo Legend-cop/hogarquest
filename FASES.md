@@ -42,8 +42,8 @@ Objetivo: que quieran entrar y cumplir tareas.
   → ✅ HECHO (FCM activo: `notification_service_io/web`, `push_service`, endpoint
   `/api/notify` en el servidor)
 - **Tienda de recompensas con fotos y catálogo de premios especiales**.
-  → ⚠️ PARCIAL (existen recompensas/catálogos y fotos de perfil; confirmar si la
-  tienda muestra fotos de los premios)
+  → ✅ HECHO (la tienda carga la foto de cada premio con `Image.network` y el admin
+  puede subirla desde el formulario de recompensa; verificado en Fase 6)
 
 Esfuerzo: M. Dependencias: Fase 1 (respaldo sirve de base).
 
@@ -62,7 +62,9 @@ Objetivo: visibilidad y organización.
   usuario ahora tiene selector de rol Integrante/Administrador y contraseña; la
   pantalla de gestión lista a todos los usuarios, incluídos los admins, para
   crear/promover copadres)
-- **Restaurar respaldo** si no se hizo en Fase 1. → ❌ PENDIENTE (depende Fase 1)
+- **Restaurar respaldo**. → ✅ IMPLEMENTADO (el flujo parsea el JSON, resella los
+  registros con `updated_at` actual, persiste y los sube al servidor con merge LWW;
+  verificado en Fase 6; `importarRespaldo` recarga la caché para reflejarlo en caliente)
 
 Esfuerzo: M. Dependencias: Fase 1.
 
@@ -109,11 +111,11 @@ Esfuerzo: L (grande, refactor de sincronización). Dependencias: Fases 1-3 estab
 | 2 | Celebración al aprobar | ✅ |
 | 2 | Insignias con progreso | ✅ |
 | 2 | Push al niño al aprobar | ✅ |
-| 2 | Tienda con fotos/catálogo | ⚠️ |
+| 2 | Tienda con fotos/catálogo | ✅ |
 | 3 | Gráfica 30 días | ✅ |
 | 3 | Calendario semanal | ✅ |
 | 3 | Varios admins | ✅ |
-| 3 | Restaurar respaldo | ❌ |
+| 3 | Restaurar respaldo | ✅ |
 | 4 | Mantener despierto | ➖ |
 | 4 | APK en Releases | ✅ |
 | 4 | Host gratis sin dormir | ➖ |
