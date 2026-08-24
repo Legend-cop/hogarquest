@@ -490,6 +490,25 @@ class _UsuarioFormDialogState extends State<_UsuarioFormDialog> {
                 controller: _colorTema,
                 decoration: const InputDecoration(labelText: 'Tema favorito'),
               ),
+              const SizedBox(height: 12),
+              DropdownButtonFormField<String>(
+                value: _rol,
+                decoration: const InputDecoration(labelText: 'Rol'),
+                items: const [
+                  DropdownMenuItem(
+                      value: 'integrante', child: Text('Hijo / Integrante')),
+                  DropdownMenuItem(
+                      value: 'admin', child: Text('Padre / Copadre')),
+                ],
+                onChanged: (v) => setState(() => _rol = v!),
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: _password,
+                decoration: const InputDecoration(
+                    labelText: 'Contraseña (dejar vacía = 1234)'),
+                obscureText: true,
+              ),
             ],
           ),
         ),
@@ -507,6 +526,8 @@ class _UsuarioFormDialogState extends State<_UsuarioFormDialog> {
               'avatar': '',
               'edad': int.tryParse(_edad.text) ?? 0,
               'colorTema': _colorTema.text.trim(),
+              'rol': _rol,
+              'password': _password.text.trim(),
             });
           },
           child: const Text('Guardar'),

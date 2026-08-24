@@ -121,3 +121,37 @@ Esfuerzo: L (grande, refactor de sincronización). Dependencias: Fases 1-3 estab
 | 5 | Login server-side | ✅ |
 
 ✅ hecho · ⚠️ parcial · ❌ pendiente · ➖ no aplica / ya resuelto
+
+---
+
+## FASE 6 — Pulido de UI y control de copadres
+Objetivo: gráfica legible en móvil, tareas con hora y gestión real de copadres.
+
+- **Gráfica de 30 días con scroll horizontal** (Opción B): cada barra tiene ancho fijo
+  y la gráfica se desliza; los números de 2 cifras ya no se parten. → ✅ IMPLEMENTADO
+  (`lib/widgets/charts.dart`, `BarChart` usa `SingleChildScrollView` + ancho fijo por
+  barra en vez de `Expanded`)
+- **Hora límite en tareas**: el formulario de crear/editar ahora elige fecha **y hora**;
+  las tarjetas y listas muestran "fecha HH:mm"; la lógica de vencidas usa la hora
+  completa. → ✅ IMPLEMENTADO (`tasks_screen.dart`, helper `_fmtLimite`,
+  `showTimePicker` tras `showDatePicker`)
+- **Recordatorio local a la hora límite**: al guardar una tarea con fecha/hora futura se
+  programa una notificación local (best-effort, con `zonedSchedule`). → ✅ IMPLEMENTADO
+  (`notification_service_io.programarTarea` / `cancelarTarea`; se llama desde
+  `tasks_screen._crearEditarTarea`)
+- **Selector de rol real para copadres**: el diálogo de usuario ahora expone
+  "Hijo/Integrante" vs "Padre/Copadre" (antes la variable `_rol` existía pero no se
+  mostraba, así que nadie podía promover a copadre desde la app). → ✅ CORREGIDO/HECHO
+  (`admin_usuarios_screen.dart`, `_UsuarioFormDialog` con `DropdownButtonFormField` de
+  rol y campo de contraseña)
+
+Esfuerzo: M. Dependencias: Fases 1-5 estables.
+
+### Resumen de estado (Fase 6)
+
+| Fase | Ítem | Estado |
+|------|------|--------|
+| 6 | Gráfica 30 días scroll horizontal | ✅ |
+| 6 | Hora límite en tareas | ✅ |
+| 6 | Recordatorio local a la hora | ✅ |
+| 6 | Selector de rol copadres | ✅ |

@@ -4,6 +4,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:timezone/data/latest.dart' as tzdata;
+import 'package:timezone/timezone.dart' as tz;
 
 import '../providers/app_provider.dart';
 
@@ -67,6 +69,9 @@ class NotificationService {
   /// Inicializa el plugin para mostrar notificaciones inmediatas.
   Future<void> init({AppProvider? app}) async {
     if (_iniciado) return;
+    try {
+      tzdata.initializeTimeZones();
+    } catch (_) {}
     const android = AndroidInitializationSettings('@mipmap/ic_launcher');
     const darwin = DarwinInitializationSettings(
       requestAlertPermission: false,
@@ -77,6 +82,44 @@ class NotificationService {
       const InitializationSettings(android: android, iOS: darwin),
     );
     _iniciado = true;
+  }
+
+  /// Programa una notificación local a la hora límite de una tarea (best-effort).
+  Future<void> programarTarea({
+    required int id,
+    required DateTime cuando,
+    required String titulo,
+    required String cuerpo,
+  }) async {
+    try {
+      if (kIsWeb) return;
+      await init();
+      final tzCuando = tz.TZDateTime.from(cuando, tz.local);
+      if (tzCuando.isBefore(tz.TZDateTime.now(tz.local))) return;
+      await _plugin.zonedSchedule(
+        id,
+        titulo,
+        cuerpo,
+        tzCuando,
+        const NotificationDetails(
+          android: AndroidNotificationDetails(
+            'hq_tareas',
+            'Tareas por vencer',
+            channelDescription: 'Avisos de tareas próximas a vencer',
+            importance: Importance.high,
+            priority: Priority.high,
+          ),
+        ),
+        androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+      );
+    } catch (_) {}
+  }
+
+  /// Cancela la notificación programada de una tarea.
+  Future<void> cancelarTarea(int id) async {
+    try {
+      await _plugin.cancel(id);
+    } catch (_) {}
   }
 
   /// Envía la hora configurada del recordatorio y el offset UTC local al

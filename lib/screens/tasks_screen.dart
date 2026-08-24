@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../providers/app_provider.dart';
+import '../services/notification_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/confetti.dart';
 import '../widgets/duo_widgets.dart';
@@ -1149,7 +1150,7 @@ class _AdminTaskCard extends StatelessWidget {
             const SizedBox(height: 4),
             if (tarea.fechaLimite != null)
               Text(
-                'Límite: ${tarea.fechaLimite!.toLocal().toString().split(" ").first}',
+                'Límite: ${_fmtLimite(tarea.fechaLimite!)}',
                 style: const TextStyle(fontSize: 12, color: AppColors.grisMedio),
               ),
             const SizedBox(height: 8),
@@ -1220,6 +1221,17 @@ class _AdminTaskCard extends StatelessWidget {
         dia: data['dia'] as String? ?? tarea.dia,
       );
       await app.editarTarea(tareaEditada, integrantesIds: integrantesIds);
+    }
+    final fl = data['fechaLimite'] as DateTime?;
+    if (fl != null && fl.isAfter(DateTime.now())) {
+      final nid = ((id ?? data['titulo'].hashCode) as int).abs() % 1000000;
+      await NotificationService.instance.cancelarTarea(nid);
+      await NotificationService.instance.programarTarea(
+        id: nid,
+        cuando: fl,
+        titulo: 'Tarea por vencer',
+        cuerpo: '${data['titulo']}',
+      );
     }
     if (context.mounted) Navigator.pop(context);
     await onRefresh?.call();
@@ -1556,7 +1568,7 @@ class _MiniTaskCard extends StatelessWidget {
                   const SizedBox(height: 2),
                   Text(
                     '${task.dificultad.toUpperCase()}'
-                    '${task.fechaLimite != null ? " · ${task.fechaLimite!.toLocal().toString().split(" ").first}" : ""}',
+                    '${task.fechaLimite != null ? " · ${_fmtLimite(task.fechaLimite!)}" : ""}',
                     style: const TextStyle(
                         fontSize: 11,
                         fontWeight: FontWeight.w800,
@@ -1819,7 +1831,7 @@ class _TaskFormDialogState extends State<_TaskFormDialog> {
                 title: Text(
                   _fechaLimite == null
                       ? 'Sin fecha límite'
-                      : 'Límite: ${_fechaLimite!.toLocal().toString().split(" ").first}',
+                      : 'Límite: ${_fmtLimite(_fechaLimite!)}',
                 ),
                 trailing: const Icon(Icons.calendar_today),
                 onTap: () async {
@@ -1829,7 +1841,18 @@ class _TaskFormDialogState extends State<_TaskFormDialog> {
                     firstDate: DateTime.now(),
                     lastDate: DateTime.now().add(const Duration(days: 365)),
                   );
-                  if (picked != null) setState(() => _fechaLimite = picked);
+                  if (picked == null) return;
+                  final prev = _fechaLimite;
+                  final hora = await showTimePicker(
+                    context: context,
+                    initialTime: TimeOfDay.fromDateTime(prev ?? picked),
+                  );
+                  final t = hora ??
+                      (prev != null
+                          ? TimeOfDay(hour: prev.hour, minute: prev.minute)
+                          : const TimeOfDay(hour: 0, minute: 0));
+                  setState(() => _fechaLimite = DateTime(
+                      picked.year, picked.month, picked.day, t.hour, t.minute));
                 },
               ),
               const SizedBox(height: 12),
@@ -1964,4 +1987,13 @@ String _nombreDia(String dia) {
     default:
       return dia;
   }
+}
+
+/// Formatea la fecha límite con hora (solo muestra la hora si no es 00:00).
+String _fmtLimite(DateTime d) {
+  final fecha = d.toLocal().toString().split(' ').first;
+  if (d.hour == 0 && d.minute == 0) return fecha;
+  final h = d.hour.toString().padLeft(2, '0');
+  final m = d.minute.toString().padLeft(2, '0');
+  return '$fecha $h:$m';
 }

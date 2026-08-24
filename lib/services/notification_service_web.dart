@@ -58,4 +58,15 @@ class NotificationService {
       offset: offset,
     );
   }
+
+  /// No-op en web (no hay notificaciones locales programables).
+  Future<void> programarTarea({
+    required int id,
+    required DateTime cuando,
+    required String titulo,
+    required String cuerpo,
+  }) async {}
+
+  /// No-op en web.
+  Future<void> cancelarTarea(int id) async {}
 }
