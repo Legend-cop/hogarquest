@@ -8,6 +8,7 @@ on:
 
 permissions:
   contents: write
+  issues: write
 
 jobs:
   build:
@@ -20,8 +21,21 @@ jobs:
           channel: stable
       - run: flutter pub get
       - name: Build APK
-        run: flutter build apk --release --target-platform android-arm64,android-arm --dart-define=API_BASE_URL=${{ vars.API_BASE_URL }}
+        run: flutter build apk --release --target-platform android-arm64,android-arm --dart-define=API_BASE_URL=${{ vars.API_BASE_URL }} 2>&1 | tee /tmp/build.log
+      - name: Report build error
+        if: failure()
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          BODY="$(tail -n 150 /tmp/build.log)"
+          EXISTING=$(gh issue list --state open --search "APK build failure" --json number --jq '.[0].number' 2>/dev/null || true)
+          if [ -n "$EXISTING" ]; then
+            gh issue comment "$EXISTING" --body "$BODY"
+          else
+            gh issue create --title "APK build failure" --body "$BODY"
+          fi
       - name: Upload to Release
+        if: success()
         uses: softprops/action-gh-release@v2
         with:
           files: build/app/outputs/flutter-apk/app-release.apk
