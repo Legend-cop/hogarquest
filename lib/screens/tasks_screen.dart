@@ -449,17 +449,6 @@ class _AdminSemanaTabState extends State<_AdminSemanaTab> {
     final integrantes = _integrantes;
     final duplicadas = _duplicadasEn(conDia);
 
-    // Ordena los días empezando por hoy, así al abrir la pestaña el usuario
-    // ve primero el día actual (el ListView construye sus hijos de forma
-    // perezosa, por lo que hacer scroll hasta "hoy" no es fiable).
-    final hoyIdx = _diasOrden.indexOf(_IntegranteTasksList._diaHoy);
-    final diasOrden = hoyIdx < 0
-        ? _diasOrden
-        : [
-            ..._diasOrden.sublist(hoyIdx),
-            ..._diasOrden.sublist(0, hoyIdx),
-          ];
-
     if (activas.isEmpty && integrantes.isEmpty) {
       return const EmptyState(
         icon: Icons.calendar_view_week_outlined,
@@ -484,6 +473,10 @@ class _AdminSemanaTabState extends State<_AdminSemanaTab> {
     return RefreshIndicator(
       onRefresh: widget.onRefresh,
       child: ListView(
+        // Fuerza construir todas las secciones (el ListView es perezoso y el
+        // header de "hoy" podría no existir aún al hacer scroll hasta él).
+        // ignore: deprecated_member_use
+        cacheExtent: 100000,
         padding: const EdgeInsets.all(12),
         children: [
           if (integrantes.isNotEmpty)
@@ -525,7 +518,7 @@ class _AdminSemanaTabState extends State<_AdminSemanaTab> {
               hint: 'Asígnale tareas desde la pestaña Tareas.',
             ),
           ],
-          for (final dia in diasOrden)
+          for (final dia in _diasOrden)
             if (conDia.any((t) => t.dia == dia)) ...[
               _DiaSemanaHeader(
                 key: _dayKeys[dia],

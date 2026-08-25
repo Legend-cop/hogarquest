@@ -1,10 +1,13 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../db/database_helper.dart';
+import '../db/photo_store.dart';
+import '../db/upload_client.dart';
 import '../models/assignment.dart';
 import '../models/badge.dart';
 import '../models/castigo.dart';
@@ -83,7 +86,33 @@ class AppProvider extends ChangeNotifier {
     }
     await aplicarCastigosVencidos();
     await finalizarRetosVencidos();
+    if (!_db.sinConexion) unawaited(_subirFotosPendientes());
     notifyListeners();
+  }
+
+  /// Sube al servidor las fotos que se agregaron sin conexión (tienen copia
+  /// local pero aún no tienen URL remota) y actualiza el registro local.
+  Future<void> _subirFotosPendientes() async {
+    try {
+      final recompensas = await listarRecompensas();
+      for (final r in recompensas) {
+        if (r.fotoLocal.isNotEmpty && r.foto.isEmpty && PhotoStore.existe(r.fotoLocal)) {
+          final bytes = await File(r.fotoLocal).readAsBytes();
+          final url = await UploadClient().subirFoto(bytes);
+          if (url != null) await editarRecompensa(r.copyWith(foto: url));
+        }
+      }
+      final usuarios = await listarUsuarios();
+      for (final u in usuarios) {
+        if (u.fotoLocal.isNotEmpty && u.foto.isEmpty && PhotoStore.existe(u.fotoLocal)) {
+          final bytes = await File(u.fotoLocal).readAsBytes();
+          final url = await UploadClient().subirFoto(bytes);
+          if (url != null) await editarUsuario(u.copyWith(foto: url));
+        }
+      }
+    } catch (e) {
+      debugPrint('Error al subir fotos pendientes: $e');
+    }
   }
 
   Future<bool> login(String nombre, String password) async {
@@ -502,12 +531,14 @@ class AppProvider extends ChangeNotifier {
     String descripcion = '',
     required int costoPuntos,
     String foto = '',
+    String fotoLocal = '',
   }) async {
     await _db.insertRecompensa(Reward(
       nombre: nombre,
       descripcion: descripcion,
       costoPuntos: costoPuntos,
       foto: foto,
+      fotoLocal: fotoLocal,
     ));
     notifyListeners();
   }

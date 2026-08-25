@@ -1,12 +1,11 @@
-import 'dart:typed_data';
-
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../db/photo_picker.dart';
+import '../db/photo_store.dart';
 import '../db/server_config.dart';
 import '../db/upload_client.dart';
+import '../widgets/foto_widget.dart';
 import '../providers/app_provider.dart';
 import '../theme/app_theme.dart';
 import '../widgets/duo_widgets.dart';
@@ -92,23 +91,26 @@ class _AdminRewardsViewState extends State<_AdminRewardsView> {
       descripcion: data['descripcion'] as String? ?? '',
       costoPuntos: (data['costoPuntos'] as int?) ?? 0,
       foto: data['foto'] as String? ?? '',
+      fotoLocal: data['fotoLocal'] as String? ?? '',
     );
     if (context.mounted) Navigator.pop(context);
     _cargarDatos();
   }
 
   void _editarRecompensa(BuildContext context, Reward reward) {
-    showDialog(
-      context: context,
-      builder: (_) => _RewardFormDialog(
-        initialData: {
-          'nombre': reward.nombre,
-          'descripcion': reward.descripcion,
-          'costoPuntos': reward.costoPuntos,
-        },
-        onSaved: (data) => _editarRecompensaGuardado(context, reward, data),
-      ),
-    );
+      showDialog(
+        context: context,
+        builder: (_) => _RewardFormDialog(
+          initialData: {
+            'nombre': reward.nombre,
+            'descripcion': reward.descripcion,
+            'costoPuntos': reward.costoPuntos,
+            'foto': reward.foto,
+            'fotoLocal': reward.fotoLocal,
+          },
+          onSaved: (data) => _editarRecompensaGuardado(context, reward, data),
+        ),
+      );
   }
 
   Future<void> _editarRecompensaGuardado(BuildContext context, Reward reward, Map<String, Object?> data) async {
@@ -118,6 +120,7 @@ class _AdminRewardsViewState extends State<_AdminRewardsView> {
       descripcion: data['descripcion'] as String? ?? reward.descripcion,
       costoPuntos: (data['costoPuntos'] as int?) ?? reward.costoPuntos,
       foto: data['foto'] as String? ?? reward.foto,
+      fotoLocal: data['fotoLocal'] as String? ?? reward.fotoLocal,
     );
     await widget.app.editarRecompensa(recompensasEditada);
     if (context.mounted) Navigator.pop(context);
@@ -169,25 +172,20 @@ class _AdminRewardsViewState extends State<_AdminRewardsView> {
                     return DuoCard(
                       padding: EdgeInsets.zero,
                       child: ListTile(
-                        leading: r.foto.isNotEmpty
+                        leading: (r.foto.isNotEmpty || r.fotoLocal.isNotEmpty)
                             ? ClipRRect(
                                 borderRadius: BorderRadius.circular(10),
-                                child: CachedNetworkImage(
-                                  imageUrl: _resolverFoto(r.foto),
-                                  width: 42,
-                                  height: 42,
-                                  fit: BoxFit.cover,
-                                  placeholder: (_, __) => const DuoIconBadge(
+                                child: FotoWidget(
+                                  url: _resolverFoto(r.foto),
+                                  local: r.fotoLocal,
+                                  size: 42,
+                                  placeholder: const DuoIconBadge(
                                       icon: Icons.card_giftcard,
                                       color: AppColors.azul,
-                                      size: 42),
-                                  errorWidget: (_, __, ___) => const DuoIconBadge(
-                                      icon: Icons.card_giftcard,
-                                      color: AppColors.azul,
-                                      size: 42),
+                                       size: 42),
                                 ),
                               )
-                            : const DuoIconBadge(
+                             : const DuoIconBadge(
                                 icon: Icons.card_giftcard,
                                 color: AppColors.azul,
                                 size: 42),
@@ -325,6 +323,7 @@ class _RewardFormDialogState extends State<_RewardFormDialog> {
   final _descripcionController = TextEditingController();
   final _costoPuntosController = TextEditingController();
   String _foto = '';
+  String _fotoLocal = '';
   bool _subiendo = false;
 
   @override
@@ -336,6 +335,7 @@ class _RewardFormDialogState extends State<_RewardFormDialog> {
       _descripcionController.text = d['descripcion'] as String? ?? '';
       _costoPuntosController.text = (d['costoPuntos'] as int?)?.toString() ?? '0';
       _foto = d['foto'] as String? ?? '';
+      _fotoLocal = d['fotoLocal'] as String? ?? '';
     }
   }
 
@@ -346,13 +346,20 @@ class _RewardFormDialogState extends State<_RewardFormDialog> {
       final (bytes, mime) = resultado;
       if (!mounted) return;
       setState(() => _subiendo = true);
+      // Se guarda una copia local SIEMPRE (funciona sin internet).
+      final local = await PhotoStore.guardarBytes(bytes);
+      // Se sube al servidor solo si hay conexion; si no, queda pendiente.
       final url = await UploadClient().subirFoto(bytes, mime: mime);
       if (!mounted) return;
-      if (url != null) {
-        setState(() => _foto = url);
-      } else if (mounted) {
+      setState(() {
+        _fotoLocal = local;
+        if (url != null) _foto = url;
+      });
+      if (url == null && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('No se pudo subir la foto')),
+          const SnackBar(
+            content: Text('Foto guardada en este dispositivo. Se subirá al tener internet.'),
+          ),
         );
       }
     } finally {
@@ -396,30 +403,33 @@ class _RewardFormDialogState extends State<_RewardFormDialog> {
                 runSpacing: 8,
                 crossAxisAlignment: WrapCrossAlignment.center,
                 children: [
-                  if (_foto.isNotEmpty)
+                  if (_foto.isNotEmpty || _fotoLocal.isNotEmpty)
                     ClipRRect(
                       borderRadius: BorderRadius.circular(10),
-                      child: CachedNetworkImage(
-                        imageUrl: _resolverFoto(_foto),
-                        width: 56,
-                        height: 56,
-                        fit: BoxFit.cover,
-                        placeholder: (_, __) => const Icon(Icons.image),
-                        errorWidget: (_, __, ___) => const Icon(Icons.image),
+                      child: FotoWidget(
+                        url: _resolverFoto(_foto),
+                        local: _fotoLocal,
+                        size: 56,
+                        placeholder: const Icon(Icons.image),
                       ),
                     ),
                   DuoButton(
-                    label: _foto.isEmpty ? 'Añadir foto' : 'Cambiar foto',
+                    label: _foto.isEmpty && _fotoLocal.isEmpty
+                        ? 'Añadir foto'
+                        : 'Cambiar foto',
                     icon: Icons.photo_camera,
                     fullWidth: false,
                     loading: _subiendo,
                     onPressed: _subiendo ? null : _elegirFoto,
                   ),
-                  if (_foto.isNotEmpty)
+                  if (_foto.isNotEmpty || _fotoLocal.isNotEmpty)
                     IconButton(
                       icon: const Icon(Icons.clear, color: AppColors.rojo),
                       tooltip: 'Quitar foto',
-                      onPressed: () => setState(() => _foto = ''),
+                      onPressed: () => setState(() {
+                            _foto = '';
+                            _fotoLocal = '';
+                          }),
                     ),
                 ],
               ),
@@ -440,6 +450,7 @@ class _RewardFormDialogState extends State<_RewardFormDialog> {
               'descripcion': _descripcionController.text,
               'costoPuntos': int.tryParse(_costoPuntosController.text) ?? 0,
               'foto': _foto,
+              'fotoLocal': _fotoLocal,
             };
             widget.onSaved?.call(data);
           },
@@ -570,24 +581,14 @@ class _UserRewardsViewState extends State<_UserRewardsView> {
                           horizontal: 12, vertical: 12),
                       child: Row(
                         children: [
-                          if (r.foto.isNotEmpty)
+                          if (r.foto.isNotEmpty || r.fotoLocal.isNotEmpty)
                             ClipRRect(
                               borderRadius: BorderRadius.circular(10),
-                              child: CachedNetworkImage(
-                                imageUrl: _resolverFoto(r.foto),
-                                width: 42,
-                                height: 42,
-                                fit: BoxFit.cover,
-                                placeholder: (_, __) => DuoIconBadge(
-                                  icon: jaCambiado
-                                      ? Icons.check
-                                      : Icons.card_giftcard,
-                                  color: jaCambiado
-                                      ? AppColors.grisMedio
-                                      : AppColors.verde,
-                                  size: 42,
-                                ),
-                                errorWidget: (_, __, ___) => DuoIconBadge(
+                              child: FotoWidget(
+                                url: _resolverFoto(r.foto),
+                                local: r.fotoLocal,
+                                size: 42,
+                                placeholder: DuoIconBadge(
                                   icon: jaCambiado
                                       ? Icons.check
                                       : Icons.card_giftcard,

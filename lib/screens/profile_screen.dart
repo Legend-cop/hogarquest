@@ -7,6 +7,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:provider/provider.dart';
 
 import '../db/photo_picker.dart';
+import '../db/photo_store.dart';
 import '../db/upload_client.dart';
 import '../providers/app_provider.dart';
 import '../theme/app_theme.dart';
@@ -318,15 +319,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Subiendo foto…')),
       );
+      final local = await PhotoStore.guardarBytes(bytes);
       final url = await UploadClient().subirFoto(bytes, mime: mime);
       if (!mounted) return;
       if (url == null) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('No se pudo subir la foto')),
+          const SnackBar(
+            content: Text('Foto guardada en este dispositivo. Se subirá al tener internet.'),
+          ),
         );
-        return;
       }
-      await app.editarUsuario(user.copyWith(foto: url));
+      await app.editarUsuario(user.copyWith(foto: url ?? user.foto, fotoLocal: local));
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('¡Foto actualizada!')),

@@ -3,6 +3,7 @@ class User {
   final String nombre;
   final String avatar;
   final String foto;
+  final String fotoLocal;
   final int edad;
   final String colorTema;
   final int nivel;
@@ -20,6 +21,7 @@ class User {
     required this.nombre,
     this.avatar = '',
     this.foto = '',
+    this.fotoLocal = '',
     this.edad = 0,
     this.colorTema = '',
     this.nivel = 1,
@@ -79,6 +81,7 @@ class User {
     String? nombre,
     String? avatar,
     String? foto,
+    String? fotoLocal,
     int? edad,
     String? colorTema,
     int? nivel,
@@ -96,6 +99,7 @@ class User {
       nombre: nombre ?? this.nombre,
       avatar: avatar ?? this.avatar,
       foto: foto ?? this.foto,
+      fotoLocal: fotoLocal ?? this.fotoLocal,
       edad: edad ?? this.edad,
       colorTema: colorTema ?? this.colorTema,
       nivel: nivel ?? this.nivel,
@@ -116,6 +120,7 @@ class User {
       'nombre': nombre,
       'avatar': avatar,
       'foto': foto,
+      'foto_local': fotoLocal,
       'edad': edad,
       'color_tema': colorTema,
       'nivel': nivel,
@@ -136,6 +141,7 @@ class User {
       nombre: map['nombre'] as String,
       avatar: (map['avatar'] as String?) ?? '',
       foto: (map['foto'] as String?) ?? '',
+      fotoLocal: (map['foto_local'] as String?) ?? '',
       edad: (map['edad'] as int?) ?? 0,
       colorTema: (map['color_tema'] as String?) ?? '',
       nivel: (map['nivel'] as int?) ?? 1,

@@ -4,6 +4,7 @@ class Reward {
   final String descripcion;
   final int costoPuntos;
   final String foto;
+  final String fotoLocal;
 
   const Reward({
     this.id,
@@ -11,6 +12,7 @@ class Reward {
     this.descripcion = '',
     required this.costoPuntos,
     this.foto = '',
+    this.fotoLocal = '',
   });
 
   Map<String, Object?> toMap() {
@@ -20,6 +22,7 @@ class Reward {
       'descripcion': descripcion,
       'costo_puntos': costoPuntos,
       'foto': foto,
+      'foto_local': fotoLocal,
     };
   }
 
@@ -30,6 +33,7 @@ class Reward {
       descripcion: (map['descripcion'] as String?) ?? '',
       costoPuntos: (map['costo_puntos'] as int?) ?? 0,
       foto: (map['foto'] as String?) ?? '',
+      fotoLocal: (map['foto_local'] as String?) ?? '',
     );
   }
 
@@ -39,6 +43,7 @@ class Reward {
     String? descripcion,
     int? costoPuntos,
     String? foto,
+    String? fotoLocal,
   }) {
     return Reward(
       id: id ?? this.id,
@@ -46,6 +51,7 @@ class Reward {
       descripcion: descripcion ?? this.descripcion,
       costoPuntos: costoPuntos ?? this.costoPuntos,
       foto: foto ?? this.foto,
+      fotoLocal: fotoLocal ?? this.fotoLocal,
     );
   }
 }
