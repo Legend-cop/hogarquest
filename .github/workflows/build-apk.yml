@@ -21,7 +21,9 @@ jobs:
           channel: stable
       - run: flutter pub get
       - name: Build APK
-        run: flutter build apk --release --target-platform android-arm64,android-arm --dart-define=API_BASE_URL=${{ vars.API_BASE_URL }} 2>&1 | tee /tmp/build.log
+        run: |
+          set -o pipefail
+          flutter build apk --release --target-platform android-arm64,android-arm --dart-define=API_BASE_URL=${{ vars.API_BASE_URL }} 2>&1 | tee /tmp/build.log
       - name: Report build error
         if: failure()
         env:
@@ -43,5 +45,6 @@ jobs:
           tag_name: ${{ github.ref_name }}
           body: 'APK compilada automáticamente. Instala en Android.'
           overwrite: true
+          fail_on_unmatched_files: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
