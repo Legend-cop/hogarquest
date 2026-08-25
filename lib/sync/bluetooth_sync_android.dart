@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
-import 'package:location/location.dart';
 import 'package:nearby_connections/nearby_connections.dart';
 import 'package:permission_handler/permission_handler.dart';
 
@@ -103,9 +102,9 @@ class BluetoothSyncService {
 
   Future<void> _activarUbicacion() async {
     try {
-      final loc = Location();
-      if (!await loc.serviceEnabled()) {
-        await loc.requestService();
+      final status = await Permission.location.serviceStatus;
+      if (status != ServiceStatus.enabled) {
+        await openAppSettings();
       }
     } catch (e) {
       debugPrint('BluetoothSync ubicacion: $e');
