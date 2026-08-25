@@ -23,15 +23,19 @@ subprojects {
     project.evaluationDependsOn(":app")
 }
 
-// Fuerza compileSdk 36 en los módulos de plugins (file_picker, etc.) que de
-// otro modo usan el valor por defecto de Flutter (34) y fallan al compilar
-// porque flutter_plugin_android_lifecycle exige 36. Los plugins son subprojects
-// del proyecto android raíz, no de :app. Usamos plugins.withId para actuar en
-// el momento en que Flutter aplica el plugin Android (afterEvaluate es tarde).
+// Fuerza compileSdk 36 en los módulos de plugins (location, file_saver, etc.)
+// que de otro modo usan compileSdk 33 y fallan porque sus dependencias
+// (androidx.lifecycle 2.7.0, core-ktx 1.13.1, ...) exigen >= 34.
+// Debe hacerse en afterEvaluate: el plugin fija su propio compileSdk durante la
+// evaluación del build.gradle del plugin, así que un callback en plugins.withId
+// (que corre antes) es sobrescrito. En afterEvaluate ya ganamos nosotros.
 subprojects {
-    plugins.withId("com.android.library") {
-        val lib = extensions.getByType(com.android.build.api.dsl.LibraryExtension::class.java)
-        lib.compileSdk = 36
+    afterEvaluate {
+        if (project.plugins.hasPlugin("com.android.library")) {
+            val lib =
+                project.extensions.getByType(com.android.build.api.dsl.LibraryExtension::class.java)
+            lib.compileSdk = 36
+        }
     }
 }
 
