@@ -358,6 +358,51 @@ class _AdminSemanaTabState extends State<_AdminSemanaTab> {
 
   int? _filtroUsuario; // null = todos
 
+  late final Map<String, GlobalKey> _dayKeys;
+
+  @override
+  void initState() {
+    super.initState();
+    _dayKeys = {for (final d in _diasOrden) d: GlobalKey()};
+    WidgetsBinding.instance.addPostFrameCallback((_) => _irAHoy());
+  }
+
+  /// Lleva el scroll al día actual al abrir la pestaña Semana.
+  void _irAHoy() {
+    final key = _dayKeys[_IntegranteTasksList._diaHoy];
+    if (key?.currentContext != null) {
+      Scrollable.ensureVisible(
+        key!.currentContext!,
+        alignment: 0.0,
+        duration: const Duration(milliseconds: 400),
+      );
+    }
+  }
+
+  /// Agrupa las tareas por la primera persona asignada, ordenando los
+  /// grupos alfabéticamente (los "Sin asignar" al final). Así una tarea
+  /// nueva de un niño cae dentro del grupo correspondiente.
+  List<({User? persona, List<Task> tareas})> _gruposPorPersona(
+      List<Task> lista) {
+    final porPersona = <int?, List<Task>>{};
+    for (final t in lista) {
+      final p = _asignadosDe(t).firstOrNull;
+      porPersona.putIfAbsent(p?.id, () => []).add(t);
+    }
+    final grupos = porPersona.entries.map((e) {
+      final persona = e.key == null
+          ? null
+          : _integrantes.where((u) => u.id == e.key).firstOrNull;
+      return (persona: persona, tareas: e.value);
+    }).toList();
+    grupos.sort((a, b) {
+      if (a.persona == null) return 1;
+      if (b.persona == null) return -1;
+      return a.persona!.nombre.compareTo(b.persona!.nombre);
+    });
+    return grupos;
+  }
+
   List<User> get _integrantes {
     final seen = <int>{};
     final result = <User>[];
@@ -472,17 +517,22 @@ class _AdminSemanaTabState extends State<_AdminSemanaTab> {
           for (final dia in _diasOrden)
             if (conDia.any((t) => t.dia == dia)) ...[
               _DiaSemanaHeader(
+                key: _dayKeys[dia],
                 nombre: _nombreDia(dia),
                 total: conDia.where((t) => t.dia == dia).length,
                 esHoy: dia == _IntegranteTasksList._diaHoy,
               ),
-              ...conDia
-                  .where((t) => t.dia == dia)
-                  .map((t) => _SemanaTaskCard(
-                        tarea: t,
-                        asignados: _asignadosDe(t),
-                        duplicada: duplicadas.contains('${t.dia}|${t.titulo}'),
-                      )),
+              ..._gruposPorPersona(conDia.where((t) => t.dia == dia).toList())
+                  .expand((g) => [
+                        _SubgrupoTarea(persona: g.persona),
+                        ...g.tareas.map((t) => _SemanaTaskCard(
+                              tarea: t,
+                              asignados: _asignadosDe(t),
+                              duplicada:
+                                  duplicadas.contains('${t.dia}|${t.titulo}'),
+                            )),
+                        const SizedBox(height: 4),
+                      ]),
               const SizedBox(height: 8),
             ],
           if (sinDia.isNotEmpty) ...[
@@ -497,11 +547,15 @@ class _AdminSemanaTabState extends State<_AdminSemanaTab> {
                 ),
               ),
             ),
-            ...sinDia.map((t) => _SemanaTaskCard(
-                  tarea: t,
-                  asignados: _asignadosDe(t),
-                  duplicada: false,
-                )),
+            ..._gruposPorPersona(sinDia).expand((g) => [
+                  _SubgrupoTarea(persona: g.persona),
+                  ...g.tareas.map((t) => _SemanaTaskCard(
+                        tarea: t,
+                        asignados: _asignadosDe(t),
+                        duplicada: false,
+                      )),
+                  const SizedBox(height: 4),
+                ]),
             const SizedBox(height: 8),
           ],
         ],
@@ -617,6 +671,7 @@ class _DiaSemanaHeader extends StatelessWidget {
   final bool esHoy;
 
   const _DiaSemanaHeader({
+    super.key,
     required this.nombre,
     required this.total,
     this.esHoy = false,
@@ -674,6 +729,33 @@ class _DiaSemanaHeader extends StatelessWidget {
                 fontWeight: FontWeight.w700,
                 color: AppColors.grisMedio,
               ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SubgrupoTarea extends StatelessWidget {
+  final User? persona;
+  const _SubgrupoTarea({this.persona});
+
+  @override
+  Widget build(BuildContext context) {
+    final nombre = persona?.nombre ?? 'Sin asignar';
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(4, 6, 4, 2),
+      child: Row(
+        children: [
+          Icon(Icons.person, size: 14, color: AppColors.grisMedio),
+          const SizedBox(width: 4),
+          Text(
+            nombre,
+            style: const TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              color: AppColors.grisOscuro,
             ),
           ),
         ],

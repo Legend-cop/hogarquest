@@ -42,6 +42,11 @@ class DatabaseHelper {
   bool _sinConexion = false;
   bool get sinConexion => _sinConexion;
 
+  /// Reintenta la sincronización cada cierto tiempo mientras se está sin
+  /// conexión, para recuperar automáticamente cuando el servidor vuelve o el
+  /// dispositivo recupera internet (sin esperar a reiniciar la app).
+  Timer? _reconnectTimer;
+
   /// Caché local: última copia completa de la base de datos. Permite que la
   /// app funcione (y muestre datos correctos) aunque el servidor esté apagado.
   static const _cacheKey = 'hq_db_cache_v1';
@@ -132,9 +137,11 @@ class DatabaseHelper {
       // Servidor sin conexión: usamos la última copia guardada en caché.
       _sinConexion = true;
       if (!_cargado) await _cargarCache();
+      _iniciarReintentoConexion();
       return;
     }
     _sinConexion = false;
+    _detenerReintentoConexion();
     // Se fusiona registro por registro (el más reciente gana) en vez de
     // reemplazar todo: así un cambio local que aún no se ha subido no se
     // pierde al llegar datos remotos de otro dispositivo.
@@ -145,6 +152,24 @@ class DatabaseHelper {
       // Hay cambios locales más nuevos que el servidor no conoce: subirlos.
       await _client.pushDb(_exportar());
     }
+  }
+
+  void _iniciarReintentoConexion() {
+    if (_reconnectTimer?.isActive ?? false) return;
+    _reconnectTimer = Timer.periodic(const Duration(seconds: 30), (_) async {
+      if (!_sinConexion) {
+        _detenerReintentoConexion();
+        return;
+      }
+      await _subirLocal();
+      await _cargarDesdeServidor();
+      onRemoteChange?.call();
+    });
+  }
+
+  void _detenerReintentoConexion() {
+    _reconnectTimer?.cancel();
+    _reconnectTimer = null;
   }
 
   /// Combina los datos remotos con los locales igual que el servidor: por

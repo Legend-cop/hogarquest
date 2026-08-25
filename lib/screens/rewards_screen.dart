@@ -400,14 +400,12 @@ class _RewardFormDialogState extends State<_RewardFormDialog> {
                       ),
                     ),
                   const SizedBox(width: 10),
-                  Expanded(
-                    child: DuoButton(
-                      label: _foto.isEmpty ? 'Añadir foto' : 'Cambiar foto',
-                      icon: Icons.photo_camera,
-                      fullWidth: false,
-                      loading: _subiendo,
-                      onPressed: _subiendo ? null : _elegirFoto,
-                    ),
+                  DuoButton(
+                    label: _foto.isEmpty ? 'Añadir foto' : 'Cambiar foto',
+                    icon: Icons.photo_camera,
+                    fullWidth: false,
+                    loading: _subiendo,
+                    onPressed: _subiendo ? null : _elegirFoto,
                   ),
                   if (_foto.isNotEmpty)
                     IconButton(

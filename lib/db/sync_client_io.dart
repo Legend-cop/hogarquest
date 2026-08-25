@@ -17,38 +17,57 @@ class SyncClient {
 
   Future<String?> encontrarBase() async {
     if (_baseActiva != null) return _baseActiva;
-    for (final url in ServerConfig.candidateUrls) {
-      try {
-        final client = HttpClient()
-          ..connectionTimeout = const Duration(seconds: 4);
-        final req = await client.getUrl(Uri.parse('$url/api/db'));
-        final res = await req.close();
-        await res.drain();
-        client.close();
-        if (res.statusCode == 200) {
-          _baseActiva = url;
-          ServerConfig.activaUrl = url;
-          return url;
-        }
-      } catch (_) {}
+    const intentos = 2;
+    for (int i = 0; i < intentos; i++) {
+      for (final url in ServerConfig.candidateUrls) {
+        try {
+          final client = HttpClient()
+            ..connectionTimeout = const Duration(seconds: 8);
+          final req = await client.getUrl(Uri.parse('$url/api/db'));
+          final res = await req.close();
+          await res.drain();
+          client.close();
+          if (res.statusCode == 200) {
+            _baseActiva = url;
+            ServerConfig.activaUrl = url;
+            return url;
+          }
+        } catch (_) {}
+      }
+      if (i < intentos - 1) {
+        await Future.delayed(const Duration(seconds: 1));
+      }
     }
     return null;
   }
 
   Future<Map<String, dynamic>?> fetchDb() async {
-    final base = await encontrarBase();
-    if (base == null) return null;
-    try {
-      final client = HttpClient()..connectionTimeout = const Duration(seconds: 8);
-      final req = await client.getUrl(Uri.parse('$base/api/db'));
-      final res = await req.close();
-      final body = await res.transform(utf8.decoder).join();
-      client.close();
-      if (res.statusCode == 200 && body.isNotEmpty) {
-        final decoded = jsonDecode(body);
-        if (decoded is Map) return Map<String, dynamic>.from(decoded);
+    const intentos = 2;
+    for (int i = 0; i < intentos; i++) {
+      final base = await encontrarBase();
+      if (base == null) {
+        if (i < intentos - 1) {
+          await Future.delayed(const Duration(seconds: 1));
+          continue;
+        }
+        return null;
       }
-    } catch (_) {}
+      try {
+        final client = HttpClient()
+          ..connectionTimeout = const Duration(seconds: 10);
+        final req = await client.getUrl(Uri.parse('$base/api/db'));
+        final res = await req.close();
+        final body = await res.transform(utf8.decoder).join();
+        client.close();
+        if (res.statusCode == 200 && body.isNotEmpty) {
+          final decoded = jsonDecode(body);
+          if (decoded is Map) return Map<String, dynamic>.from(decoded);
+        }
+      } catch (_) {}
+      if (i < intentos - 1) {
+        await Future.delayed(const Duration(seconds: 1));
+      }
+    }
     return null;
   }
 
