@@ -38,9 +38,10 @@ jobs:
         if: success()
         uses: softprops/action-gh-release@v2
         with:
-          files: build/app/outputs/flutter-apk/app-release.apk
+          files: build/app/outputs/flutter-apk/*.apk
           name: HogarQuest APK
           tag_name: ${{ github.ref_name }}
           body: 'APK compilada automáticamente. Instala en Android.'
+          overwrite: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
