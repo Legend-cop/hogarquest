@@ -1,5 +1,6 @@
 import 'dart:typed_data';
 
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -171,12 +172,16 @@ class _AdminRewardsViewState extends State<_AdminRewardsView> {
                         leading: r.foto.isNotEmpty
                             ? ClipRRect(
                                 borderRadius: BorderRadius.circular(10),
-                                child: Image.network(
-                                  _resolverFoto(r.foto),
+                                child: CachedNetworkImage(
+                                  imageUrl: _resolverFoto(r.foto),
                                   width: 42,
                                   height: 42,
                                   fit: BoxFit.cover,
-                                  errorBuilder: (_, __, ___) => const DuoIconBadge(
+                                  placeholder: (_, __) => const DuoIconBadge(
+                                      icon: Icons.card_giftcard,
+                                      color: AppColors.azul,
+                                      size: 42),
+                                  errorWidget: (_, __, ___) => const DuoIconBadge(
                                       icon: Icons.card_giftcard,
                                       color: AppColors.azul,
                                       size: 42),
@@ -386,20 +391,23 @@ class _RewardFormDialogState extends State<_RewardFormDialog> {
                     : null,
               ),
               const SizedBox(height: 12),
-              Row(
+              Wrap(
+                spacing: 10,
+                runSpacing: 8,
+                crossAxisAlignment: WrapCrossAlignment.center,
                 children: [
                   if (_foto.isNotEmpty)
                     ClipRRect(
                       borderRadius: BorderRadius.circular(10),
-                      child: Image.network(
-                        _resolverFoto(_foto),
+                      child: CachedNetworkImage(
+                        imageUrl: _resolverFoto(_foto),
                         width: 56,
                         height: 56,
                         fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => const Icon(Icons.image),
+                        placeholder: (_, __) => const Icon(Icons.image),
+                        errorWidget: (_, __, ___) => const Icon(Icons.image),
                       ),
                     ),
-                  const SizedBox(width: 10),
                   DuoButton(
                     label: _foto.isEmpty ? 'Añadir foto' : 'Cambiar foto',
                     icon: Icons.photo_camera,
@@ -565,12 +573,21 @@ class _UserRewardsViewState extends State<_UserRewardsView> {
                           if (r.foto.isNotEmpty)
                             ClipRRect(
                               borderRadius: BorderRadius.circular(10),
-                              child: Image.network(
-                                _resolverFoto(r.foto),
+                              child: CachedNetworkImage(
+                                imageUrl: _resolverFoto(r.foto),
                                 width: 42,
                                 height: 42,
                                 fit: BoxFit.cover,
-                                errorBuilder: (_, __, ___) => DuoIconBadge(
+                                placeholder: (_, __) => DuoIconBadge(
+                                  icon: jaCambiado
+                                      ? Icons.check
+                                      : Icons.card_giftcard,
+                                  color: jaCambiado
+                                      ? AppColors.grisMedio
+                                      : AppColors.verde,
+                                  size: 42,
+                                ),
+                                errorWidget: (_, __, ___) => DuoIconBadge(
                                   icon: jaCambiado
                                       ? Icons.check
                                       : Icons.card_giftcard,
