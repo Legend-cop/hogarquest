@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math';
 
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -1096,6 +1097,45 @@ class DatabaseHelper {
     _cargado = true;
     _migrarContrasenas();
     _persistir();
+  }
+
+  // ---------------------------------------------------------------
+  // SINCRONIZACIÓN P2P LOCAL (misma red, sin internet)
+  // ---------------------------------------------------------------
+
+  /// Estado completo de la base para intercambiar con otro dispositivo en la
+  /// misma red local. Reutiliza el formato de `_exportar` (cajas + tombstones
+  /// con `updated_at`), de modo que el peer puede fusionarlo con LWW.
+  Map<String, dynamic> exportarParaP2P() => _exportar();
+
+  /// Fusiona el estado recibido de otro dispositivo (LWW + tombstones).
+  Future<void> mezclarDesdePar(Map<String, dynamic> data) async {
+    if (data is! Map || data.isEmpty) return;
+    _mezclar(data);
+    await _guardarCache();
+    onRemoteChange?.call();
+  }
+
+  /// Código de hogar que acota la sincronización P2P a la misma familia.
+  /// Se genera una vez y se propaga entre dispositivos vía la nube (meta).
+  String get householdCode {
+    final meta = _box(_boxMeta);
+    final v = meta.get('household_code');
+    if (v is Map && v['code'] is String && (v['code'] as String).isNotEmpty) {
+      return v['code'] as String;
+    }
+    final code = _generarHouseholdCode();
+    final copia = <String, dynamic>{'code': code};
+    _sellar(copia);
+    meta.put('household_code', copia);
+    _marcar();
+    return code;
+  }
+
+  static String _generarHouseholdCode() {
+    final r = Random();
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    return List.generate(6, (_) => chars[r.nextInt(chars.length)]).join();
   }
 
   // ---------------------------------------------------------------

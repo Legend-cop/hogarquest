@@ -8,6 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../db/database_helper.dart';
 import '../db/photo_store.dart';
+import '../sync/local_sync.dart';
 import '../db/server_config.dart';
 import '../db/upload_client.dart';
 import '../models/assignment.dart';
@@ -57,6 +58,8 @@ class AppProvider extends ChangeNotifier {
       _error = e.toString();
     }
     _db.onRemoteChange = _datosRemotos;
+    // Sincronización P2P local (misma red, sin internet). No bloquea el init.
+    unawaited(LocalSyncService.instance.start(_db));
     await aplicarCastigosVencidos();
     await finalizarRetosVencidos();
     _cargando = false;

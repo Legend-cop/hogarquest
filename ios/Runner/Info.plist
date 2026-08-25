@@ -12,6 +12,12 @@
 	<string>HogarQuest necesita acceso a tus fotos para usarlas como avatar de perfil.</string>
 	<key>NSCameraUsageDescription</key>
 	<string>HogarQuest usa la cámara para tomar una foto de perfil.</string>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>HogarQuest sincroniza tus datos con otros dispositivos de tu hogar en la misma red Wi-Fi, sin internet.</string>
+	<key>NSBonjourServices</key>
+	<array>
+		<string>_hogarquest._tcp</string>
+	</array>
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<key>NSAllowsArbitraryLoads</key>
