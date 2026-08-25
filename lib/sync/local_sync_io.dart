@@ -6,6 +6,7 @@ import 'dart:math';
 import 'package:flutter/foundation.dart';
 
 import '../db/database_helper.dart';
+import 'peer_info.dart';
 
 /// Sincronización P2P local entre dispositivos de la misma familia, sin
 /// necesidad de internet. Cualquier dispositivo puede actuar como "hub":
@@ -33,8 +34,26 @@ class LocalSyncService {
   final List<String> _localIps = [];
   String? _household;
   bool _running = false;
+  DateTime? _ultimaSincronizacion;
+  final StreamController<void> _onCambio = StreamController<void>.broadcast();
+
+  /// Notifica cambios de estado (detección de pares, sincronización) a la UI.
+  Stream<void> get onCambio => _onCambio.stream;
 
   bool get isRunning => _running;
+
+  /// Código de hogar que acota la sincronización a la misma familia.
+  String? get householdCode => _household;
+
+  /// Dispositivos detectados en la red local (misma familia).
+  List<PeerInfo> get peersDetectados =>
+      _peers.values.map((p) => PeerInfo(ip: p.ip, port: p.port, lastSeen: p.lastSeen)).toList();
+
+  DateTime? get ultimaSincronizacion => _ultimaSincronizacion;
+
+  void _notificar() {
+    if (!_onCambio.isClosed) _onCambio.add(null);
+  }
 
   /// Descubre pares en la misma red y sincroniza con ellos.
   Future<void> start(DatabaseHelper db) async {
@@ -69,7 +88,14 @@ class LocalSyncService {
   void agregarPeerManual(String ip, [int port = _tcpPort]) {
     if (ip.isEmpty) return;
     _peers[ip] = _Peer(ip: ip, port: port, lastSeen: DateTime.now());
+    _notificar();
     unawaited(_sincronizarConPeer(_peers[ip]!));
+  }
+
+  /// Quita un par agregado manualmente o detectado.
+  void quitarPeer(String ip) {
+    _peers.remove(ip);
+    _notificar();
   }
 
   /// Fuerza una ronda de sincronización inmediata.
@@ -175,6 +201,7 @@ class LocalSyncService {
       if (_localIps.contains(ip)) return;
       final tcp = m['tcp'] as int? ?? _tcpPort;
       _peers[ip] = _Peer(ip: ip, port: tcp, lastSeen: DateTime.now());
+      _notificar();
     } catch (_) {}
   }
 
@@ -202,6 +229,8 @@ class LocalSyncService {
           final body = await resp.transform(utf8.decoder).join();
           final data = jsonDecode(body);
           await _db!.mezclarDesdePar(data as Map<String, dynamic>);
+          _ultimaSincronizacion = DateTime.now();
+          _notificar();
         }
         // Empujar nuestro estado al par.
         final req2 = await client.post(p.ip, p.port, _path);

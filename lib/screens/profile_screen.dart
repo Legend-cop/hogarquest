@@ -6,6 +6,8 @@ import 'package:file_saver/file_saver.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:provider/provider.dart';
 
+import 'local_sync_screen.dart';
+
 import '../db/photo_picker.dart';
 import '../db/photo_store.dart';
 import '../db/upload_client.dart';
@@ -146,6 +148,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           'Carga un respaldo previamente descargado.'),
                       trailing: const Icon(Icons.chevron_right),
                       onTap: () => _restaurarRespaldo(context),
+                    ),
+                    const Divider(),
+                    ListTile(
+                      leading:
+                          const Icon(Icons.wifi_tethering, color: AppColors.azul),
+                      title: const Text('Sincronización local'),
+                      subtitle: const Text(
+                          'Sincroniza con otros dispositivos sin internet (misma Wi-Fi).'),
+                      trailing: const Icon(Icons.chevron_right),
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                            builder: (_) => const LocalSyncScreen()),
+                      ),
                     ),
                   ],
                 ),
