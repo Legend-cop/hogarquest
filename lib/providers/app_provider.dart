@@ -3,10 +3,12 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
+import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../db/database_helper.dart';
 import '../db/photo_store.dart';
+import '../db/server_config.dart';
 import '../db/upload_client.dart';
 import '../models/assignment.dart';
 import '../models/badge.dart';
@@ -86,8 +88,36 @@ class AppProvider extends ChangeNotifier {
     }
     await aplicarCastigosVencidos();
     await finalizarRetosVencidos();
-    if (!_db.sinConexion) unawaited(_subirFotosPendientes());
+    if (!_db.sinConexion) {
+      unawaited(_subirFotosPendientes());
+      unawaited(_cachearFotosMiembros());
+    }
     notifyListeners();
+  }
+
+  /// Descarga y guarda localmente la foto de cada miembro que tenga URL remota
+  /// pero aún no tenga copia local, para que se vean sin internet.
+  Future<void> _cachearFotosMiembros() async {
+    try {
+      final usuarios = await listarUsuarios();
+      for (final u in usuarios) {
+        if (u.foto.isEmpty) continue;
+        if (u.fotoLocal.isNotEmpty && PhotoStore.existe(u.fotoLocal)) continue;
+        final url =
+            u.foto.startsWith('http') ? u.foto : '${ServerConfig.baseUrl}${u.foto}';
+        try {
+          final resp = await http.get(Uri.parse(url));
+          if (resp.statusCode == 200 && resp.bodyBytes.isNotEmpty) {
+            final local = await PhotoStore.guardarBytes(resp.bodyBytes);
+            await editarUsuario(u.copyWith(fotoLocal: local));
+          }
+        } catch (_) {
+          // Se reintenta en la próxima sincronización.
+        }
+      }
+    } catch (e) {
+      debugPrint('Error al cachear fotos de miembros: $e');
+    }
   }
 
   /// Sube al servidor las fotos que se agregaron sin conexión (tienen copia

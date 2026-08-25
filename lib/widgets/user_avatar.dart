@@ -1,3 +1,6 @@
+import 'dart:io';
+
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
 import '../db/server_config.dart';
@@ -11,11 +14,13 @@ class UserAvatar extends StatefulWidget {
     required this.user,
     this.radius = 20,
     this.foto,
+    this.fotoLocal,
   });
 
   final User user;
   final double radius;
   final String? foto;
+  final String? fotoLocal;
 
   /// Color estable por nombre, para que cada persona siempre tenga el mismo.
   static const _paleta = [
@@ -80,14 +85,35 @@ class _UserAvatarState extends State<UserAvatar> {
     return '${ServerConfig.baseUrl}$f';
   }
 
+  /// Ruta local de la foto si existe en disco (funciona sin internet).
+  String? _rutaLocal() {
+    final local = widget.fotoLocal ?? widget.user.fotoLocal;
+    if (local.isEmpty) return null;
+    if (!File(local).existsSync()) return null;
+    return local;
+  }
+
   @override
   Widget build(BuildContext context) {
-    final url = _fotoUrl;
-    if (url.isNotEmpty && !_fallo) {
+    final local = _rutaLocal();
+    if (local != null) {
       return CircleAvatar(
         radius: widget.radius,
         backgroundColor: Colors.grey.shade300,
-        backgroundImage: NetworkImage(url),
+        backgroundImage: FileImage(File(local)),
+        onBackgroundImageError: (_, _) {
+          if (mounted) setState(() => _fallo = true);
+        },
+      );
+    }
+    final url = _fotoUrl;
+    if (url.isNotEmpty && !_fallo) {
+      // CachedNetworkImageProvider guarda en disco: la foto se ve offline
+      // tras la primera carga con internet.
+      return CircleAvatar(
+        radius: widget.radius,
+        backgroundColor: Colors.grey.shade300,
+        backgroundImage: CachedNetworkImageProvider(url),
         onBackgroundImageError: (_, _) {
           if (mounted) setState(() => _fallo = true);
         },
