@@ -12,6 +12,7 @@ import '../db/photo_picker.dart';
 import '../db/photo_store.dart';
 import '../db/upload_client.dart';
 import '../providers/app_provider.dart';
+import '../screens/bluetooth_sync_screen.dart';
 import '../theme/app_theme.dart';
 import '../widgets/duo_widgets.dart';
 import '../widgets/section_header.dart';
@@ -161,6 +162,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         context,
                         MaterialPageRoute(
                             builder: (_) => const LocalSyncScreen()),
+                      ),
+                    ),
+                    const Divider(),
+                    ListTile(
+                      leading: const Icon(Icons.bluetooth, color: AppColors.azul),
+                      title: const Text('Sincronización por Bluetooth'),
+                      subtitle: const Text(
+                          'Sincroniza con otros dispositivos sin internet (Bluetooth/Wi-Fi directo).'),
+                      trailing: const Icon(Icons.chevron_right),
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                            builder: (_) => const BluetoothSyncScreen()),
                       ),
                     ),
                   ],
