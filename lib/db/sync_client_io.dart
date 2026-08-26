@@ -15,6 +15,7 @@ import 'server_config.dart';
 /// caché local en lugar de congelarse esperando la respuesta.
 class SyncClient {
   bool _listening = false;
+  bool _conectandoSse = false;
   void Function()? _onRemote;
   void Function()? _onReconnect;
   String? _baseActiva;
@@ -27,19 +28,23 @@ class SyncClient {
     const intentos = 2;
     for (int i = 0; i < intentos; i++) {
       for (final url in ServerConfig.candidateUrls) {
+        HttpClient? client;
         try {
-          final client = HttpClient()
+          client = HttpClient()
             ..connectionTimeout = const Duration(seconds: 8);
           final req = await client.getUrl(Uri.parse('$url/api/db'));
           final res = await req.close();
           await res.drain();
-          client.close();
           if (res.statusCode == 200) {
             _baseActiva = url;
             ServerConfig.activaUrl = url;
             return url;
           }
-        } catch (_) {}
+        } catch (_) {
+          // Sin respuesta: probamos la siguiente URL.
+        } finally {
+          client?.close(force: true);
+        }
       }
       if (i < intentos - 1) {
         await Future.delayed(const Duration(seconds: 1));
@@ -62,18 +67,22 @@ class SyncClient {
         }
         return null;
       }
+      HttpClient? client;
       try {
-        final client = HttpClient()
+        client = HttpClient()
           ..connectionTimeout = const Duration(seconds: 10);
         final req = await client.getUrl(Uri.parse('$base/api/db'));
         final res = await req.close();
         final body = await res.transform(utf8.decoder).join();
-        client.close();
         if (res.statusCode == 200 && body.isNotEmpty) {
           final decoded = jsonDecode(body);
           if (decoded is Map) return Map<String, dynamic>.from(decoded);
         }
-      } catch (_) {}
+      } catch (_) {
+        // Error de red: se reintentará en la siguiente pasada.
+      } finally {
+        client?.close(force: true);
+      }
       if (i < intentos - 1) {
         await Future.delayed(const Duration(seconds: 1));
       }
@@ -89,21 +98,25 @@ class SyncClient {
       String usuario, String password) async {
     final base = await encontrarBase();
     if (base == null) return null;
+    HttpClient? client;
     try {
-      final client = HttpClient()..connectionTimeout = const Duration(seconds: 8);
+      client = HttpClient()..connectionTimeout = const Duration(seconds: 8);
       final req = await client.postUrl(Uri.parse('$base/api/login'));
       req.headers.contentType = ContentType.json;
       req.write(jsonEncode({'usuario': usuario, 'password': password}));
       final res = await req.close();
       final body = await res.transform(utf8.decoder).join();
-      client.close();
       if (res.statusCode == 200 && body.isNotEmpty) {
         final decoded = jsonDecode(body);
         if (decoded is Map && decoded['ok'] == true && decoded['user'] is Map) {
           return Map<String, dynamic>.from(decoded['user']);
         }
       }
-    } catch (_) {}
+    } catch (_) {
+      // Error de red: se ignora y se devuelve null.
+    } finally {
+      client?.close(force: true);
+    }
     return null;
   }
 
@@ -118,16 +131,20 @@ class SyncClient {
   Future<void> _pushDb(Map<String, dynamic> db) async {
     final base = await encontrarBase();
     if (base == null) return;
+    HttpClient? client;
     try {
-      final client = HttpClient()..connectionTimeout = const Duration(seconds: 8);
+      client = HttpClient()..connectionTimeout = const Duration(seconds: 8);
       final req = await client.postUrl(Uri.parse('$base/api/db'));
       req.headers.contentType = ContentType.json;
       req.headers.set('X-Write-Token', ServerConfig.writeToken);
       req.write(jsonEncode(db));
       final res = await req.close();
       await res.drain();
-      client.close();
-    } catch (_) {}
+    } catch (_) {
+      // Error de red: se reintentará al reconectar.
+    } finally {
+      client?.close(force: true);
+    }
   }
 
   /// Escucha notificaciones del servidor vía SSE y llama a [onRemote]
@@ -175,16 +192,20 @@ class SyncClient {
   Future<void> _postJsonImpl(String path, Map<String, dynamic> body) async {
     final base = await encontrarBase();
     if (base == null) return;
+    HttpClient? client;
     try {
-      final client = HttpClient()..connectionTimeout = const Duration(seconds: 8);
+      client = HttpClient()..connectionTimeout = const Duration(seconds: 8);
       final req = await client.postUrl(Uri.parse('$base$path'));
       req.headers.contentType = ContentType.json;
       req.headers.set('X-Write-Token', ServerConfig.writeToken);
       req.write(jsonEncode(body));
       final res = await req.close();
       await res.drain();
-      client.close();
-    } catch (_) {}
+    } catch (_) {
+      // Error de red: se ignora.
+    } finally {
+      client?.close(force: true);
+    }
   }
 
   void listen(void Function() onRemote, {void Function()? onReconnect}) {
@@ -195,44 +216,58 @@ class SyncClient {
   }
 
   Future<void> _conectarSse() async {
-    if (!_listening) return;
+    if (!_listening || _conectandoSse) return;
+    _conectandoSse = true;
     final base = await encontrarBase();
     if (base == null) {
-      _reconectar();
+      _conectandoSse = false;
+      _reconectarEnBreve(const Duration(seconds: 8));
       return;
     }
+    HttpClient? client;
     try {
-      final client = HttpClient();
+      client = HttpClient()..connectionTimeout = const Duration(seconds: 5);
       final req = await client
           .getUrl(Uri.parse('$base/api/events'))
           .timeout(const Duration(seconds: 5));
       req.headers.set('Accept', 'text/event-stream');
-      client.connectionTimeout = const Duration(seconds: 5);
 
       final res = await req.close();
       if (!_listening) {
-        client.close();
+        client.close(force: true);
+        _conectandoSse = false;
         return;
       }
       _onReconnect?.call();
       res.listen(
         (chunk) => _onRemote?.call(),
         onDone: () {
-          client.close();
+          client?.close(force: true);
+          _conectandoSse = false;
           _reconectar();
         },
         onError: (Object _) {
-          client.close();
+          client?.close(force: true);
+          _conectandoSse = false;
           _reconectar();
         },
+        cancelOnError: true,
       );
+    } on TimeoutException {
+      client?.close(force: true);
+      _conectandoSse = false;
+      _reconectarEnBreve(const Duration(seconds: 8));
     } catch (_) {
+      client?.close(force: true);
+      _conectandoSse = false;
       _reconectar();
     }
   }
 
-  void _reconectar() {
+  void _reconectar() => _reconectarEnBreve(const Duration(seconds: 2));
+
+  void _reconectarEnBreve(Duration espera) {
     if (!_listening) return;
-    Future.delayed(const Duration(seconds: 2), _conectarSse);
+    Future.delayed(espera, _conectarSse);
   }
 }

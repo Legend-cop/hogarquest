@@ -82,20 +82,34 @@ class AppProvider extends ChangeNotifier {
 
   /// Cuando otro dispositivo cambia datos, se recargan y se notifica a las
   /// pantallas para que se actualicen al instante. También se aplican castigos.
+  bool _recargaRemotaEnCurso = false;
+  bool _recargaRemotaPendiente = false;
   Future<void> _datosRemotos() async {
-    _sinConexion = _db.sinConexion;
-    final id = _usuarioActual?.id;
-    if (id != null) {
-      final u = await _db.getUserById(id);
-      if (u != null) _usuarioActual = u;
+    if (_recargaRemotaEnCurso) {
+      _recargaRemotaPendiente = true;
+      return;
     }
-    await aplicarCastigosVencidos();
-    await finalizarRetosVencidos();
-    if (!_db.sinConexion) {
-      unawaited(_subirFotosPendientes());
-      unawaited(_cachearFotosMiembros());
+    _recargaRemotaEnCurso = true;
+    try {
+      do {
+        _recargaRemotaPendiente = false;
+        _sinConexion = _db.sinConexion;
+        final id = _usuarioActual?.id;
+        if (id != null) {
+          final u = await _db.getUserById(id);
+          if (u != null) _usuarioActual = u;
+        }
+        await aplicarCastigosVencidos();
+        await finalizarRetosVencidos();
+        if (!_db.sinConexion) {
+          unawaited(_subirFotosPendientes());
+          unawaited(_cachearFotosMiembros());
+        }
+        notifyListeners();
+      } while (_recargaRemotaPendiente);
+    } finally {
+      _recargaRemotaEnCurso = false;
     }
-    notifyListeners();
   }
 
   /// Descarga y guarda localmente la foto de cada miembro que tenga URL remota

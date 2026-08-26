@@ -80,6 +80,7 @@ class DatabaseHelper {
 
   /// Se invoca cuando otro cliente cambió datos en el servidor.
   VoidCallback? onRemoteChange;
+  bool _cargandoDesdeServidor = false;
 
   _Box _box(String name) => _boxes.putIfAbsent(name, () => _Box());
 
@@ -133,25 +134,31 @@ class DatabaseHelper {
       _client.enviarRecordatorioConfig(userId, minutos, offset);
 
   Future<void> _cargarDesdeServidor() async {
-    final data = await _client.fetchDb();
-    if (data == null || data.isEmpty) {
-      // Servidor sin conexión: usamos la última copia guardada en caché.
-      _sinConexion = true;
-      if (!_cargado) await _cargarCache();
-      _iniciarReintentoConexion();
-      return;
-    }
-    _sinConexion = false;
-    _detenerReintentoConexion();
-    // Se fusiona registro por registro (el más reciente gana) en vez de
-    // reemplazar todo: así un cambio local que aún no se ha subido no se
-    // pierde al llegar datos remotos de otro dispositivo.
-    final victoriaLocal = _mezclar(data);
-    _cargado = true;
-    await _guardarCache();
-    if (victoriaLocal) {
-      // Hay cambios locales más nuevos que el servidor no conoce: subirlos.
-      await _client.pushDb(_exportar());
+    if (_cargandoDesdeServidor) return;
+    _cargandoDesdeServidor = true;
+    try {
+      final data = await _client.fetchDb();
+      if (data == null || data.isEmpty) {
+        // Servidor sin conexión: usamos la última copia guardada en caché.
+        _sinConexion = true;
+        if (!_cargado) await _cargarCache();
+        _iniciarReintentoConexion();
+        return;
+      }
+      _sinConexion = false;
+      _detenerReintentoConexion();
+      // Se fusiona registro por registro (el más reciente gana) en vez de
+      // reemplazar todo: así un cambio local que aún no se ha subido no se
+      // pierde al llegar datos remotos de otro dispositivo.
+      final victoriaLocal = _mezclar(data);
+      _cargado = true;
+      await _guardarCache();
+      if (victoriaLocal) {
+        // Hay cambios locales más nuevos que el servidor no conoce: subirlos.
+        await _client.pushDb(_exportar());
+      }
+    } finally {
+      _cargandoDesdeServidor = false;
     }
   }
 
@@ -163,8 +170,11 @@ class DatabaseHelper {
         return;
       }
       await _subirLocal();
+      final sinConexionAntes = _sinConexion;
       await _cargarDesdeServidor();
-      onRemoteChange?.call();
+      // Solo notificamos si el servidor volvió (cambio real de estado), para
+      // no disparar recargas pesadas en bucle mientras seguimos sin conexión.
+      if (sinConexionAntes && !_sinConexion) onRemoteChange?.call();
     });
   }
 
