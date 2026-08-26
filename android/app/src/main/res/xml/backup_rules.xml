@@ -5,11 +5,11 @@
   sesión, etc.) en la cuenta de Google del dispositivo y la restaura al
   reinstalar la app en el mismo dispositivo/cuenta, para que los datos no
   se pierdan al desinstalar.
+  El dominio "cache" se excluye automaticamente y no es valido declararlo.
 -->
 <full-backup-content>
     <include domain="sharedpref" path="."/>
     <include domain="database" path="."/>
     <include domain="file" path="."/>
     <include domain="external" path="."/>
-    <exclude domain="cache" path="."/>
 </full-backup-content>
