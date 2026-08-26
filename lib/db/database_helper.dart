@@ -95,6 +95,7 @@ class DatabaseHelper {
     await _seedPerfilesSemana();
     await _seedCatalogo();
     _migrarContrasenas();
+    _migrarCategoriasTareas();
     _persistir();
     _client.listen(() async {
       await _cargarDesdeServidor();
@@ -332,6 +333,81 @@ class DatabaseHelper {
       }
     }
     if (cambio) _marcar();
+  }
+
+  /// Reglas de heurística para reasignar la categoría de una tarea a partir de
+  /// palabras clave en su título. El orden define prioridad (la primera
+  /// coincidencia gana).
+  static const Map<String, List<String>> _reglasCategoria =
+      <String, List<String>>{
+    'Escuela': <String>[
+      'escuela', 'colegio', 'estudiar', 'estudio', 'leer', 'libro', 'examen',
+      'clase', 'mate', 'matem', 'español', 'espanol', 'inglés', 'ingles',
+      'lengua', 'ciencia', 'historia', 'cuaderno', 'deberes', 'lectura',
+      'repasar', 'investigar', 'tarea escolar',
+    ],
+    'Limpieza': <String>[
+      'limpiar', 'limpieza', 'barrer', 'trapear', 'lavar', 'ordenar',
+      'recoger', 'aspirar', 'planchar', 'tender', 'platos', 'baño', 'aseo',
+      'basura', 'sacudir', 'pulir', 'organizar',
+    ],
+    'Ejercicio': <String>[
+      'ejercicio', 'correr', 'trotar', 'deporte', 'gimnas', 'caminar',
+      'yoga', 'bicicleta', 'saltar', 'entrenar', 'flexion', 'sentadilla',
+      'estiramiento', 'calentar',
+    ],
+    'Hogar': <String>[
+      'hogar', 'mercado', 'super', 'cocinar', 'preparar comida', 'cuidar',
+      'mascota', 'perro', 'jardín', 'jardin', 'regar', 'planta', 'recado',
+      'mandado', 'auto',
+    ],
+    'Salud': <String>[
+      'salud', 'dormir', 'cepillar', 'diente', 'bañar', 'bañarse', 'medicina',
+      'pastilla', 'tomar agua', 'beber agua', 'fruta', 'verdura', 'vegetal',
+      'despertar', 'levantarse', 'higiene', 'ducha', 'descansar', 'sano',
+    ],
+  };
+
+  /// Reasigna la categoría de las tareas que se guardaron como 'General' por un
+  /// bug anterior (la categoría no se persistía). Usa [_categoriaPorTitulo].
+  /// Se ejecuta una sola vez por dispositivo (bandera en la caja 'meta').
+  void _migrarCategoriasTareas() {
+    final meta = _box(_boxMeta);
+    final yaMigrado =
+        meta.items.any((m) => m != null && m['k'] == 'migracion_categorias_v1');
+    if (yaMigrado) return;
+
+    final box = _box(_boxTareas);
+    var cambio = false;
+    for (final m in box.items) {
+      if (m == null) continue;
+      final cat = m['categoria'] as String? ?? 'General';
+      if (cat != 'General') continue;
+      final titulo = (m['titulo'] as String?) ?? '';
+      final nueva = _categoriaPorTitulo(titulo);
+      if (nueva == 'General') continue;
+      m['categoria'] = nueva;
+      _sellar(m);
+      cambio = true;
+    }
+
+    meta.items.add(<String, Object?>{
+      'k': 'migracion_categorias_v1',
+      'version': 1,
+      'aplicado': DateTime.now().toIso8601String(),
+    });
+    cambio = true; // siempre persiste la bandera, aunque no hubiera tareas
+    if (cambio) _marcar();
+  }
+
+  String _categoriaPorTitulo(String titulo) {
+    final t = titulo.toLowerCase();
+    for (final entry in _reglasCategoria.entries) {
+      for (final p in entry.value) {
+        if (t.contains(p)) return entry.key;
+      }
+    }
+    return 'General';
   }
 
   void _marcar() {
