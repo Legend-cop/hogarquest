@@ -734,10 +734,13 @@ class AppProvider extends ChangeNotifier {
 
     final aprobadas = await _db.getAsignacionesAprobadasDeUsuarioEnRango(
         usuarioId, inicio, fin);
+    // Una sola lectura de todas las tareas y búsqueda en memoria (evita
+    // N consultas getTareaById, que escaneaban la caja una por una).
+    final tareasPorId = {for (final t in await _db.getTareas()) t.id: t};
     var puntosSemana = 0;
     var puntosHoy = 0;
     for (final a in aprobadas) {
-      final t = await _db.getTareaById(a.tareaId);
+      final t = tareasPorId[a.tareaId];
       if (t == null) continue;
       puntosSemana += t.puntos;
       final fa = a.fechaAprobada;

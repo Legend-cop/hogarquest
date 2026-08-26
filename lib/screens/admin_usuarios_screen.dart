@@ -28,9 +28,36 @@ class _AdminUsuariosScreenState extends State<AdminUsuariosScreen> {
   }
 
   void _onChange() {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _cargar();
+    if (mounted) _refrescar();
+  }
+
+  /// Refresco en segundo plano por cambios del provider. No muestra el spinner
+  /// ni重建 la lista si los datos no cambiaron, para que el scroll no se
+  /// "trabé" ni parpadee al recargar cada vez que el provider avisa.
+  Future<void> _refrescar() async {
+    if (_cargando) return;
+    final app = context.read<AppProvider>();
+    final lista = await app.listarUsuarios();
+    if (!mounted) return;
+    if (_mismaLista(lista)) return;
+    setState(() {
+      _integrantes = lista;
     });
+  }
+
+  bool _mismaLista(List<User> lista) {
+    if (lista.length != _integrantes.length) return false;
+    for (var i = 0; i < lista.length; i++) {
+      if (lista[i].id != _integrantes[i].id ||
+          lista[i].nombre != _integrantes[i].nombre ||
+          lista[i].puntos != _integrantes[i].puntos ||
+          lista[i].nivel != _integrantes[i].nivel ||
+          lista[i].activo != _integrantes[i].activo ||
+          lista[i].foto != _integrantes[i].foto) {
+        return false;
+      }
+    }
+    return true;
   }
 
   Future<void> _cargar() async {
