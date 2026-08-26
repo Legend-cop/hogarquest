@@ -47,7 +47,7 @@ dependencies:
   firebase_messaging: ^15.2.0
   audioplayers: ^6.0.0
   file_saver: ^0.4.0
-  file_picker: ^8.0.0
+  file_picker: ^12.0.0
   cached_network_image: ^3.4.1
   path_provider: ^2.1.5
   nearby_connections: ^4.3.0

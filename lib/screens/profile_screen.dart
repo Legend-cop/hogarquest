@@ -291,12 +291,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Future<void> _restaurarRespaldo(BuildContext context) async {
     try {
       final app = context.read<AppProvider>();
-      final resultado = await FilePicker.platform.pickFiles(
+      final resultado = await FilePicker.pickFiles(
         type: FileType.custom,
         allowedExtensions: const ['json'],
       );
-      if (resultado == null || resultado.files.single.bytes == null) return;
-      final contenido = utf8.decode(resultado.files.single.bytes!);
+      if (resultado.isEmpty) return;
+      final bytes = await resultado.single.readAsBytes();
+      final contenido = utf8.decode(bytes);
       final data = jsonDecode(contenido);
       if (data is! Map<String, dynamic>) {
         throw Exception('El archivo no es un respaldo válido.');
