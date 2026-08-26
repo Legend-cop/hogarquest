@@ -28,10 +28,14 @@ class RetosScreen extends StatefulWidget {
 }
 
 class _RetosScreenState extends State<RetosScreen> {
+  late Future<List<Reto>> _futureRetos;
+
   @override
   void initState() {
     super.initState();
-    context.read<AppProvider>().addListener(_onChange);
+    final app = context.read<AppProvider>();
+    app.addListener(_onChange);
+    _futureRetos = app.retosDeLaSemana();
   }
 
   @override
@@ -64,9 +68,13 @@ class _RetosScreenState extends State<RetosScreen> {
         ],
       ),
       body: RefreshIndicator(
-        onRefresh: () async => setState(() {}),
+        onRefresh: () async {
+          setState(() {
+            _futureRetos = context.read<AppProvider>().retosDeLaSemana();
+          });
+        },
         child: FutureBuilder<List<Reto>>(
-          future: app.retosDeLaSemana(),
+          future: _futureRetos,
           builder: (context, snap) {
             if (snap.connectionState != ConnectionState.done) {
               return const Center(child: CircularProgressIndicator());
@@ -525,14 +533,27 @@ class _MarcadoChip extends StatelessWidget {
   }
 }
 
-class _RetosPasados extends StatelessWidget {
+class _RetosPasados extends StatefulWidget {
   final bool esAdmin;
   const _RetosPasados({required this.esAdmin});
 
   @override
+  State<_RetosPasados> createState() => _RetosPasadosState();
+}
+
+class _RetosPasadosState extends State<_RetosPasados> {
+  late Future<List<Reto>> _future;
+
+  @override
+  void initState() {
+    super.initState();
+    _future = context.read<AppProvider>().listarRetos();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return FutureBuilder<List<Reto>>(
-      future: context.read<AppProvider>().listarRetos(),
+      future: _future,
       builder: (context, snap) {
         final retos = snap.data ?? const <Reto>[];
         final pasados = retos.where((r) => !r.vigente).toList();

@@ -46,6 +46,10 @@ class BarChart extends StatefulWidget {
   final String Function(DateTime)? labelFor;
   final String Function(int)? valueLabel;
 
+  /// Índice de la barra que representa el día de hoy (se resalta y se etiqueta
+  /// como "Hoy"). Si es null, ninguna barra se resalta.
+  final int? highlightIndex;
+
   const BarChart({
     super.key,
     required this.data,
@@ -54,6 +58,7 @@ class BarChart extends StatefulWidget {
     this.barHeight = 90,
     this.labelFor,
     this.valueLabel,
+    this.highlightIndex,
   });
 
   @override
@@ -116,7 +121,9 @@ class _BarChartState extends State<BarChart> {
                           decoration: BoxDecoration(
                             color: _seleccionado == i
                                 ? widget.color
-                                : widget.color.withValues(alpha: 0.6),
+                                : (i == widget.highlightIndex
+                                    ? widget.color.withValues(alpha: 0.9)
+                                    : widget.color.withValues(alpha: 0.5)),
                             borderRadius: BorderRadius.circular(6),
                           ),
                         );
@@ -132,15 +139,21 @@ class _BarChartState extends State<BarChart> {
     Widget etiqueta(int i) => SizedBox(
           width: slot,
           child: Text(
-            widget.labelFor?.call(widget.data[i].$1) ??
-                widget.data[i].$1.day.toString(),
+            i == widget.highlightIndex
+                ? 'Hoy'
+                : (widget.labelFor?.call(widget.data[i].$1) ??
+                    widget.data[i].$1.day.toString()),
             textAlign: TextAlign.center,
             style: TextStyle(
               fontSize: 11,
-              fontWeight: _seleccionado == i ? FontWeight.w800 : FontWeight.w600,
-              color: _seleccionado == i
-                  ? AppColors.grisOscuro
-                  : AppColors.grisMedio,
+              fontWeight: i == widget.highlightIndex
+                  ? FontWeight.w900
+                  : (_seleccionado == i ? FontWeight.w800 : FontWeight.w600),
+              color: i == widget.highlightIndex
+                  ? AppColors.verde
+                  : (_seleccionado == i
+                      ? AppColors.grisOscuro
+                      : AppColors.grisMedio),
             ),
           ),
         );

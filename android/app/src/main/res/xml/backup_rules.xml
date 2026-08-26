@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Reglas de Auto Backup de Android.
+  Respalda la base de datos local (puntos, retos, tareas, fotos de perfil,
+  sesión, etc.) en la cuenta de Google del dispositivo y la restaura al
+  reinstalar la app en el mismo dispositivo/cuenta, para que los datos no
+  se pierdan al desinstalar.
+-->
+<full-backup-content>
+    <include domain="sharedpref" path="."/>
+    <include domain="database" path="."/>
+    <include domain="file" path="."/>
+    <include domain="external" path="."/>
+    <exclude domain="cache" path="."/>
+</full-backup-content>

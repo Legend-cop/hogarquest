@@ -66,24 +66,39 @@ class _DashboardScreenState extends State<DashboardScreen> {
 // =====================================================================
 // INTEGRANTE
 // =====================================================================
-class _IntegranteDashboard extends StatelessWidget {
+class _IntegranteDashboard extends StatefulWidget {
   final AppProvider app;
   final User user;
 
   const _IntegranteDashboard({required this.app, required this.user});
 
+  @override
+  State<_IntegranteDashboard> createState() => _IntegranteDashboardState();
+}
+
+class _IntegranteDashboardState extends State<_IntegranteDashboard> {
+  late final Future<List<dynamic>> _futuras;
+
+  @override
+  void initState() {
+    super.initState();
+    _futuras = Future.wait([
+      widget.app.tareasConAsignacionDe(widget.user.id!),
+      widget.app.insigniasDe(widget.user.id!),
+      widget.app.listarInsignias(),
+      widget.app.puntosPorDia(widget.user.id!, dias: 30),
+      widget.app.tareasPendientesDeHoy(widget.user.id!),
+      widget.app.puntosPorDiaGlobal(dias: 84),
+    ]);
+  }
+
   void _irATareas() => HomeTabs.index.value = 1;
 
   @override
   Widget build(BuildContext context) {
-    final futuras = Future.wait([
-      app.tareasConAsignacionDe(user.id!),
-      app.insigniasDe(user.id!),
-      app.listarInsignias(),
-      app.puntosPorDia(user.id!, dias: 30),
-      app.tareasPendientesDeHoy(user.id!),
-      app.puntosPorDiaGlobal(dias: 84),
-    ]);
+    final app = widget.app;
+    final user = widget.user;
+    final futuras = _futuras;
 
     return FutureBuilder(
       future: futuras,
@@ -184,6 +199,7 @@ class _IntegranteDashboard extends StatelessWidget {
                   child: BarChart(
                     data: puntosPorDia,
                     labelFor: (d) => d.day.toString(),
+                    highlightIndex: puntosPorDia.length - 1,
                   ),
                 ),
                 SectionHeader(title: 'Esta semana'),
@@ -328,6 +344,18 @@ class _AdminDashboard extends StatefulWidget {
 class _AdminDashboardState extends State<_AdminDashboard> {
   final ScrollController _scroll = ScrollController();
   final GlobalKey _keyAprobaciones = GlobalKey();
+  late final Future<List<dynamic>> _futuras;
+
+  @override
+  void initState() {
+    super.initState();
+    _futuras = Future.wait([
+      widget.app.estadisticas(),
+      widget.app.pendientesDeAprobacion(),
+      widget.app.listarIntegrantes(),
+      widget.app.puntosPorDiaGlobal(dias: 30),
+    ]);
+  }
 
   void _irATareas() => HomeTabs.index.value = 1;
   void _irAPremios() => HomeTabs.index.value = 4;
@@ -351,12 +379,7 @@ class _AdminDashboardState extends State<_AdminDashboard> {
   @override
   Widget build(BuildContext context) {
     final app = widget.app;
-    final futuras = Future.wait([
-      app.estadisticas(),
-      app.pendientesDeAprobacion(),
-      app.listarIntegrantes(),
-      app.puntosPorDiaGlobal(dias: 30),
-    ]);
+    final futuras = _futuras;
 
     return FutureBuilder(
       future: futuras,
@@ -479,6 +502,7 @@ class _AdminDashboardState extends State<_AdminDashboard> {
                   child: BarChart(
                     data: puntosPorDia,
                     labelFor: (d) => d.day.toString(),
+                    highlightIndex: puntosPorDia.length - 1,
                   ),
                 ),
                 SectionHeader(key: _keyAprobaciones, title: 'Pendientes de aprobación'),
