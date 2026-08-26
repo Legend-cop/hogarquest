@@ -48,6 +48,13 @@ class DatabaseHelper {
   /// dispositivo recupera internet (sin esperar a reiniciar la app).
   Timer? _reconnectTimer;
 
+  /// Poll periódico del servidor (incluso con conexión activa). El SSE puede
+  /// caerse en móviles (app en segundo plano, cambio de red, Doze) y, al no
+  /// haber otro mecanismo de arrastre, las solicitudes de los niños (tareas por
+  /// aprobar, canjes) dejaban de llegar al padre. Este poll las trae en ~20 s
+  /// aunque el SSE esté caído.
+  Timer? _pollTimer;
+
   /// Caché local: última copia completa de la base de datos. Permite que la
   /// app funcione (y muestre datos correctos) aunque el servidor esté apagado.
   static const _cacheKey = 'hq_db_cache_v1';
@@ -104,6 +111,13 @@ class DatabaseHelper {
       // El servidor volvió: primero subimos los cambios hechos sin conexión
       // y luego recargamos para tomar lo que haya cambiado desde otros lados.
       await _subirLocal();
+      await _cargarDesdeServidor();
+      onRemoteChange?.call();
+    });
+
+    // Poll de respaldo aunque haya conexión (ver nota en _pollTimer).
+    _pollTimer?.cancel();
+    _pollTimer = Timer.periodic(const Duration(seconds: 20), (_) async {
       await _cargarDesdeServidor();
       onRemoteChange?.call();
     });

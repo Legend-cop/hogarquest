@@ -251,7 +251,6 @@ class SyncClient {
           _conectandoSse = false;
           _reconectar();
         },
-        cancelOnError: true,
       );
     } on TimeoutException {
       client?.close(force: true);
