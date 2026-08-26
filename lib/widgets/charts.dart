@@ -67,6 +67,25 @@ class BarChart extends StatefulWidget {
 
 class _BarChartState extends State<BarChart> {
   int? _seleccionado;
+  final ScrollController _scroll = ScrollController();
+
+  @override
+  void initState() {
+    super.initState();
+    // Al cargar, lleva la vista al final (día de hoy) para que no haya que
+    // hacer scroll manual para ver el día actual.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_scroll.hasClients) {
+        _scroll.jumpTo(_scroll.position.maxScrollExtent);
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _scroll.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -159,6 +178,7 @@ class _BarChartState extends State<BarChart> {
         );
 
     return SingleChildScrollView(
+      controller: _scroll,
       scrollDirection: Axis.horizontal,
       child: SizedBox(
         width: total,
