@@ -9,13 +9,20 @@ import 'server_config.dart';
 ///
 /// Prueba las direcciones de [ServerConfig.candidateUrls] en orden y recuerda
 /// la primera que responda, así funciona en la nube o en la red local.
+///
+/// Todas las llamadas de red tienen un timeout total: si el servidor no
+/// responde a tiempo, se asume offline y la app sigue funcionando con la
+/// caché local en lugar de congelarse esperando la respuesta.
 class SyncClient {
   bool _listening = false;
   void Function()? _onRemote;
   void Function()? _onReconnect;
   String? _baseActiva;
 
-  Future<String?> encontrarBase() async {
+  Future<String?> encontrarBase() =>
+      _encontrarBase().timeout(const Duration(seconds: 8), onTimeout: () => null);
+
+  Future<String?> _encontrarBase() async {
     if (_baseActiva != null) return _baseActiva;
     const intentos = 2;
     for (int i = 0; i < intentos; i++) {
@@ -41,7 +48,10 @@ class SyncClient {
     return null;
   }
 
-  Future<Map<String, dynamic>?> fetchDb() async {
+  Future<Map<String, dynamic>?> fetchDb() =>
+      _fetchDb().timeout(const Duration(seconds: 12), onTimeout: () => null);
+
+  Future<Map<String, dynamic>?> _fetchDb() async {
     const intentos = 2;
     for (int i = 0; i < intentos; i++) {
       final base = await encontrarBase();
@@ -71,7 +81,12 @@ class SyncClient {
     return null;
   }
 
-  Future<Map<String, dynamic>?> loginServerSide(String usuario, String password) async {
+  Future<Map<String, dynamic>?> loginServerSide(String usuario, String password) =>
+      _loginServerSide(usuario, password)
+          .timeout(const Duration(seconds: 10), onTimeout: () => null);
+
+  Future<Map<String, dynamic>?> _loginServerSide(
+      String usuario, String password) async {
     final base = await encontrarBase();
     if (base == null) return null;
     try {
@@ -93,6 +108,14 @@ class SyncClient {
   }
 
   Future<void> pushDb(Map<String, dynamic> db) async {
+    try {
+      await _pushDb(db).timeout(const Duration(seconds: 10));
+    } on TimeoutException {
+      // Sin respuesta del servidor: se reintentará al reconectar.
+    }
+  }
+
+  Future<void> _pushDb(Map<String, dynamic> db) async {
     final base = await encontrarBase();
     if (base == null) return;
     try {
@@ -142,6 +165,14 @@ class SyncClient {
       });
 
   Future<void> _postJson(String path, Map<String, dynamic> body) async {
+    try {
+      await _postJsonImpl(path, body).timeout(const Duration(seconds: 10));
+    } on TimeoutException {
+      // Se ignora: la acción se reintentará más tarde.
+    }
+  }
+
+  Future<void> _postJsonImpl(String path, Map<String, dynamic> body) async {
     final base = await encontrarBase();
     if (base == null) return;
     try {
@@ -172,7 +203,9 @@ class SyncClient {
     }
     try {
       final client = HttpClient();
-      final req = await client.getUrl(Uri.parse('$base/api/events'));
+      final req = await client
+          .getUrl(Uri.parse('$base/api/events'))
+          .timeout(const Duration(seconds: 5));
       req.headers.set('Accept', 'text/event-stream');
       client.connectionTimeout = const Duration(seconds: 5);
 
