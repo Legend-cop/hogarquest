@@ -24,6 +24,7 @@ class DetailUsuarioScreen extends StatefulWidget {
 class _DetailUsuarioScreenState extends State<DetailUsuarioScreen> {
   late Map<String, Object?> _resumen;
   bool _cargando = true;
+  bool _cargandoResumen = false;
 
   @override
   void initState() {
@@ -38,19 +39,49 @@ class _DetailUsuarioScreenState extends State<DetailUsuarioScreen> {
     super.dispose();
   }
 
-  void _cargar() async {
+  /// Solo reconstruye si los datos del integrante realmente cambiaron. Así los
+  /// avisos periódicos del provider (timer de 30s, sincronización) no provocan
+  /// reconstrucciones innecesarias mientras el usuario hace scroll.
+  bool _mismoResumen(Map<String, Object?> r) {
+    final u1 = _resumen['usuario'] as User?;
+    final u2 = r['usuario'] as User?;
+    return _resumen['puntosSemana'] == r['puntosSemana'] &&
+        _resumen['puntosHoy'] == r['puntosHoy'] &&
+        _resumen['aprobadasSemana'] == r['aprobadasSemana'] &&
+        _resumen['castigosSemana'] == r['castigosSemana'] &&
+        _resumen['pendientes'] == r['pendientes'] &&
+        (_resumen['tareasHoy'] as List).length ==
+            (r['tareasHoy'] as List).length &&
+        u1?.puntos == u2?.puntos &&
+        u1?.nivel == u2?.nivel &&
+        u1?.racha == u2?.racha &&
+        u1?.foto == u2?.foto;
+  }
+
+  Future<void> _cargar() async {
     final r =
         await context.read<AppProvider>().resumenIntegrante(widget.usuarioId);
-    if (mounted) {
+    if (!mounted) return;
+    if (_cargando) {
       setState(() {
         _resumen = r;
         _cargando = false;
       });
+      return;
     }
+    if (_mismoResumen(r)) return;
+    setState(() {
+      _resumen = r;
+    });
   }
 
   void _onChange() {
-    if (mounted) _cargar();
+    if (mounted && !_cargandoResumen) {
+      _cargandoResumen = true;
+      _cargar().whenComplete(() {
+        if (mounted) _cargandoResumen = false;
+      });
+    }
   }
 
   @override
@@ -122,7 +153,9 @@ class _DetailUsuarioScreenState extends State<DetailUsuarioScreen> {
                     const SizedBox(height: 20),
                     _SemanasCard(user: user),
                     const SizedBox(height: 20),
-                    _GraficoCumplimiento(usuarioId: widget.usuarioId),
+                    RepaintBoundary(
+                      child: _GraficoCumplimiento(usuarioId: widget.usuarioId),
+                    ),
                     const SizedBox(height: 20),
                     _CastigosCard(usuarioId: widget.usuarioId),
                   ],

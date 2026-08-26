@@ -52,6 +52,14 @@ class User {
 
   bool get esAdmin => rol == 'admin';
 
+  /// True si hoy es el cumpleaños del integrante (requiere fecha de nacimiento).
+  bool get esCumpleanosHoy {
+    final f = fechaNacimiento;
+    if (f == null) return false;
+    final hoy = DateTime.now();
+    return f.month == hoy.month && f.day == hoy.day;
+  }
+
   /// Paleta de colores para los integrantes (cada uno con uno distinto).
   static const List<String> nombresPaleta = [
     'verde', 'azul', 'morado', 'rojo', 'naranja', 'cian', 'rosado', 'cafe',

@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/assignment.dart';
 import '../models/badge.dart' as badge_model;
@@ -46,6 +47,37 @@ class _DashboardScreenState extends State<DashboardScreen> {
     });
   }
 
+  bool _cumpleLanzado = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _lanzarCumpleSiAplica();
+  }
+
+  /// Si el usuario actual cumple años hoy, lanza confeti y suena una vez al día.
+  Future<void> _lanzarCumpleSiAplica() async {
+    if (_cumpleLanzado) return;
+    final user = context.read<AppProvider>().usuarioActual;
+    if (user == null || !user.esCumpleanosHoy) return;
+    final prefs = await SharedPreferences.getInstance();
+    final hoy = DateTime.now();
+    final key = 'hq_cumple_${hoy.year}-${hoy.month}-${hoy.day}';
+    if (prefs.getBool(key) == true) {
+      _cumpleLanzado = true;
+      return;
+    }
+    _cumpleLanzado = true;
+    await prefs.setBool(key, true);
+    if (!mounted) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        lanzarConfeti(context);
+        CelebrationService.instance.success();
+      }
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final app = context.read<AppProvider>();
@@ -58,6 +90,47 @@ class _DashboardScreenState extends State<DashboardScreen> {
         child: user.esAdmin
             ? _AdminDashboard(app: app)
             : _IntegranteDashboard(app: app, user: user),
+      ),
+    );
+  }
+}
+
+/// Banner festivo que aparece en el inicio cuando es el cumpleaños del
+/// usuario actual. Acompaña el confeti y el sonido de celebración.
+class _CumpleanosBanner extends StatelessWidget {
+  final String nombre;
+  const _CumpleanosBanner({required this.nombre});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFFFF4B4B), Color(0xFFFFD900)],
+          begin: Alignment.centerLeft,
+          end: Alignment.centerRight,
+        ),
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: const [
+          BoxShadow(color: Color(0x22000000), offset: Offset(0, 4), blurRadius: 0),
+        ],
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      child: Row(
+        children: [
+          const Text('🎉🎂', style: TextStyle(fontSize: 30)),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              '¡Feliz cumpleaños, $nombre!',
+              style: const TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w900,
+                color: Colors.white,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -133,6 +206,9 @@ class _IntegranteDashboardState extends State<_IntegranteDashboard> {
             child: ListView(
               padding: const EdgeInsets.all(16),
               children: [
+                if (user.esCumpleanosHoy)
+                  _CumpleanosBanner(nombre: user.nombre),
+                if (user.esCumpleanosHoy) const SizedBox(height: 16),
                 if (hoy.isNotEmpty)
                   _RecordatorioHoy(tareas: hoy, onTap: _irATareas),
                 const SizedBox(height: 16),
@@ -406,6 +482,10 @@ class _AdminDashboardState extends State<_AdminDashboard> {
               controller: _scroll,
               padding: const EdgeInsets.all(16),
               children: [
+                if (app.usuarioActual?.esCumpleanosHoy ?? false)
+                  _CumpleanosBanner(nombre: app.usuarioActual!.nombre),
+                if (app.usuarioActual?.esCumpleanosHoy ?? false)
+                  const SizedBox(height: 16),
                 const _AdminHeader(),
                 const SizedBox(height: 16),
                 if (pendientes.isNotEmpty) ...[

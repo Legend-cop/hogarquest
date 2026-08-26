@@ -945,13 +945,10 @@ class _AdminListaTabState extends State<_AdminListaTab> {
     final conDia = activas.where((t) => t.dia.isNotEmpty).toList();
     final sinDia = activas.where((t) => t.dia.isEmpty).toList();
 
-    if (tareas.isEmpty) {
-      return const EmptyState(
-        icon: Icons.checklist,
-        message: 'Aún no hay tareas registradas.',
-        hint: 'Pulsa "Nueva tarea" para crear la primera.',
-      );
-    }
+    final vacio = tareas.isEmpty;
+    final mensajeVacio = _filtroCat == 'Todas'
+        ? 'Aún no hay tareas registradas.'
+        : 'No hay tareas en "$_filtroCat". Prueba otra categoría.';
 
     return Column(
       children: [
@@ -977,8 +974,22 @@ class _AdminListaTabState extends State<_AdminListaTab> {
         Expanded(
           child: RefreshIndicator(
             onRefresh: onRefresh,
-            child: ListView(
-        padding: const EdgeInsets.all(12),
+            child: vacio
+                ? LayoutBuilder(
+                    builder: (context, c) => SingleChildScrollView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      child: SizedBox(
+                        height: c.maxHeight,
+                        child: EmptyState(
+                          icon: Icons.checklist,
+                          message: mensajeVacio,
+                          hint: 'Pulsa "Nueva tarea" para crear la primera.',
+                        ),
+                      ),
+                    ),
+                  )
+                : ListView(
+              padding: const EdgeInsets.all(12),
         children: [
           for (final dia in _diasOrden)
             if (conDia.any((t) => t.dia == dia)) ...[
