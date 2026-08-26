@@ -150,12 +150,16 @@ class _IntegranteDashboard extends StatefulWidget {
 }
 
 class _IntegranteDashboardState extends State<_IntegranteDashboard> {
-  late final Future<List<dynamic>> _futuras;
+  List<(Task, Assignment)> _tareas = const [];
+  List<int> _insigniasIds = const [];
+  List<badge_model.Badge> _insignias = const [];
+  List<(DateTime, int)> _puntosPorDia = const [];
+  List<(Task, Assignment)> _hoy = const [];
+  List<(DateTime, int)> _puntosGlobal84 = const [];
+  bool _cargando = true;
 
-  @override
-  void initState() {
-    super.initState();
-    _futuras = Future.wait([
+  Future<void> _cargar() async {
+    final f = await Future.wait([
       widget.app.tareasConAsignacionDe(widget.user.id!),
       widget.app.insigniasDe(widget.user.id!),
       widget.app.listarInsignias(),
@@ -163,44 +167,59 @@ class _IntegranteDashboardState extends State<_IntegranteDashboard> {
       widget.app.tareasPendientesDeHoy(widget.user.id!),
       widget.app.puntosPorDiaGlobal(dias: 84),
     ]);
+    if (!mounted) return;
+    setState(() {
+      _tareas = f[0] as List<(Task, Assignment)>;
+      _insigniasIds = f[1] as List<int>;
+      _insignias = f[2] as List<badge_model.Badge>;
+      _puntosPorDia = f[3] as List<(DateTime, int)>;
+      _hoy = f[4] as List<(Task, Assignment)>;
+      _puntosGlobal84 = f[5] as List<(DateTime, int)>;
+      _cargando = false;
+    });
+  }
+
+  void _onCambio() {
+    if (mounted) _cargar();
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    widget.app.addListener(_onCambio);
+    _cargar();
+  }
+
+  @override
+  void dispose() {
+    widget.app.removeListener(_onCambio);
+    super.dispose();
   }
 
   void _irATareas() => HomeTabs.index.value = 1;
 
   @override
   Widget build(BuildContext context) {
-    final app = widget.app;
     final user = widget.user;
-    final futuras = _futuras;
+    if (_cargando) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    final tareas = _tareas;
+    final insigniasIds = _insigniasIds;
+    final insignias = _insignias;
+    final puntosPorDia = _puntosPorDia;
+    final hoy = _hoy;
+    final puntosGlobal84 = _puntosGlobal84;
 
-    return FutureBuilder(
-      future: futuras,
-      builder: (context, snap) {
-        final tareas = (snap.data as List?)?[0] as List<(Task, Assignment)>? ??
-            <(Task, Assignment)>[];
-        final insigniasIds = (snap.data as List?)?[1] as List<int>? ?? [];
-        final insignias = (snap.data as List?)?[2] as List<badge_model.Badge>? ?? [];
-        final puntosPorDia = (snap.data as List?)?[3]
-                as List<(DateTime, int)>? ??
-            <(DateTime, int)>[];
-        final hoy = (snap.data as List?)?[4]
-                as List<(Task, Assignment)>? ??
-            <(Task, Assignment)>[];
-        final puntosGlobal84 = (snap.data as List?)?[5]
-                as List<(DateTime, int)>? ??
-            <(DateTime, int)>[];
+    final pendientes = tareas
+        .where((t) => !t.$2.completada)
+        .toList();
 
-        final pendientes = tareas
-            .where((t) => !t.$2.completada)
-            .toList();
+    final progreso = GamificationService.progresoNivel(user.puntos, user.nivel);
+    final restantes =
+        GamificationService.puntosParaSiguiente(user.puntos, user.nivel);
 
-        final progreso = GamificationService.progresoNivel(user.puntos, user.nivel);
-        final restantes =
-            GamificationService.puntosParaSiguiente(user.puntos, user.nivel);
-
-        final dias = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
-
-        return Center(
+    return Center(
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 760),
             child: ListView(
@@ -400,8 +419,6 @@ class _IntegranteDashboardState extends State<_IntegranteDashboard> {
             ),
           ),
         );
-      },
-    );
   }
 }
 
@@ -420,17 +437,36 @@ class _AdminDashboard extends StatefulWidget {
 class _AdminDashboardState extends State<_AdminDashboard> {
   final ScrollController _scroll = ScrollController();
   final GlobalKey _keyAprobaciones = GlobalKey();
-  late final Future<List<dynamic>> _futuras;
+  Map<String, Object?>? _est;
+  List<(Task, Assignment, User)> _pendientes = const [];
+  List<(DateTime, int)> _puntosPorDia = const [];
+  bool _cargando = true;
 
   @override
   void initState() {
     super.initState();
-    _futuras = Future.wait([
+    widget.app.addListener(_onCambio);
+    _cargar();
+  }
+
+  void _onCambio() {
+    if (mounted) _cargar();
+  }
+
+  Future<void> _cargar() async {
+    final futuros = await Future.wait([
       widget.app.estadisticas(),
       widget.app.pendientesDeAprobacion(),
       widget.app.listarIntegrantes(),
       widget.app.puntosPorDiaGlobal(dias: 30),
     ]);
+    if (!mounted) return;
+    setState(() {
+      _est = futuros[0] as Map<String, Object?>;
+      _pendientes = futuros[1] as List<(Task, Assignment, User)>;
+      _puntosPorDia = futuros[3] as List<(DateTime, int)>;
+      _cargando = false;
+    });
   }
 
   void _irATareas() => HomeTabs.index.value = 1;
@@ -448,6 +484,7 @@ class _AdminDashboardState extends State<_AdminDashboard> {
 
   @override
   void dispose() {
+    widget.app.removeListener(_onCambio);
     _scroll.dispose();
     super.dispose();
   }
@@ -455,27 +492,19 @@ class _AdminDashboardState extends State<_AdminDashboard> {
   @override
   Widget build(BuildContext context) {
     final app = widget.app;
-    final futuras = _futuras;
+    if (_cargando && _est == null) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    final est = _est!;
+    final pendientes = _pendientes;
+    final puntosPorDia = _puntosPorDia;
 
-    return FutureBuilder(
-      future: futuras,
-      builder: (context, snap) {
-        if (!snap.hasData) {
-          return const Center(child: CircularProgressIndicator());
-        }
-        final est = (snap.data as List)[0] as Map<String, Object?>;
-        final pendientes =
-            (snap.data as List)[1] as List<(Task, Assignment, User)>;
-        final puntosPorDia = (snap.data as List)[3] as List<(DateTime, int)>;
+    final tareasActivas = (est['tareasActivas'] as int?) ?? 0;
+    final aprobadas = (est['aprobadas'] as int?) ?? 0;
+    final totalPuntos = (est['totalPuntos'] as int?) ?? 0;
+    final integrantes = (est['usuarios'] as int?) ?? 0;
 
-        final tareasActivas = (est['tareasActivas'] as int?) ?? 0;
-        final aprobadas = (est['aprobadas'] as int?) ?? 0;
-        final totalPuntos = (est['totalPuntos'] as int?) ?? 0;
-        final integrantes = (est['usuarios'] as int?) ?? 0;
-
-        final dias = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
-
-        return Center(
+    return Center(
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 760),
             child: ListView(
@@ -622,22 +651,20 @@ class _AdminDashboardState extends State<_AdminDashboard> {
                                   color: AppColors.verde),
                               tooltip: 'Aprobar',
                               onPressed: () {
-                                lanzarConfeti(context);
-                                unawaited(CelebrationService.instance.success());
-                                app.aprobarAsignacion(p.$2.id!);
-                              },
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
+                                 lanzarConfeti(context);
+                                 unawaited(CelebrationService.instance.success());
+                                 app.aprobarAsignacion(p.$2.id!);
+                               },
+                             ),
+                           ],
+                         ),
+                       ),
+                     ),
+                   ),
               ],
             ),
           ),
         );
-      },
-    );
   }
 }
 
