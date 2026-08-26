@@ -252,9 +252,11 @@ class AppProvider extends ChangeNotifier {
   }
 
   Future<List<User>> listarUsuarios() async {
+    // Lectura pura: NO debe llamar a notifyListeners(). Hacerlo provocaba un
+    // bucle infinito (onChange -> listarUsuarios -> notify -> onChange ...)
+    // que saturaba el event loop y congelaba la pantalla ("no responde").
     final usuarios = await _db.getUsuarios();
     _usuarios = usuarios;
-    notifyListeners();
     return usuarios;
   }
   Future<List<User>> listarIntegrantes({bool soloActivos = true}) =>
