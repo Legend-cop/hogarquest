@@ -63,6 +63,7 @@ class _AdminUsuariosScreenState extends State<AdminUsuariosScreen> {
       nombre: datos['nombre'] as String,
       avatar: datos['avatar'] as String? ?? '😊',
       edad: (datos['edad'] as int?) ?? 0,
+      fechaNacimiento: datos['fechaNacimiento'] as DateTime?,
       colorTema: datos['colorTema'] as String? ?? '',
       password: passNuevo.isNotEmpty ? passNuevo : '1234',
       rol: (datos['rol'] as String?) ?? 'integrante',
@@ -82,6 +83,7 @@ class _AdminUsuariosScreenState extends State<AdminUsuariosScreen> {
       nombre: datos['nombre'] as String,
       avatar: datos['avatar'] as String? ?? u.avatar,
       edad: (datos['edad'] as int?) ?? u.edad,
+      fechaNacimiento: datos['fechaNacimiento'] as DateTime?,
       colorTema: datos['colorTema'] as String? ?? u.colorTema,
       rol: (datos['rol'] as String?) ?? u.rol,
       password: passEdit.isNotEmpty ? passEdit : u.password,
@@ -431,33 +433,50 @@ class _UsuarioFormDialog extends StatefulWidget {
 class _UsuarioFormDialogState extends State<_UsuarioFormDialog> {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _nombre;
-  late final TextEditingController _edad;
   late final TextEditingController _colorTema;
   late final TextEditingController _password;
   String _rol = 'integrante';
+  DateTime? _fechaNacimiento;
 
   @override
   void initState() {
     super.initState();
     final u = widget.usuario;
     _nombre = TextEditingController(text: u?.nombre ?? '');
-    _edad = TextEditingController(text: u?.edad.toString() ?? '');
     _colorTema = TextEditingController(text: u?.colorTema ?? '');
     _password = TextEditingController();
     _rol = u?.rol ?? 'integrante';
+    _fechaNacimiento = u?.fechaNacimiento;
   }
 
   @override
   void dispose() {
     _nombre.dispose();
-    _edad.dispose();
     _colorTema.dispose();
     _password.dispose();
     super.dispose();
   }
 
+  int _edadDe(DateTime? fn) {
+    if (fn == null) return 0;
+    final a = DateTime.now().difference(fn).inDays ~/ 365.25;
+    return a < 0 ? 0 : a;
+  }
+
+  Future<void> _elegirFecha() async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate:
+          _fechaNacimiento ?? DateTime.now().subtract(const Duration(days: 365 * 10)),
+      firstDate: DateTime(1900),
+      lastDate: DateTime.now(),
+    );
+    if (picked != null) setState(() => _fechaNacimiento = picked);
+  }
+
   @override
   Widget build(BuildContext context) {
+    final edad = _edadDe(_fechaNacimiento);
     return AlertDialog(
       title: Text(widget.usuario == null ? 'Nuevo integrante' : 'Editar integrante'),
       content: SingleChildScrollView(
@@ -480,10 +499,18 @@ class _UsuarioFormDialogState extends State<_UsuarioFormDialog> {
                 validator: (v) => v == null || v.isEmpty ? 'Requerido' : null,
               ),
               const SizedBox(height: 12),
-              TextFormField(
-                controller: _edad,
-                decoration: const InputDecoration(labelText: 'Edad'),
-                keyboardType: TextInputType.number,
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.cake, color: AppColors.azul),
+                title: Text(_fechaNacimiento == null
+                    ? 'Fecha de nacimiento'
+                    : 'Edad: $edad años'),
+                subtitle: _fechaNacimiento == null
+                    ? const Text('Toca para seleccionar')
+                    : Text(
+                        '${_fechaNacimiento!.day}/${_fechaNacimiento!.month}/${_fechaNacimiento!.year}'),
+                trailing: const Icon(Icons.calendar_today),
+                onTap: _elegirFecha,
               ),
               const SizedBox(height: 12),
               TextFormField(
@@ -524,7 +551,8 @@ class _UsuarioFormDialogState extends State<_UsuarioFormDialog> {
             Navigator.pop(context, {
               'nombre': _nombre.text.trim(),
               'avatar': '',
-              'edad': int.tryParse(_edad.text) ?? 0,
+              'edad': _edadDe(_fechaNacimiento),
+              'fechaNacimiento': _fechaNacimiento,
               'colorTema': _colorTema.text.trim(),
               'rol': _rol,
               'password': _password.text.trim(),

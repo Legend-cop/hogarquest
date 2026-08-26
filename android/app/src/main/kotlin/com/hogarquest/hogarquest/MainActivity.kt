@@ -1,5 +1,6 @@
 package com.hogarquest.hogarquest
 
+import android.bluetooth.BluetoothManager
 import android.content.Intent
 import android.provider.Settings
 import io.flutter.embedding.android.FlutterActivity
@@ -20,6 +21,18 @@ class MainActivity : FlutterActivity() {
                             result.success(true)
                         } catch (e: Exception) {
                             result.error("ERROR", e.message, null)
+                        }
+                    }
+                    "desactivarBluetooth" -> {
+                        // Mejor-esfuerzo: en Android 12+ el sistema no permite
+                        // que una app apague el Bluetooth del celular, por lo que
+                        // esto suele devolver false (atrapado abajo).
+                        try {
+                            val adapter = (getSystemService(BLUETOOTH_SERVICE) as? BluetoothManager)?.adapter
+                            val ok = adapter?.disable() ?: false
+                            result.success(ok)
+                        } catch (e: Exception) {
+                            result.success(false)
                         }
                     }
                     else -> result.notImplemented()

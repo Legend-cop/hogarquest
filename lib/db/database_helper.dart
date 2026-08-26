@@ -788,6 +788,7 @@ class DatabaseHelper {
       'frecuencia': t.frecuencia,
       'estado': t.estado,
       'dia': t.dia,
+      'categoria': t.categoria,
     };
   }
 
@@ -802,6 +803,7 @@ class DatabaseHelper {
       frecuencia: (map['frecuencia'] as String?) ?? 'unica',
       estado: (map['estado'] as String?) ?? 'activa',
       dia: (map['dia'] as String?) ?? '',
+      categoria: (map['categoria'] as String?) ?? 'General',
     );
   }
 

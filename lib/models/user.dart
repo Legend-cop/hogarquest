@@ -4,7 +4,8 @@ class User {
   final String avatar;
   final String foto;
   final String fotoLocal;
-  final int edad;
+  final int _edad;
+  final DateTime? fechaNacimiento;
   final String colorTema;
   final int nivel;
   final int puntos;
@@ -22,7 +23,8 @@ class User {
     this.avatar = '',
     this.foto = '',
     this.fotoLocal = '',
-    this.edad = 0,
+    int edad = 0,
+    this.fechaNacimiento,
     this.colorTema = '',
     this.nivel = 1,
     this.puntos = 0,
@@ -33,7 +35,20 @@ class User {
     this.activo = true,
     this.pin = '',
     this.insigniasObtenidas,
-  });
+  }) : _edad = edad;
+
+  /// Edad calculada a partir de la fecha de nacimiento cuando existe, de modo
+  /// que se actualiza sola al cumplir años. Si no hay fecha, usa el valor
+  /// almacenado (edad fija).
+  int get edad {
+    final fn = fechaNacimiento;
+    if (fn != null) {
+      var a = DateTime.now().difference(fn).inDays ~/ 365.25;
+      if (a < 0) a = 0;
+      return a;
+    }
+    return _edad;
+  }
 
   bool get esAdmin => rol == 'admin';
 
@@ -83,6 +98,7 @@ class User {
     String? foto,
     String? fotoLocal,
     int? edad,
+    DateTime? fechaNacimiento,
     String? colorTema,
     int? nivel,
     int? puntos,
@@ -100,7 +116,8 @@ class User {
       avatar: avatar ?? this.avatar,
       foto: foto ?? this.foto,
       fotoLocal: fotoLocal ?? this.fotoLocal,
-      edad: edad ?? this.edad,
+      edad: edad ?? _edad,
+      fechaNacimiento: fechaNacimiento ?? this.fechaNacimiento,
       colorTema: colorTema ?? this.colorTema,
       nivel: nivel ?? this.nivel,
       puntos: puntos ?? this.puntos,
@@ -122,6 +139,7 @@ class User {
       'foto': foto,
       'foto_local': fotoLocal,
       'edad': edad,
+      'fecha_nacimiento': fechaNacimiento?.toIso8601String(),
       'color_tema': colorTema,
       'nivel': nivel,
       'puntos': puntos,
@@ -143,6 +161,9 @@ class User {
       foto: (map['foto'] as String?) ?? '',
       fotoLocal: (map['foto_local'] as String?) ?? '',
       edad: (map['edad'] as int?) ?? 0,
+      fechaNacimiento: map['fecha_nacimiento'] != null
+          ? DateTime.tryParse(map['fecha_nacimiento'] as String)
+          : null,
       colorTema: (map['color_tema'] as String?) ?? '',
       nivel: (map['nivel'] as int?) ?? 1,
       puntos: (map['puntos'] as int?) ?? 0,

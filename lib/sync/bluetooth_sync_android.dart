@@ -2,11 +2,27 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:nearby_connections/nearby_connections.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 import '../db/database_helper.dart';
 import 'bluetooth_peer.dart';
+
+/// Canal compartido con el código nativo (MainActivity.kt) para acciones que
+/// requieren APIs del sistema no expuestas por plugins.
+const MethodChannel _channelAjustes = MethodChannel('hogarquest/ajustes');
+
+/// Intenta apagar el Bluetooth del celular. En Android 12+ el sistema bloquea
+/// que una app lo haga, por lo que normalmente devuelve `false`.
+Future<bool> desactivarBluetooth() async {
+  try {
+    final ok = await _channelAjustes.invokeMethod<bool>('desactivarBluetooth');
+    return ok == true;
+  } catch (_) {
+    return false;
+  }
+}
 
 /// Sincronización P2P local sin internet usando Nearby Connections (Google).
 ///

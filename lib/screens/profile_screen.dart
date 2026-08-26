@@ -36,7 +36,6 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> {
   final _nombreController = TextEditingController();
-  final _edadController = TextEditingController();
   final _colorTemaController = TextEditingController();
   bool _editando = false;
 
@@ -52,7 +51,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
   void dispose() {
     context.read<AppProvider>().removeListener(_onChange);
     _nombreController.dispose();
-    _edadController.dispose();
     _colorTemaController.dispose();
     super.dispose();
   }
@@ -70,7 +68,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     if (user == null) return const SizedBox.shrink();
     if (_nombreController.text.isEmpty) {
       _nombreController.text = user.nombre;
-      _edadController.text = user.edad.toString();
       _colorTemaController.text = user.colorTema;
     }
 
@@ -100,7 +97,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
               user: user,
               editando: _editando,
               nombreController: _nombreController,
-              edadController: _edadController,
               colorTemaController: _colorTemaController,
               onGuardado: () => setState(() => _editando = false),
             ),
@@ -493,11 +489,10 @@ class _Pill extends StatelessWidget {
   }
 }
 
-class _InfoCard extends StatelessWidget {
+class _InfoCard extends StatefulWidget {
   final User user;
   final bool editando;
   final TextEditingController nombreController;
-  final TextEditingController edadController;
   final TextEditingController colorTemaController;
   final VoidCallback? onGuardado;
 
@@ -505,32 +500,69 @@ class _InfoCard extends StatelessWidget {
     required this.user,
     required this.editando,
     required this.nombreController,
-    required this.edadController,
     required this.colorTemaController,
     this.onGuardado,
   });
 
   @override
+  State<_InfoCard> createState() => _InfoCardState();
+}
+
+class _InfoCardState extends State<_InfoCard> {
+  late DateTime? _fechaNacimiento;
+
+  @override
+  void initState() {
+    super.initState();
+    _fechaNacimiento = widget.user.fechaNacimiento;
+  }
+
+  int _edadDe(DateTime? fn) {
+    if (fn == null) return widget.user.edad;
+    final a = DateTime.now().difference(fn).inDays ~/ 365.25;
+    return a < 0 ? 0 : a;
+  }
+
+  Future<void> _elegirFecha() async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _fechaNacimiento ??
+          DateTime.now().subtract(const Duration(days: 365 * 10)),
+      firstDate: DateTime(1900),
+      lastDate: DateTime.now(),
+    );
+    if (picked != null) setState(() => _fechaNacimiento = picked);
+  }
+
+  @override
   Widget build(BuildContext context) {
     final app = context.read<AppProvider>();
 
-    if (editando) {
+    if (widget.editando) {
       return DuoCard(
         child: Column(
           children: [
             TextField(
-              controller: nombreController,
+              controller: widget.nombreController,
               decoration: const InputDecoration(labelText: 'Nombre'),
             ),
             const SizedBox(height: 12),
-            TextField(
-              controller: edadController,
-              decoration: const InputDecoration(labelText: 'Edad'),
-              keyboardType: TextInputType.number,
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.cake, color: AppColors.azul),
+              title: Text(_fechaNacimiento == null
+                  ? 'Fecha de nacimiento'
+                  : 'Edad: ${_edadDe(_fechaNacimiento)} años'),
+              subtitle: _fechaNacimiento == null
+                  ? const Text('Toca para seleccionar')
+                  : Text(
+                      '${_fechaNacimiento!.day}/${_fechaNacimiento!.month}/${_fechaNacimiento!.year}'),
+              trailing: const Icon(Icons.calendar_today),
+              onTap: _elegirFecha,
             ),
             const SizedBox(height: 12),
             TextField(
-              controller: colorTemaController,
+              controller: widget.colorTemaController,
               decoration: const InputDecoration(labelText: 'Tema favorito'),
             ),
             const SizedBox(height: 16),
@@ -538,13 +570,14 @@ class _InfoCard extends StatelessWidget {
               label: 'Guardar',
               icon: Icons.save,
               onPressed: () async {
-                final userEditado = user.copyWith(
-                  nombre: nombreController.text,
-                  edad: int.tryParse(edadController.text) ?? user.edad,
-                  colorTema: colorTemaController.text,
+                final userEditado = widget.user.copyWith(
+                  nombre: widget.nombreController.text,
+                  edad: _edadDe(_fechaNacimiento),
+                  fechaNacimiento: _fechaNacimiento,
+                  colorTema: widget.colorTemaController.text,
                 );
                 await app.editarUsuario(userEditado);
-                onGuardado?.call();
+                widget.onGuardado?.call();
                 if (context.mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(content: Text('Perfil actualizado')),
@@ -560,22 +593,22 @@ class _InfoCard extends StatelessWidget {
     return DuoCard(
       child: Column(
         children: [
-          _InfoRow(icon: Icons.person, label: 'Nombre', value: user.nombre),
+          _InfoRow(icon: Icons.person, label: 'Nombre', value: widget.user.nombre),
           const Divider(),
-          _InfoRow(icon: Icons.cake, label: 'Edad', value: '${user.edad} años'),
+          _InfoRow(icon: Icons.cake, label: 'Edad', value: '${widget.user.edad} años'),
           const Divider(),
           _InfoRow(
             icon: Icons.palette,
             label: 'Tema favorito',
-            value: user.colorTema,
+            value: widget.user.colorTema,
           ),
           const Divider(),
-          _InfoRow(icon: Icons.star, label: 'Nivel', value: 'Nivel ${user.nivel}'),
+          _InfoRow(icon: Icons.star, label: 'Nivel', value: 'Nivel ${widget.user.nivel}'),
           const Divider(),
           _InfoRow(
             icon: Icons.local_fire_department,
             label: 'Racha',
-            value: '${user.racha} días',
+            value: '${widget.user.racha} días',
           ),
         ],
       ),

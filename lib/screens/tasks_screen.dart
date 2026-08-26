@@ -1063,6 +1063,15 @@ class _AdminCatalogoTab extends StatelessWidget {
       );
     }
 
+    int ordenD(int p) => p >= 10 ? 2 : (p >= 6 ? 1 : 0);
+    final lista = List<TareaCatalogo>.from(catalogo)
+      ..sort((a, b) {
+        final oa = ordenD(a.puntos);
+        final ob = ordenD(b.puntos);
+        if (oa != ob) return oa.compareTo(ob);
+        return a.puntos.compareTo(b.puntos);
+      });
+
     return RefreshIndicator(
       onRefresh: onChanged,
       child: ListView(
@@ -1072,11 +1081,11 @@ class _AdminCatalogoTab extends StatelessWidget {
             padding: EdgeInsets.fromLTRB(4, 0, 4, 6),
             child: Text(
               'Puntos por defecto de cada tarea. Se prellenan al crear una '
-              'tarea nueva y se pueden editar.',
+              'tarea nueva y se pueden editar. Ordenadas por dificultad.',
               style: TextStyle(fontSize: 12, color: AppColors.grisMedio),
             ),
           ),
-          for (final c in catalogo) _CatalogoCard(entrada: c, onChanged: onChanged),
+          for (final c in lista) _CatalogoCard(entrada: c, onChanged: onChanged),
         ],
       ),
     );

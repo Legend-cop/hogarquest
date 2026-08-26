@@ -22,10 +22,14 @@ class DetailUsuarioScreen extends StatefulWidget {
 }
 
 class _DetailUsuarioScreenState extends State<DetailUsuarioScreen> {
+  late Map<String, Object?> _resumen;
+  bool _cargando = true;
+
   @override
   void initState() {
     super.initState();
     context.read<AppProvider>().addListener(_onChange);
+    _cargar();
   }
 
   @override
@@ -34,26 +38,31 @@ class _DetailUsuarioScreenState extends State<DetailUsuarioScreen> {
     super.dispose();
   }
 
+  void _cargar() async {
+    final r =
+        await context.read<AppProvider>().resumenIntegrante(widget.usuarioId);
+    if (mounted) {
+      setState(() {
+        _resumen = r;
+        _cargando = false;
+      });
+    }
+  }
+
   void _onChange() {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) setState(() {});
-    });
+    if (mounted) _cargar();
   }
 
   @override
   Widget build(BuildContext context) {
-    final app = context.read<AppProvider>();
-    return FutureBuilder<Map<String, Object?>>(
-      future: app.resumenIntegrante(widget.usuarioId),
-      builder: (context, snap) {
-        if (!snap.hasData) {
-          return Scaffold(
-            appBar: AppBar(title: const Text('Integrante')),
-            body: const Center(child: CircularProgressIndicator()),
-          );
-        }
-        final res = snap.data!;
-        final user = res['usuario'] as User?;
+    if (_cargando) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Integrante')),
+        body: const Center(child: CircularProgressIndicator()),
+      );
+    }
+    final res = _resumen;
+    final user = res['usuario'] as User?;
 
         return Scaffold(
           appBar: AppBar(
@@ -122,8 +131,6 @@ class _DetailUsuarioScreenState extends State<DetailUsuarioScreen> {
             ),
           ),
         );
-      },
-    );
   }
 }
 
@@ -474,13 +481,46 @@ class _CastigosCardState extends State<_CastigosCard> {
 
 /// Gráfico visual de cumplimiento (puntos ganados) de un integrante
 /// en los últimos 7 y 30 días.
-class _GraficoCumplimiento extends StatelessWidget {
+class _GraficoCumplimiento extends StatefulWidget {
   final int usuarioId;
   const _GraficoCumplimiento({required this.usuarioId});
 
   @override
-  Widget build(BuildContext context) {
+  State<_GraficoCumplimiento> createState() => _GraficoCumplimientoState();
+}
+
+class _GraficoCumplimientoState extends State<_GraficoCumplimiento> {
+  late Future<List<(DateTime, int)>> _fut7;
+  late Future<List<(DateTime, int)>> _fut30;
+
+  @override
+  void initState() {
+    super.initState();
+    _cargar();
+    context.read<AppProvider>().addListener(_onChange);
+  }
+
+  @override
+  void dispose() {
+    context.read<AppProvider>().removeListener(_onChange);
+    super.dispose();
+  }
+
+  void _cargar() {
     final app = context.read<AppProvider>();
+    _fut7 = app.puntosPorDia(widget.usuarioId, dias: 7);
+    _fut30 = app.puntosPorDia(widget.usuarioId, dias: 30);
+  }
+
+  void _onChange() {
+    if (mounted) {
+      _cargar();
+      setState(() {});
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final dias = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
 
     return DuoCard(
@@ -495,7 +535,7 @@ class _GraficoCumplimiento extends StatelessWidget {
           SizedBox(
             height: 160,
             child: FutureBuilder<List<(DateTime, int)>>(
-              future: app.puntosPorDia(usuarioId, dias: 7),
+              future: _fut7,
               builder: (context, snap) {
                 final datos = snap.data ?? const <(DateTime, int)>[];
                 return BarChart(
@@ -507,7 +547,7 @@ class _GraficoCumplimiento extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           FutureBuilder<List<(DateTime, int)>>(
-            future: app.puntosPorDia(usuarioId, dias: 30),
+            future: _fut30,
             builder: (context, snap) {
               final datos = snap.data ?? const <(DateTime, int)>[];
               final total = datos.fold<int>(0, (s, e) => s + e.$2);

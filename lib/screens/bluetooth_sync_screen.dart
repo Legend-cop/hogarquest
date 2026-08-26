@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../db/database_helper.dart';
 import '../sync/bluetooth_sync.dart';
+import '../sync/bluetooth_sync_android.dart' show desactivarBluetooth;
 import '../theme/app_theme.dart';
 import '../widgets/duo_widgets.dart';
 import '../widgets/section_header.dart';
@@ -40,6 +41,18 @@ class _BluetoothSyncScreenState extends State<BluetoothSyncScreen> {
       await _svc.start(DatabaseHelper.instance);
     } else {
       await _svc.stop();
+      final apagado = await desactivarBluetooth();
+      if (!apagado && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'La sincronización se detuvo. Android no permite que la app '
+              'apague el Bluetooth del celular automáticamente; apágalo '
+              'desde los ajustes rápidos si lo deseas.',
+            ),
+          ),
+        );
+      }
     }
   }
 
