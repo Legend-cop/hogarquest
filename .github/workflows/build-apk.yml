@@ -23,7 +23,7 @@ jobs:
       - name: Build APK
         run: |
           set -o pipefail
-          flutter build apk --release --target-platform android-arm64,android-arm --dart-define=API_BASE_URL=${{ vars.API_BASE_URL }} 2>&1 | tee /tmp/build.log
+          flutter build apk --release --target-platform android-arm64,android-arm,android-x86_64 --dart-define=API_BASE_URL=${{ vars.API_BASE_URL }} 2>&1 | tee /tmp/build.log
       - name: Report build error
         if: failure()
         env:
