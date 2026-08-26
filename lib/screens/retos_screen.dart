@@ -28,14 +28,15 @@ class RetosScreen extends StatefulWidget {
 }
 
 class _RetosScreenState extends State<RetosScreen> {
-  late Future<List<Reto>> _futureRetos;
+  List<Reto> _retos = const [];
+  bool _cargando = true;
 
   @override
   void initState() {
     super.initState();
     final app = context.read<AppProvider>();
     app.addListener(_onChange);
-    _futureRetos = app.retosDeLaSemana();
+    _cargar();
   }
 
   @override
@@ -46,7 +47,17 @@ class _RetosScreenState extends State<RetosScreen> {
 
   void _onChange() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) setState(() {});
+      if (mounted) _cargar();
+    });
+  }
+
+  Future<void> _cargar() async {
+    final app = context.read<AppProvider>();
+    final f = await app.retosDeLaSemana();
+    if (!mounted) return;
+    setState(() {
+      _retos = f;
+      _cargando = false;
     });
   }
 
@@ -55,6 +66,13 @@ class _RetosScreenState extends State<RetosScreen> {
     final app = context.read<AppProvider>();
     final user = app.usuarioActual;
     if (user == null) return const SizedBox.shrink();
+    if (_cargando) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Retos de la semana')),
+        body: const Center(child: CircularProgressIndicator()),
+      );
+    }
+    final retos = _retos;
     return Scaffold(
       appBar: AppBar(
         title: const Text('Retos de la semana'),
@@ -68,45 +86,32 @@ class _RetosScreenState extends State<RetosScreen> {
         ],
       ),
       body: RefreshIndicator(
-        onRefresh: () async {
-          setState(() {
-            _futureRetos = context.read<AppProvider>().retosDeLaSemana();
-          });
-        },
-        child: FutureBuilder<List<Reto>>(
-          future: _futureRetos,
-          builder: (context, snap) {
-            if (snap.connectionState != ConnectionState.done) {
-              return const Center(child: CircularProgressIndicator());
-            }
-            final retos = snap.data ?? const <Reto>[];
-            return Center(
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 760),
-                child: ListView(
-                  padding: const EdgeInsets.all(16),
-                  children: [
-                    if (retos.isEmpty)
-                      _SinRetoCard(esAdmin: user.esAdmin)
-                    else ...[
-                      for (final reto in retos)
-                        _RetoCard(reto: reto, user: user),
-                      if (user.esAdmin) ...[
-                        const SizedBox(height: 8),
-                        DuoButton(
-                          label: 'Agregar otro reto',
-                          icon: Icons.add_circle_outline,
-                          onPressed: () => _abrirRetoDialog(context),
-                        ),
-                      ],
-                    ],
-                    const SizedBox(height: 16),
-                    _RetosPasados(esAdmin: user.esAdmin),
+        onRefresh: () async => _cargar(),
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 760),
+            child: ListView(
+              padding: const EdgeInsets.all(16),
+              children: [
+                if (retos.isEmpty)
+                  _SinRetoCard(esAdmin: user.esAdmin)
+                else ...[
+                  for (final reto in retos)
+                    _RetoCard(reto: reto, user: user),
+                  if (user.esAdmin) ...[
+                    const SizedBox(height: 8),
+                    DuoButton(
+                      label: 'Agregar otro reto',
+                      icon: Icons.add_circle_outline,
+                      onPressed: () => _abrirRetoDialog(context),
+                    ),
                   ],
-                ),
-              ),
-            );
-          },
+                ],
+                const SizedBox(height: 16),
+                _RetosPasados(esAdmin: user.esAdmin),
+              ],
+            ),
+          ),
         ),
       ),
     );
@@ -542,37 +547,55 @@ class _RetosPasados extends StatefulWidget {
 }
 
 class _RetosPasadosState extends State<_RetosPasados> {
-  late Future<List<Reto>> _future;
+  List<Reto> _todos = const [];
+  bool _cargando = true;
 
   @override
   void initState() {
     super.initState();
-    _future = context.read<AppProvider>().listarRetos();
+    context.read<AppProvider>().addListener(_onChange);
+    _cargar();
+  }
+
+  @override
+  void dispose() {
+    context.read<AppProvider>().removeListener(_onChange);
+    super.dispose();
+  }
+
+  void _onChange() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _cargar();
+    });
+  }
+
+  Future<void> _cargar() async {
+    final todos = await context.read<AppProvider>().listarRetos();
+    if (!mounted) return;
+    setState(() {
+      _todos = todos;
+      _cargando = false;
+    });
   }
 
   @override
   Widget build(BuildContext context) {
-    return FutureBuilder<List<Reto>>(
-      future: _future,
-      builder: (context, snap) {
-        final retos = snap.data ?? const <Reto>[];
-        final pasados = retos.where((r) => !r.vigente).toList();
-        if (pasados.isEmpty) return const SizedBox.shrink();
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const SectionHeader(title: 'Retos anteriores'),
-            for (final r in pasados)
-              ListTile(
-                dense: true,
-                leading: const Icon(Icons.flag, color: AppColors.grisMedio),
-                title: Text(r.titulo),
-                subtitle: Text(
-                    '${r.cumplidos.length} cumplidos · +${r.puntos} pts'),
-              ),
-          ],
-        );
-      },
+    if (_cargando) return const SizedBox.shrink();
+    final pasados = _todos.where((r) => !r.vigente).toList();
+    if (pasados.isEmpty) return const SizedBox.shrink();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SectionHeader(title: 'Retos anteriores'),
+        for (final r in pasados)
+          ListTile(
+            dense: true,
+            leading: const Icon(Icons.flag, color: AppColors.grisMedio),
+            title: Text(r.titulo),
+            subtitle: Text(
+                '${r.cumplidos.length} cumplidos · +${r.puntos} pts'),
+          ),
+      ],
     );
   }
 }

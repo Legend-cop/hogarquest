@@ -386,8 +386,14 @@ class _AdminSemanaTabState extends State<_AdminSemanaTab> {
       List<Task> lista) {
     final porPersona = <int?, List<Task>>{};
     for (final t in lista) {
-      final p = _asignadosDe(t).firstOrNull;
-      porPersona.putIfAbsent(p?.id, () => []).add(t);
+      final asignados = _asignadosDe(t);
+      if (asignados.isEmpty) {
+        porPersona.putIfAbsent(null, () => []).add(t);
+      } else {
+        for (final u in asignados) {
+          porPersona.putIfAbsent(u.id, () => []).add(t);
+        }
+      }
     }
     final grupos = porPersona.entries.map((e) {
       final persona = e.key == null
