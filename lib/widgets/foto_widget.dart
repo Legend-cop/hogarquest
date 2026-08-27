@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../db/photo_store.dart';
@@ -25,7 +26,7 @@ class FotoWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (PhotoStore.existe(local)) {
+    if (!kIsWeb && PhotoStore.existe(local)) {
       return Image.file(
         File(local),
         width: size,

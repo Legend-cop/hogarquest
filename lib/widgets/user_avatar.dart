@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../db/server_config.dart';
@@ -87,6 +88,7 @@ class _UserAvatarState extends State<UserAvatar> {
 
   /// Ruta local de la foto si existe en disco (funciona sin internet).
   String? _rutaLocal() {
+    if (kIsWeb) return null; // en web no existe el sistema de archivos local
     final local = widget.fotoLocal ?? widget.user.fotoLocal;
     if (local.isEmpty) return null;
     if (!File(local).existsSync()) return null;

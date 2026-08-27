@@ -115,6 +115,7 @@ class AppProvider extends ChangeNotifier {
   /// Descarga y guarda localmente la foto de cada miembro que tenga URL remota
   /// pero aún no tenga copia local, para que se vean sin internet.
   Future<void> _cachearFotosMiembros() async {
+    if (kIsWeb) return; // en web no hay almacenamiento local de fotos
     try {
       final usuarios = await listarUsuarios();
       for (final u in usuarios) {
@@ -140,6 +141,7 @@ class AppProvider extends ChangeNotifier {
   /// Sube al servidor las fotos que se agregaron sin conexión (tienen copia
   /// local pero aún no tienen URL remota) y actualiza el registro local.
   Future<void> _subirFotosPendientes() async {
+    if (kIsWeb) return; // en web las fotos se suben desde memoria, no de archivo
     try {
       final recompensas = await listarRecompensas();
       for (final r in recompensas) {
