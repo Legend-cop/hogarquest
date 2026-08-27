@@ -24,7 +24,7 @@ jobs:
           channel: stable
       - run: flutter pub get
       - name: Build web
-        run: flutter build web --release --base-href /hogarquest/ --dart-define=API_BASE_URL=${{ vars.API_BASE_URL }}
+        run: flutter build web --release --base-href /hogarquest/ --pwa-strategy none --dart-define=API_BASE_URL=${{ vars.API_BASE_URL }}
       - uses: actions/upload-pages-artifact@v3
         with:
           path: build/web
