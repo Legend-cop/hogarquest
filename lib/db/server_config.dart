@@ -37,5 +37,8 @@ class ServerConfig {
 
   /// Base URL visible para el resto de la app.
   /// Tanto en web como en nativo apunta a la API absoluta en la nube.
-  static String get baseUrl => kIsWeb ? apiBaseUrl : activaUrl;
+  /// En web usamos [cloudUrl] (que ya aplica el respaldo de Azure si la
+  /// variable API_BASE_URL está vacía) para no quedar apuntando al marcador
+  /// inválido cuando no se configura la variable en el deploy.
+  static String get baseUrl => kIsWeb ? cloudUrl : activaUrl;
 }
