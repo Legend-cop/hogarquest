@@ -38,12 +38,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
   final _nombreController = TextEditingController();
   final _colorTemaController = TextEditingController();
   bool _editando = false;
+  User? _ultimoUsuario;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<AppProvider>().addListener(_onChange);
+      final app = context.read<AppProvider>();
+      app.addListener(_onChange);
+      final user = app.usuarioActual;
+      if (user != null) {
+        _nombreController.text = user.nombre;
+        _colorTemaController.text = user.colorTema;
+        _ultimoUsuario = user;
+      }
     });
   }
 
@@ -56,6 +64,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   void _onChange() {
+    final app = context.read<AppProvider>();
+    final u = app.usuarioActual;
+    if (u != null && _ultimoUsuario != null) {
+      final m = _ultimoUsuario!;
+      if (m.nombre == u.nombre &&
+          m.foto == u.foto &&
+          m.fotoLocal == u.fotoLocal &&
+          m.puntos == u.puntos &&
+          m.nivel == u.nivel &&
+          m.racha == u.racha) {
+        return;
+      }
+    }
+    _ultimoUsuario = u;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) setState(() {});
     });
@@ -66,10 +88,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final app = context.read<AppProvider>();
     final user = app.usuarioActual;
     if (user == null) return const SizedBox.shrink();
-    if (_nombreController.text.isEmpty) {
-      _nombreController.text = user.nombre;
-      _colorTemaController.text = user.colorTema;
-    }
 
     return Scaffold(
       appBar: AppBar(

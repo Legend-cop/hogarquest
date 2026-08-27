@@ -254,7 +254,18 @@ class DatabaseHelper {
           resueltos.add(local);
           victoriaLocal = true;
         } else {
-          resueltos.add(remoto);
+          // La foto local es un caché del dispositivo; el servidor no la conoce
+          // (es una ruta de archivo local). Si el registro remoto gana,
+          // preservamos la foto_local local para que la imagen no desaparezca
+          // ni parpadee al sincronizar.
+          final ganador = Map<String, dynamic>.from(remoto);
+          if (boxName == _boxUsuarios) {
+            final flLocal = local?['foto_local'];
+            if (flLocal != null && '$flLocal'.isNotEmpty) {
+              ganador['foto_local'] = flLocal;
+            }
+          }
+          resueltos.add(ganador);
         }
       }
       // Los registros locales que el servidor no tiene se conservan.
