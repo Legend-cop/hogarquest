@@ -288,14 +288,22 @@ class DatabaseHelper {
       // tarea "reviva" al sincronizar y el usuario la vea de nuevo al reabrir
       // la app. Un borrado explícito siempre gana sobre el registro.
       final vivos = resueltos.where((r) {
-        final d = tombstones['$boxName|${_idKey(r, boxName)}'];
+        final id = _idKey(r, boxName);
+        final clave = '$boxName|$id';
+        // Borrado explícito en ESTE dispositivo: siempre oculto, sin importar
+        // lo que diga el servidor (que re-firma updated_at y "reviviría" la
+        // tarea). Al crear una tarea se quita su tombstone local, así que una
+        // tarea nueva (aunque el servidor reusó el id de una borrada) no queda
+        // marcada y sí se muestra.
+        final borradoLocal =
+            _tombstones.any((t) => t['box'] == boxName && t['k'] == id);
+        if (borradoLocal) return false;
+        // Borrado desde otro dispositivo: oculto solo si el registro no es más
+        // reciente que la marca de borrado.
+        final d = tombstones[clave];
         if (d == null) return true;
         final tsTomb = d['updated_at'] as int? ?? 0;
         final tsReg = r['updated_at'] as int? ?? 0;
-        // El borrado solo oculta si ocurrió DESPUÉS de la última modificación
-        // del registro. Si el servidor trae una versión más nueva (p. ej. reusó
-        // el id de una tarea borrada para una tarea nueva), el registro gana y
-        // se muestra en lugar de desaparecer al recargar.
         return tsReg > tsTomb;
       }).toList();
 
