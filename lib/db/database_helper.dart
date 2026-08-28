@@ -276,11 +276,14 @@ class DatabaseHelper {
         }
       }
 
-      // Aplicar tombstones: un borrado más reciente que el registro lo quita.
+      // Aplicar tombstones: un borrado (local o remoto) elimina el registro
+      // de forma definitiva. Sin esto, un servidor que no aplica los
+      // tombstones (o que re-sella el registro al recibir el push) hace que la
+      // tarea "reviva" al sincronizar y el usuario la vea de nuevo al reabrir
+      // la app. Un borrado explícito siempre gana sobre el registro.
       final vivos = resueltos.where((r) {
         final d = tombstones['$boxName|${_idKey(r, boxName)}'];
-        return !(d != null &&
-            (d['updated_at'] as int? ?? 0) > (r['updated_at'] as int? ?? 0));
+        return d == null;
       }).toList();
 
       box.items
