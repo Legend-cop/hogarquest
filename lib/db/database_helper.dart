@@ -1006,6 +1006,11 @@ class DatabaseHelper {
     final key = box.add(map);
     if (map['id'] == null) map['id'] = key;
     _sellar(map);
+    // Al (re)crear un registro se cancela la marca de borrado previa de ese
+    // id. Los ids se reusan, y si antes se borró otra tarea con el mismo id el
+    // tombstone la ocultaría; al crearla otra vez el usuario debe verla.
+    final idKey = 'id:${map['id']}';
+    _tombstones.removeWhere((t) => t['k'] == idKey);
     _marcar();
     return key;
   }
