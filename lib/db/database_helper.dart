@@ -289,7 +289,14 @@ class DatabaseHelper {
       // la app. Un borrado explícito siempre gana sobre el registro.
       final vivos = resueltos.where((r) {
         final d = tombstones['$boxName|${_idKey(r, boxName)}'];
-        return d == null;
+        if (d == null) return true;
+        final tsTomb = d['updated_at'] as int? ?? 0;
+        final tsReg = r['updated_at'] as int? ?? 0;
+        // El borrado solo oculta si ocurrió DESPUÉS de la última modificación
+        // del registro. Si el servidor trae una versión más nueva (p. ej. reusó
+        // el id de una tarea borrada para una tarea nueva), el registro gana y
+        // se muestra en lugar de desaparecer al recargar.
+        return tsReg > tsTomb;
       }).toList();
 
       box.items
