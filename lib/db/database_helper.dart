@@ -258,14 +258,20 @@ class DatabaseHelper {
           // (es una ruta de archivo local). Si el registro remoto gana,
           // preservamos la foto_local local para que la imagen no desaparezca
           // ni parpadee al sincronizar.
-          final ganador = Map<String, dynamic>.from(remoto);
-          if (boxName == _boxUsuarios) {
-            final flLocal = local?['foto_local'];
-            if (flLocal != null && '$flLocal'.isNotEmpty) {
-              ganador['foto_local'] = flLocal;
-            }
-          }
-          resueltos.add(ganador);
+    final ganador = Map<String, dynamic>.from(remoto);
+    if (boxName == _boxUsuarios) {
+      final flLocal = local?['foto_local'];
+      if (flLocal != null && '$flLocal'.isNotEmpty) {
+        ganador['foto_local'] = flLocal;
+      }
+    }
+    if (boxName == _boxTareas) {
+      final estado = ganador['estado'];
+      if (estado == null || '$estado'.trim().isEmpty) {
+        ganador['estado'] = 'activa';
+      }
+    }
+    resueltos.add(ganador);
         }
       }
       // Los registros locales que el servidor no tiene se conservan.
@@ -1276,7 +1282,10 @@ class DatabaseHelper {
 
   Future<List<Task>> getTareasActivas() async {
     final box = _box(_boxTareas);
-    return box.items.where((m) => m['estado'] == 'activa').map(_mapToTask).toList();
+    return box.items
+        .where((m) => m['estado'] == 'activa' || m['estado'] == null)
+        .map(_mapToTask)
+        .toList();
   }
 
   Future<Task?> getTareaById(int id) async {
