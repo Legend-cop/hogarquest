@@ -186,17 +186,16 @@ class LocalSyncService {
   }
 
   void _enviarBeacon() {
-    if (_udp == null) return;
+    final u = _udp;
+    if (u == null) return;
     final msg = jsonEncode({
       'type': 'hq-beacon',
       'household': _household,
       'tcp': _tcpPort,
     });
     try {
-      _udp!.send(utf8.encode(msg), InternetAddress('255.255.255.255'), _udpPort);
-    } catch (e) {
-      debugPrint('[LocalSync] no se pudo enviar beacon: $e');
-    }
+      u.send(utf8.encode(msg), InternetAddress('255.255.255.255'), _udpPort);
+    } catch (_) {}
   }
 
   void _procesarBeacon(Datagram dg) {

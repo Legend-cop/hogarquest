@@ -1350,6 +1350,8 @@ class _AdminTaskCard extends StatelessWidget {
     await app.listarUsuarios();
     final usuarios = app.listaUsuarios;
     if (!context.mounted) return;
+    final asignadosAEstaTarea = _asignados[tarea.id] ?? [];
+    final integrantesData = asignadosAEstaTarea.map((u) => {'id': u.id}).toList();
     showDialog(
       context: context,
       builder: (_) => _TaskFormDialog(
@@ -1362,7 +1364,7 @@ class _AdminTaskCard extends StatelessWidget {
           'frecuencia': tarea.frecuencia,
           'dia': tarea.dia,
           'categoria': tarea.categoria,
-          'integrantes': [],
+          'integrantes': integrantesData,
         },
         onSaved: (data) => _crearEditarTarea(context, data: data, id: tarea.id),
         usuarios: usuarios,
