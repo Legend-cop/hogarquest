@@ -39,14 +39,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
   final _colorTemaController = TextEditingController();
   bool _editando = false;
   User? _ultimoUsuario;
+  AppProvider? _provider;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final app = context.read<AppProvider>();
-      app.addListener(_onChange);
-      final user = app.usuarioActual;
+      if (!mounted) return;
+      _provider = context.read<AppProvider>();
+      _provider!.addListener(_onChange);
+      final user = _provider!.usuarioActual;
       if (user != null) {
         _nombreController.text = user.nombre;
         _colorTemaController.text = user.colorTema;
@@ -57,7 +59,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   @override
   void dispose() {
-    context.read<AppProvider>().removeListener(_onChange);
+    _provider?.removeListener(_onChange);
     _nombreController.dispose();
     _colorTemaController.dispose();
     super.dispose();

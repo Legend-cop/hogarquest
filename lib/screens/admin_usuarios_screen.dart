@@ -19,11 +19,13 @@ class AdminUsuariosScreen extends StatefulWidget {
 class _AdminUsuariosScreenState extends State<AdminUsuariosScreen> {
   bool _cargando = true;
   List<User> _integrantes = [];
+  late AppProvider _provider;
 
   @override
   void initState() {
     super.initState();
-    context.read<AppProvider>().addListener(_onChange);
+    _provider = context.read<AppProvider>();
+    _provider.addListener(_onChange);
     _cargar();
   }
 
@@ -36,8 +38,7 @@ class _AdminUsuariosScreenState extends State<AdminUsuariosScreen> {
   /// "trabé" ni parpadee al recargar cada vez que el provider avisa.
   Future<void> _refrescar() async {
     if (_cargando) return;
-    final app = context.read<AppProvider>();
-    final lista = await app.listarUsuarios();
+    final lista = await _provider.listarUsuarios();
     if (!mounted) return;
     if (_mismaLista(lista)) return;
     setState(() {
@@ -62,8 +63,7 @@ class _AdminUsuariosScreenState extends State<AdminUsuariosScreen> {
 
   Future<void> _cargar() async {
     setState(() => _cargando = true);
-    final app = context.read<AppProvider>();
-    final lista = await app.listarUsuarios();
+    final lista = await _provider.listarUsuarios();
     if (mounted) {
       setState(() {
         _integrantes = lista;
@@ -74,7 +74,7 @@ class _AdminUsuariosScreenState extends State<AdminUsuariosScreen> {
 
   @override
   void dispose() {
-    context.read<AppProvider>().removeListener(_onChange);
+    _provider.removeListener(_onChange);
     super.dispose();
   }
 

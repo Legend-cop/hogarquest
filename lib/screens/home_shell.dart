@@ -30,20 +30,21 @@ class HomeShell extends StatefulWidget {
 class _HomeShellState extends State<HomeShell> {
   int _index = 0;
   int? _puntosPrevios;
+  late AppProvider _provider;
 
   @override
   void initState() {
     super.initState();
     HomeTabs.index.addListener(_onTabChange);
-    final app = context.read<AppProvider>();
-    _puntosPrevios = app.usuarioActual?.puntos ?? 0;
-    app.addListener(_onAppChange);
+    _provider = context.read<AppProvider>();
+    _puntosPrevios = _provider.usuarioActual?.puntos ?? 0;
+    _provider.addListener(_onAppChange);
   }
 
   @override
   void dispose() {
     HomeTabs.index.removeListener(_onTabChange);
-    context.read<AppProvider>().removeListener(_onAppChange);
+    _provider.removeListener(_onAppChange);
     super.dispose();
   }
 
@@ -54,8 +55,7 @@ class _HomeShellState extends State<HomeShell> {
   /// Celebra en el dispositivo del niño cuando le aprueban una tarea y suben
   /// sus puntos (el admin ya celebra al pulsar "Aprobar").
   void _onAppChange() {
-    final app = context.read<AppProvider>();
-    final u = app.usuarioActual;
+    final u = _provider.usuarioActual;
     if (u == null) return;
     final antes = _puntosPrevios;
     _puntosPrevios = u.puntos;

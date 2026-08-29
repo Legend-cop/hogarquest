@@ -24,12 +24,14 @@ class _RankingScreenState extends State<RankingScreen>
   List<(DateTime, int)> _puntosGlobal = [];
   List<(DateTime, int)> _puntosGlobal30 = [];
   List<_Recorde> _fama = [];
+  late AppProvider _provider;
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
-    context.read<AppProvider>().addListener(_onChange);
+    _provider = context.read<AppProvider>();
+    _provider.addListener(_onChange);
     _cargarDatos();
   }
 
@@ -119,7 +121,7 @@ class _RankingScreenState extends State<RankingScreen>
 
   @override
   void dispose() {
-    context.read<AppProvider>().removeListener(_onChange);
+    _provider.removeListener(_onChange);
     _tabController.dispose();
     super.dispose();
   }

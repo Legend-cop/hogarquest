@@ -29,15 +29,18 @@ class DashboardScreen extends StatefulWidget {
 }
 
 class _DashboardScreenState extends State<DashboardScreen> {
+  late AppProvider _provider;
+
   @override
   void initState() {
     super.initState();
-    context.read<AppProvider>().addListener(_onChange);
+    _provider = context.read<AppProvider>();
+    _provider.addListener(_onChange);
   }
 
   @override
   void dispose() {
-    context.read<AppProvider>().removeListener(_onChange);
+    _provider.removeListener(_onChange);
     super.dispose();
   }
 

@@ -30,18 +30,19 @@ class RetosScreen extends StatefulWidget {
 class _RetosScreenState extends State<RetosScreen> {
   List<Reto> _retos = const [];
   bool _cargando = true;
+  late AppProvider _provider;
 
   @override
   void initState() {
     super.initState();
-    final app = context.read<AppProvider>();
-    app.addListener(_onChange);
+    _provider = context.read<AppProvider>();
+    _provider.addListener(_onChange);
     _cargar();
   }
 
   @override
   void dispose() {
-    context.read<AppProvider>().removeListener(_onChange);
+    _provider.removeListener(_onChange);
     super.dispose();
   }
 
@@ -549,17 +550,19 @@ class _RetosPasados extends StatefulWidget {
 class _RetosPasadosState extends State<_RetosPasados> {
   List<Reto> _todos = const [];
   bool _cargando = true;
+  late AppProvider _provider;
 
   @override
   void initState() {
     super.initState();
-    context.read<AppProvider>().addListener(_onChange);
+    _provider = context.read<AppProvider>();
+    _provider.addListener(_onChange);
     _cargar();
   }
 
   @override
   void dispose() {
-    context.read<AppProvider>().removeListener(_onChange);
+    _provider.removeListener(_onChange);
     super.dispose();
   }
 
@@ -570,7 +573,7 @@ class _RetosPasadosState extends State<_RetosPasados> {
   }
 
   Future<void> _cargar() async {
-    final todos = await context.read<AppProvider>().listarRetos();
+    final todos = await _provider.listarRetos();
     if (!mounted) return;
     setState(() {
       _todos = todos;

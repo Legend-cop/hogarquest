@@ -28,18 +28,20 @@ class _TasksScreenState extends State<TasksScreen>
   List<(Task, Assignment)> _historial = [];
   List<Task> _todasLasTareas = [];
   User? _usuarioActual;
+  late AppProvider _provider;
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
-    context.read<AppProvider>().addListener(_onChange);
+    _provider = context.read<AppProvider>();
+    _provider.addListener(_onChange);
     _cargarDatos();
   }
 
   @override
   void dispose() {
-    context.read<AppProvider>().removeListener(_onChange);
+    _provider.removeListener(_onChange);
     _tabController.dispose();
     super.dispose();
   }
