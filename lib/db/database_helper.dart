@@ -270,6 +270,9 @@ class DatabaseHelper {
       if (estado == null || '$estado'.trim().isEmpty) {
         ganador['estado'] = 'activa';
       }
+      if (ganador['created_at'] == null && local?['created_at'] != null) {
+        ganador['created_at'] = local!['created_at'];
+      }
     }
     resueltos.add(ganador);
         }
@@ -290,21 +293,14 @@ class DatabaseHelper {
       final vivos = resueltos.where((r) {
         final id = _idKey(r, boxName);
         final clave = '$boxName|$id';
-        // Borrado explícito en ESTE dispositivo: siempre oculto, sin importar
-        // lo que diga el servidor (que re-firma updated_at y "reviviría" la
-        // tarea). Al crear una tarea se quita su tombstone local, así que una
-        // tarea nueva (aunque el servidor reusó el id de una borrada) no queda
-        // marcada y sí se muestra.
-        final borradoLocal =
-            _tombstones.any((t) => t['box'] == boxName && t['k'] == id);
-        if (borradoLocal) return false;
-        // Borrado desde otro dispositivo: oculto solo si el registro no es más
-        // reciente que la marca de borrado.
         final d = tombstones[clave];
         if (d == null) return true;
         final tsTomb = d['updated_at'] as int? ?? 0;
-        final tsReg = r['updated_at'] as int? ?? 0;
-        return tsReg > tsTomb;
+        // created_at es estable: el servidor no lo re-firma. Si la tarea se
+        // creó DESPUÉS del borrado, es una nueva con id reusado y se muestra.
+        // Si se creó ANTES, era la tarea original que fue borrada y se oculta.
+        final tsCreado = r['created_at'] as int? ?? 0;
+        return tsCreado > tsTomb;
       }).toList();
 
       box.items
@@ -1287,7 +1283,11 @@ class DatabaseHelper {
   // ---------------------------------------------------------------
   Future<int> insertTarea(Task t) async {
     final box = _box(_boxTareas);
-    return _addConId(box, _taskToMap(t));
+    final map = _taskToMap(t);
+    map['created_at'] ??= DateTime.now().millisecondsSinceEpoch;
+    final id = _addConId(box, map);
+    unawaited(_guardarCache());
+    return id;
   }
 
   Future<List<Task>> getTareas() async {
@@ -1318,6 +1318,7 @@ class DatabaseHelper {
       final m = box.items[i];
       if (m != null && m['id'] == t.id) {
         final nuevo = _taskToMap(t);
+        nuevo['created_at'] = m['created_at'];
         _sellar(nuevo);
         box.items[i] = nuevo;
         _marcar();
@@ -1343,6 +1344,7 @@ class DatabaseHelper {
         _tombstone(_boxTareas, m);
         box.items.removeAt(i);
         _marcar();
+        unawaited(_guardarCache());
         return;
       }
     }
