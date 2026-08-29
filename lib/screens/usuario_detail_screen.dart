@@ -25,17 +25,19 @@ class _DetailUsuarioScreenState extends State<DetailUsuarioScreen> {
   late Map<String, Object?> _resumen;
   bool _cargando = true;
   bool _cargandoResumen = false;
+  late AppProvider _provider;
 
   @override
   void initState() {
     super.initState();
-    context.read<AppProvider>().addListener(_onChange);
+    _provider = context.read<AppProvider>();
+    _provider.addListener(_onChange);
     _cargar();
   }
 
   @override
   void dispose() {
-    context.read<AppProvider>().removeListener(_onChange);
+    _provider.removeListener(_onChange);
     super.dispose();
   }
 
@@ -59,8 +61,7 @@ class _DetailUsuarioScreenState extends State<DetailUsuarioScreen> {
   }
 
   Future<void> _cargar() async {
-    final r =
-        await context.read<AppProvider>().resumenIntegrante(widget.usuarioId);
+    final r = await _provider.resumenIntegrante(widget.usuarioId);
     if (!mounted) return;
     if (_cargando) {
       setState(() {
@@ -525,24 +526,25 @@ class _GraficoCumplimiento extends StatefulWidget {
 class _GraficoCumplimientoState extends State<_GraficoCumplimiento> {
   late Future<List<(DateTime, int)>> _fut7;
   late Future<List<(DateTime, int)>> _fut30;
+  late AppProvider _provider;
 
   @override
   void initState() {
     super.initState();
+    _provider = context.read<AppProvider>();
     _cargar();
-    context.read<AppProvider>().addListener(_onChange);
+    _provider.addListener(_onChange);
   }
 
   @override
   void dispose() {
-    context.read<AppProvider>().removeListener(_onChange);
+    _provider.removeListener(_onChange);
     super.dispose();
   }
 
   void _cargar() {
-    final app = context.read<AppProvider>();
-    _fut7 = app.puntosPorDia(widget.usuarioId, dias: 7);
-    _fut30 = app.puntosPorDia(widget.usuarioId, dias: 30);
+    _fut7 = _provider.puntosPorDia(widget.usuarioId, dias: 7);
+    _fut30 = _provider.puntosPorDia(widget.usuarioId, dias: 30);
   }
 
   void _onChange() {
