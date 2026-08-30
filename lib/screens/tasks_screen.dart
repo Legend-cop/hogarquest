@@ -1350,7 +1350,7 @@ class _AdminTaskCard extends StatelessWidget {
     await app.listarUsuarios();
     final usuarios = app.listaUsuarios;
     if (!context.mounted) return;
-    final asignadosAEstaTarea = _asignados[tarea.id] ?? [];
+    final asignadosAEstaTarea = asignados;
     final integrantesData = asignadosAEstaTarea.map((u) => {'id': u.id}).toList();
     showDialog(
       context: context,
