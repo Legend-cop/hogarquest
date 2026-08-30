@@ -19,6 +19,13 @@ subprojects {
     val newSubprojectBuildDir: Directory = newBuildDir.dir(project.name)
     project.layout.buildDirectory.value(newSubprojectBuildDir)
 }
+subprojects {
+    try {
+        project.evaluationDependsOn(":app")
+    } catch (_: Exception) {
+        // Already evaluated, safe to ignore
+    }
+}
 
 tasks.register<Delete>("clean") {
     delete(rootProject.layout.buildDirectory)
