@@ -19,17 +19,6 @@ subprojects {
     val newSubprojectBuildDir: Directory = newBuildDir.dir(project.name)
     project.layout.buildDirectory.value(newSubprojectBuildDir)
 }
-subprojects {
-    project.evaluationDependsOn(":app")
-}
-subprojects {
-    afterEvaluate {
-        val android = extensions.findByType<com.android.build.gradle.LibraryExtension>()
-        if (android != null) {
-            android.compileSdk = 36
-        }
-    }
-}
 
 tasks.register<Delete>("clean") {
     delete(rootProject.layout.buildDirectory)
