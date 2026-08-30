@@ -21,10 +21,12 @@ subprojects {
 }
 subprojects {
     project.evaluationDependsOn(":app")
+}
+subprojects {
     afterEvaluate {
-        if (project.plugins.hasPlugin("com.android.library")) {
-            val ext = project.extensions.findByType<com.android.build.gradle.BaseExtension>()
-            ext?.compileSdkVersion(36)
+        val android = extensions.findByType<com.android.build.gradle.LibraryExtension>()
+        if (android != null) {
+            android.compileSdk = 36
         }
     }
 }
