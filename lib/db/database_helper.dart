@@ -1354,8 +1354,23 @@ class DatabaseHelper {
   // ASIGNACIONES
   // ---------------------------------------------------------------
   Future<int> insertAsignacion(Assignment a) async {
+    final existing = await getAsignacion(a.usuarioId, a.tareaId);
+    if (existing != null) return existing.id!;
     final box = _box(_boxAsignaciones);
     return _addConId(box, _assignmentToMap(a));
+  }
+
+  Future<void> eliminarAsignacion(int id) async {
+    final box = _box(_boxAsignaciones);
+    for (var i = box.items.length - 1; i >= 0; i--) {
+      final m = box.items[i];
+      if (m != null && m['id'] == id) {
+        _tombstone(_boxAsignaciones, m);
+        box.items.removeAt(i);
+        _marcar();
+        return;
+      }
+    }
   }
 
   Future<int> updateAsignacion(Assignment a) async {
@@ -1376,6 +1391,11 @@ class DatabaseHelper {
   Future<List<Assignment>> getAsignacionesDeUsuario(int usuarioId) async {
     final box = _box(_boxAsignaciones);
     return box.items.where((m) => m['usuario_id'] == usuarioId).map(_mapToAssignment).toList();
+  }
+
+  Future<List<Assignment>> getAsignacionesPorTarea(int tareaId) async {
+    final box = _box(_boxAsignaciones);
+    return box.items.where((m) => m['tarea_id'] == tareaId).map(_mapToAssignment).toList();
   }
 
   Future<List<Assignment>> getAsignacionesPorAprobar() async {

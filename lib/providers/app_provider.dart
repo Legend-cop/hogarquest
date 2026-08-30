@@ -418,10 +418,10 @@ class AppProvider extends ChangeNotifier {
   Future<void> editarTarea(Task t, {List<int> integrantesIds = const []}) async {
     await _db.updateTarea(t);
     if (integrantesIds.isNotEmpty) {
-      final asignaciones = await _db.getAsignacionesDeUsuario(t.id!);
-      for (final a in asignaciones) {
+      final asignacionesActuales = await _db.getAsignacionesPorTarea(t.id!);
+      for (final a in asignacionesActuales) {
         if (!a.completada && !a.aprobada) {
-          await _db.updateAsignacion(a.copyWith(completada: false, aprobada: false));
+          await _db.eliminarAsignacion(a.id!);
         }
       }
       for (final uid in integrantesIds) {
