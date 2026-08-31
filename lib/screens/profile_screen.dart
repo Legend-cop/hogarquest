@@ -7,6 +7,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:provider/provider.dart';
 
 import 'local_sync_screen.dart';
+import 'login_screen.dart';
 
 import '../db/photo_picker.dart';
 import '../db/photo_store.dart';
@@ -193,6 +194,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             builder: (_) => const BluetoothSyncScreen()),
                       ),
                     ),
+                    const Divider(),
+                    ListTile(
+                      leading: const Icon(Icons.delete_forever, color: AppColors.rojo),
+                      title: const Text('Reiniciar datos',
+                          style: TextStyle(color: AppColors.rojo)),
+                      subtitle: const Text(
+                          'Borra TODOS los datos y empieza de cero.'),
+                      trailing: const Icon(Icons.chevron_right,
+                          color: AppColors.rojo),
+                      onTap: () => _reiniciarDatos(context),
+                    ),
                   ],
                 ),
               ),
@@ -351,6 +363,57 @@ class _ProfileScreenState extends State<ProfileScreen> {
           SnackBar(content: Text('No se pudo restaurar: $e')),
         );
       }
+    }
+  }
+
+  Future<void> _reiniciarDatos(BuildContext context) async {
+    final controller = TextEditingController();
+    final confirmar = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Reiniciar datos'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              'Esta acción borrará TODOS los datos: usuarios, tareas, '
+              'asignaciones, puntos, insignias, castigos y retos.\n\n'
+              'No se puede deshacer. Solo se mantendrá tu usuario Admin '
+              'para que puedas volver a entrar.',
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: controller,
+              decoration: const InputDecoration(
+                labelText: 'Escribe REINICIAR para confirmar',
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(
+                ctx, controller.text.trim() == 'REINICIAR'),
+            style: FilledButton.styleFrom(backgroundColor: AppColors.rojo),
+            child: const Text('Reiniciar'),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (confirmar != true) return;
+    final app = context.read<AppProvider>();
+    await app.reiniciarTodo();
+    if (context.mounted) {
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => const LoginScreen()),
+        (_) => false,
+      );
     }
   }
 

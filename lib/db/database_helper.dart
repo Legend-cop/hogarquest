@@ -1239,6 +1239,32 @@ class DatabaseHelper {
     _persistir();
   }
 
+  /// Borra por completo la base de datos (cajas + tombstones + caché).
+  /// Solo mantiene el usuario Admin para que el dueño pueda volver a entrar.
+  Future<void> reiniciarDatos() async {
+    for (final box in _boxes.values) {
+      box.items.clear();
+    }
+    _tombstones.clear();
+    // Crear solo el usuario Admin para que pueda entrar de nuevo.
+    await _addConId(_box(_boxUsuarios), _userToMap(User(
+      id: 0,
+      nombre: 'Admin',
+      avatar: '👑',
+      edad: 0,
+      colorTema: 'azul',
+      nivel: 1,
+      puntos: 0,
+      racha: 0,
+      password: 'admin123',
+      rol: 'admin',
+    )));
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_cacheKey);
+    _cargado = false;
+    _persistir();
+  }
+
   // ---------------------------------------------------------------
   // SINCRONIZACIÓN P2P LOCAL (misma red, sin internet)
   // ---------------------------------------------------------------
