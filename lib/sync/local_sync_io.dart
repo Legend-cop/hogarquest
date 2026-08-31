@@ -64,11 +64,11 @@ class LocalSyncService {
     await _cargarIpsLocales();
     await _iniciarHttp();
     await _iniciarUdp();
-    _beaconTimer = Timer.periodic(const Duration(seconds: 3), (_) {
-      try {
+    if (_udp != null) {
+      _beaconTimer = Timer.periodic(const Duration(seconds: 3), (_) {
         _enviarBeacon();
-      } catch (_) {}
-    });
+      });
+    }
     _syncTimer = Timer.periodic(const Duration(seconds: 8), (_) {
       try {
         _sincronizarConPeers();
@@ -138,17 +138,19 @@ class LocalSyncService {
 
   Future<void> _iniciarUdp() async {
     try {
-      _udp = await RawDatagramSocket.bind(InternetAddress.anyIPv4, _udpPort);
-      _udp!.broadcastEnabled = true;
-      _udp!.listen((event) {
+      final socket = await RawDatagramSocket.bind(
+          InternetAddress.anyIPv4, _udpPort);
+      socket.broadcastEnabled = true;
+      socket.listen((event) {
         if (event == RawSocketEvent.read) {
-          final dg = _udp!.receive();
+          final dg = socket.receive();
           if (dg != null) _procesarBeacon(dg);
         }
       });
+      _udp = socket;
       debugPrint('[LocalSync] socket UDP en puerto $_udpPort');
-    } catch (e) {
-      debugPrint('[LocalSync] no se pudo iniciar UDP: $e');
+    } catch (_) {
+      _udp = null;
     }
   }
 
