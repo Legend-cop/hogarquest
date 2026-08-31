@@ -415,14 +415,18 @@ class AppProvider extends ChangeNotifier {
       categoria: categoria,
     );
     final tareaId = await _db.insertTarea(tarea);
+    debugPrint('[crearTarea] tareaId=$tareaId titulo="$titulo" dia="$dia" integrantes=$integrantesIds');
     for (final uid in integrantesIds) {
       await _db.insertAsignacion(Assignment(
         usuarioId: uid,
         tareaId: tareaId,
         fechaAsignada: DateTime.now(),
       ));
+      debugPrint('[crearTarea] asignacion creada usuarioId=$uid tareaId=$tareaId');
       unawaited(_db.enviarPush(uid, 'Nueva tarea', titulo));
     }
+    final verificacion = await _db.getAsignacionesPorTarea(tareaId);
+    debugPrint('[crearTarea] verificacion: ${verificacion.length} asignaciones para tarea $tareaId');
     notifyListeners();
   }
 

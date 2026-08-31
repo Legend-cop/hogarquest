@@ -267,8 +267,7 @@ class _AdminTasksListState extends State<_AdminTasksList>
 
   void _nuevaTarea(BuildContext context) async {
     final app = context.read<AppProvider>();
-    await app.listarUsuarios();
-    final usuarios = app.listaUsuarios;
+    final usuarios = await app.listarIntegrantes();
     if (!context.mounted) return;
     showDialog(
       context: context,
@@ -1347,8 +1346,7 @@ class _AdminTaskCard extends StatelessWidget {
 
   void _editarTarea(BuildContext context, Task tarea) async {
     final app = context.read<AppProvider>();
-    await app.listarUsuarios();
-    final usuarios = app.listaUsuarios;
+    final usuarios = await app.listarIntegrantes();
     if (!context.mounted) return;
     final asignadosAEstaTarea = asignados;
     final integrantesData = asignadosAEstaTarea.map((u) => {'id': u.id}).toList();

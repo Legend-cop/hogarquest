@@ -687,6 +687,7 @@ class DatabaseHelper {
 
     Future<void> asignar(int usuarioId, int tareaId) async {
       if (tieneAsignacion(usuarioId, tareaId)) return;
+      debugPrint('[seed:asignar] usuarioId=$usuarioId tareaId=$tareaId');
       await _addConId(asignaciones, _assignmentToMap(Assignment(
         usuarioId: usuarioId,
         tareaId: tareaId,
@@ -708,6 +709,8 @@ class DatabaseHelper {
         puntos >= 10 ? 'dificil' : (puntos >= 6 ? 'media' : 'facil');
 
     Future<void> conjunta(int tareaId) async {
+      final existentes = await getAsignacionesPorTarea(tareaId);
+      if (existentes.isNotEmpty) return;
       for (final id in ids.values) {
         await asignar(id, tareaId);
       }
@@ -1381,9 +1384,14 @@ class DatabaseHelper {
   // ---------------------------------------------------------------
   Future<int> insertAsignacion(Assignment a) async {
     final existing = await getAsignacion(a.usuarioId, a.tareaId);
-    if (existing != null) return existing.id!;
+    if (existing != null) {
+      debugPrint('[insertAsignacion] DUPLICADO omitido usuarioId=${a.usuarioId} tareaId=${a.tareaId} existingId=${existing.id}');
+      return existing.id!;
+    }
     final box = _box(_boxAsignaciones);
-    return _addConId(box, _assignmentToMap(a));
+    final id = _addConId(box, _assignmentToMap(a));
+    debugPrint('[insertAsignacion] NUEVA usuarioId=${a.usuarioId} tareaId=${a.tareaId} newId=$id');
+    return id;
   }
 
   Future<void> eliminarAsignacion(int id) async {
