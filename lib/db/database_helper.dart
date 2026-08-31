@@ -666,7 +666,7 @@ class DatabaseHelper {
       )));
     }
 
-    bool _tareaNueva = false;
+    bool tareaNueva = false;
 
     Future<int> crearTarea(
       String titulo,
@@ -677,10 +677,10 @@ class DatabaseHelper {
     ) async {
       final id = idTarea(titulo, dia);
       if (id != null) {
-        _tareaNueva = false;
+        tareaNueva = false;
         return id;
       }
-      _tareaNueva = true;
+      tareaNueva = true;
       return _addConId(tareas, _taskToMap(Task(
         titulo: titulo,
         descripcion: descripcion,
@@ -827,7 +827,7 @@ class DatabaseHelper {
         for (final (titulo, descripcion, puntos) in entry.value) {
           final tareaId = await crearTarea(
               titulo, descripcion, puntos, dificultad(puntos), dia);
-          if (_tareaNueva) await asignar(usuarioId, tareaId);
+          if (tareaNueva) await asignar(usuarioId, tareaId);
         }
       }
     }
@@ -838,14 +838,14 @@ class DatabaseHelper {
       final dia = dias[i];
       final oracion =
           await crearTarea('Orar', 'Hacer oración en familia.', 10, 'facil', dia);
-      if (_tareaNueva) await conjunta(oracion);
+      if (tareaNueva) await conjunta(oracion);
       final biblia = await crearTarea(
           'Leer la Biblia', 'Leer la Biblia en familia.', 10, 'facil', dia);
-      if (_tareaNueva) await conjunta(biblia);
+      if (tareaNueva) await conjunta(biblia);
       if (dia == 'sabado') {
         final iglesia = await crearTarea(
             'Ir a la iglesia', 'Asistir al servicio en familia.', 10, 'facil', dia);
-        if (_tareaNueva) await conjunta(iglesia);
+        if (tareaNueva) await conjunta(iglesia);
       }
     }
   }

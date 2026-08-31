@@ -407,14 +407,24 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
     controller.dispose();
     if (confirmar != true) return;
+    if (!context.mounted) return;
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const AlertDialog(
+        content: Row(
+          children: [
+            CircularProgressIndicator(),
+            SizedBox(width: 20),
+            Text('Reiniciando datos...'),
+          ],
+        ),
+      ),
+    );
     final app = context.read<AppProvider>();
     await app.reiniciarTodo();
-    if (context.mounted) {
-      Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(builder: (_) => const LoginScreen()),
-        (_) => false,
-      );
-    }
+    if (!context.mounted) return;
+    Navigator.of(context, rootNavigator: true).pop();
   }
 
   Future<void> _cambiarFoto() async {

@@ -342,13 +342,13 @@ class AppProvider extends ChangeNotifier {
 
   /// Borra todos los datos y deja la app lista para empezar de cero.
   Future<void> reiniciarTodo() async {
+    await LocalSyncService.instance.stop();
     await _db.reiniciarDatos();
     _usuarioActual = null;
     _usuarios = [];
     _adminDesbloqueado = false;
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_claveSesion);
-    notifyListeners();
   }
 
   Future<void> eliminarUsuario(int id) async {
