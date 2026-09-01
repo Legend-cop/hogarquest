@@ -349,6 +349,7 @@ class AppProvider extends ChangeNotifier {
     _adminDesbloqueado = false;
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_claveSesion);
+    notifyListeners();
   }
 
   Future<void> eliminarUsuario(int id) async {

@@ -37,6 +37,7 @@ class DatabaseHelper {
   final SyncClient _client = SyncClient();
   final Map<String, _Box> _boxes = {};
   bool _cargado = false;
+  bool _reiniciando = false;
   Timer? _debounce;
 
   /// Verdadero cuando el servidor no responde y se están usando datos locales.
@@ -149,7 +150,7 @@ class DatabaseHelper {
       _client.enviarRecordatorioConfig(userId, minutos, offset);
 
   Future<void> _cargarDesdeServidor() async {
-    if (_cargandoDesdeServidor) return;
+    if (_reiniciando || _cargandoDesdeServidor) return;
     _cargandoDesdeServidor = true;
     try {
       final data = await _client.fetchDb();
@@ -1251,6 +1252,11 @@ class DatabaseHelper {
   /// Borra por completo la base de datos (cajas + tombstones + caché).
   /// Solo mantiene el usuario Admin para que el dueño pueda volver a entrar.
   Future<void> reiniciarDatos() async {
+    _reiniciando = true;
+    _pollTimer?.cancel();
+    _reconnectTimer?.cancel();
+    _debounce?.cancel();
+
     for (final box in _boxes.values) {
       box.items.clear();
     }
@@ -1271,7 +1277,11 @@ class DatabaseHelper {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_cacheKey);
     _cargado = false;
-    _persistir();
+    // Guardar caché vacía y empujar al servidor de inmediato para que no
+    // queden datos viejos que el sync vuelva a mezclar.
+    await _guardarCache();
+    try { await _client.pushDb(_exportar()); } catch (_) {}
+    _reiniciando = false;
   }
 
   // ---------------------------------------------------------------
