@@ -483,18 +483,6 @@ class DatabaseHelper {
         password: 'admin123',
         rol: 'admin',
       )));
-      await _addConId(usuarios, _userToMap(User(
-        id: 1,
-        nombre: 'Integrante Demo',
-        avatar: '😀',
-        edad: 12,
-        colorTema: 'verde',
-        nivel: 1,
-        puntos: 0,
-        racha: 0,
-        password: '1234',
-        rol: 'integrante',
-      )));
     }
 
     final recompensas = _box(_boxRecompensas);
