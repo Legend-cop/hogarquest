@@ -228,6 +228,36 @@ class DatabaseHelper {
       ..clear()
       ..addAll(tombstones.values);
 
+    // --- Detección de reset remoto ---
+    // Si el servidor tiene un marcador `last_reset` más reciente que el local,
+    // significa que otro dispositivo borró todo. Descartamos los datos locales
+    // viejos y adoptamos solo los del servidor para evitar que registros que
+    // solo existían en este teléfono se "revivan" en el servidor.
+    final metaRemote = data['meta'];
+    bool resetDetectado = false;
+    if (metaRemote is List) {
+      for (final entry in metaRemote) {
+        if (entry is Map && entry['k'] == 'last_reset') {
+          final tsRemoto = (entry['ts'] as int?) ?? 0;
+          // El marcador local tiene la forma {'k': 'last_reset', 'ts': ...}.
+          final metaLocal = _box(_boxMeta).get('last_reset');
+          final tsLocal = (metaLocal?['ts'] as int?) ?? 0;
+          if (tsRemoto > tsLocal) {
+            resetDetectado = true;
+            debugPrint('[sync] RESET remoto detectado (tsRemoto=$tsRemoto > tsLocal=$tsLocal). Descartando datos locales viejos.');
+          }
+          break;
+        }
+      }
+    }
+
+    if (resetDetectado) {
+      // Adoptar SOLO los datos del servidor (incluye Admin + marcador).
+      _aplicar(data);
+      // No hay victoria local: el servidor ganó.
+      return false;
+    }
+
     for (final entry in data.entries) {
       if (entry.key == 'deleted') continue;
       final boxName = entry.key;
@@ -546,6 +576,21 @@ class DatabaseHelper {
     final asignaciones = _box(_boxAsignaciones);
     final meta = _box(_boxMeta);
 
+    // Si otro dispositivo hizo "Reiniciar datos" (last_reset más reciente que
+    // seed_horario), NO sembramos: el usuario quiere empezar de cero y las
+    // tareas/integrantes se re-crean cuando él los vuelva a agregar. Sin este
+    // guard, el seed recrearía Natalia, Emanuel, Sarais y 28 tareas al instante.
+    final lr = meta.get('last_reset');
+    final sh = meta.get('seed_horario');
+    if (lr is Map) {
+      final tsReset = (lr['ts'] as int?) ?? 0;
+      final tsSeed = sh is Map ? ((sh['updated_at'] as int?) ?? 0) : 0;
+      if (tsReset > tsSeed) {
+        debugPrint('[seed] Saltando: last_reset ($tsReset) > seed_horario ($tsSeed)');
+        return;
+      }
+    }
+
     // La semana se regenera sola: al cambiar la versión del horario o al
     // empezar una semana nueva (domingo). Solo se crean tareas desde HOY en
     // adelante, así un reinicio a mitad de semana no genera tareas ya
@@ -837,6 +882,10 @@ class DatabaseHelper {
         if (tareaNueva) await conjunta(iglesia);
       }
     }
+
+    // Si el seed corrió exitosamente, borrar el marcador de reset para que
+    // las semanas futuras se generen normalmente.
+    meta.remove('last_reset');
   }
 
   // ---------------------------------------------------------------
@@ -1240,11 +1289,19 @@ class DatabaseHelper {
 
   /// Borra por completo la base de datos (cajas + tombstones + caché).
   /// Solo mantiene el usuario Admin para que el dueño pueda volver a entrar.
+  /// Almacena un marcador `last_reset` en la caja `meta` para que otros
+  /// dispositivos que aún tengan datos viejos en local los descarten al
+  /// sincronizar (en lugar de fusionarlos y "revivirlos" en el servidor).
   Future<void> reiniciarDatos() async {
     _reiniciando = true;
     _pollTimer?.cancel();
     _reconnectTimer?.cancel();
     _debounce?.cancel();
+
+    // 1) Guardar el marcador de reset ANTES de limpiar.
+    _box(_boxMeta).put('last_reset', <String, dynamic>{
+      'ts': DateTime.now().millisecondsSinceEpoch,
+    });
 
     for (final box in _boxes.values) {
       box.items.clear();
@@ -1266,7 +1323,7 @@ class DatabaseHelper {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_cacheKey);
     _cargado = false;
-    // Guardar caché vacía y empujar al servidor de inmediato para que no
+    // Guardar caché y empujar al servidor de inmediato para que no
     // queden datos viejos que el sync vuelva a mezclar.
     await _guardarCache();
     try { await _client.pushDb(_exportar()); } catch (_) {}
@@ -1860,5 +1917,9 @@ class _Box {
       if (m['k'] == key) return m;
     }
     return null;
+  }
+
+  void remove(dynamic key) {
+    items.removeWhere((m) => m['k'] == key);
   }
 }
