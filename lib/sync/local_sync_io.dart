@@ -61,20 +61,6 @@ class LocalSyncService {
     _db = db;
     _household = db.householdCode;
     _running = true;
-    await _cargarIpsLocales();
-    await _iniciarHttp();
-    await _iniciarUdp();
-    if (_udp != null) {
-      _beaconTimer = Timer.periodic(const Duration(seconds: 3), (_) {
-        _enviarBeacon();
-      });
-    }
-    _syncTimer = Timer.periodic(const Duration(seconds: 8), (_) {
-      try {
-        _sincronizarConPeers();
-      } catch (_) {}
-    });
-    _enviarBeacon();
     debugPrint('[LocalSync] iniciado (hogar: $_household)');
   }
 
