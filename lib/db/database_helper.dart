@@ -1176,7 +1176,8 @@ class DatabaseHelper {
         }
         _tombstone(_boxUsuarios, m);
         box.items.removeAt(i);
-        _marcar();
+        await _guardarCache();
+        try { await _client.pushDb(_exportar()); } catch (_) {}
         return;
       }
     }
@@ -1376,8 +1377,8 @@ class DatabaseHelper {
         }
         _tombstone(_boxTareas, m);
         box.items.removeAt(i);
-        _marcar();
-        unawaited(_guardarCache());
+        await _guardarCache();
+        try { await _client.pushDb(_exportar()); } catch (_) {}
         return;
       }
     }
@@ -1554,7 +1555,8 @@ class DatabaseHelper {
         }
         _tombstone(_boxRecompensas, m);
         box.items.removeAt(i);
-        _marcar();
+        await _guardarCache();
+        try { await _client.pushDb(_exportar()); } catch (_) {}
         return;
       }
     }
@@ -1788,7 +1790,8 @@ class DatabaseHelper {
       if (m != null && m['id'] == id) {
         _tombstone(_boxCatalogos, m);
         box.items.removeAt(i);
-        _marcar();
+        await _guardarCache();
+        try { await _client.pushDb(_exportar()); } catch (_) {}
         return;
       }
     }
