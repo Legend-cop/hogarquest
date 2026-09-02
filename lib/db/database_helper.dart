@@ -94,10 +94,11 @@ class DatabaseHelper {
 
   Future<void> init() async {
     await _cargarCache(); // muestra datos al instante aunque el servidor tarde
-    // Si quedaron cambios sin sincronizar de la última sesión, se suben antes
-    // de recargar, para que no se pierdan al sobreescribir con lo remoto.
-    if (_cargado) await _subirLocal();
+    // Primero sincronizamos con el servidor para recibir tombstones y datos
+    // nuevos. Solo después subimos los cambios locales, para no sobrescribir
+    // datos remotos más recientes con la caché vieja.
     await _cargarDesdeServidor();
+    if (_cargado) await _subirLocal();
     _migrarContrasenas();
     await _seedIfEmpty();
     await _seedPerfilesSemana();
@@ -109,10 +110,10 @@ class DatabaseHelper {
       await _cargarDesdeServidor();
       onRemoteChange?.call();
     }, onReconnect: () async {
-      // El servidor volvió: primero subimos los cambios hechos sin conexión
-      // y luego recargamos para tomar lo que haya cambiado desde otros lados.
-      await _subirLocal();
+      // Primero recargamos del servidor (tombstones, datos nuevos) y luego
+      // subimos cambios locales, para no sobrescribir datos remotos.
       await _cargarDesdeServidor();
+      await _subirLocal();
       onRemoteChange?.call();
     });
 
