@@ -298,11 +298,10 @@ class DatabaseHelper {
         final d = tombstones[clave];
         if (d == null) return true;
         final tsTomb = d['updated_at'] as int? ?? 0;
-        // created_at es estable: el servidor no lo re-firma. Si la tarea se
-        // creó DESPUÉS del borrado, es una nueva con id reusado y se muestra.
-        // Si se creó ANTES, era la tarea original que fue borrada y se oculta.
-        final tsCreado = r['created_at'] as int? ?? 0;
-        return tsCreado > tsTomb;
+        // created_at es estable para tareas (el servidor no lo re-firma).
+        // Para registros sin created_at (usuarios, etc.) usamos updated_at.
+        final tsRegistro = r['created_at'] as int? ?? r['updated_at'] as int? ?? 0;
+        return tsRegistro > tsTomb;
       }).toList();
 
       box.items
