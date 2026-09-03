@@ -667,6 +667,12 @@ class DatabaseHelper {
       return null;
     }
 
+    /// Returns true if this (titulo, dia) was explicitly deleted by the user
+    /// and should NOT be re-created by the seed.
+    bool seedBloqueado(String titulo, String dia) {
+      return meta.get('blocked_seed:$titulo:$dia') != null;
+    }
+
     bool tieneAsignacion(int usuarioId, int tareaId) {
       for (final m in asignaciones.items) {
         if (m['usuario_id'] == usuarioId && m['tarea_id'] == tareaId) {
@@ -702,7 +708,7 @@ class DatabaseHelper {
 
     bool tareaNueva = false;
 
-    Future<int> crearTarea(
+    Future<int?> crearTarea(
       String titulo,
       String descripcion,
       int puntos,
@@ -713,6 +719,10 @@ class DatabaseHelper {
       if (id != null) {
         tareaNueva = false;
         return id;
+      }
+      if (seedBloqueado(titulo, dia)) {
+        tareaNueva = false;
+        return null;
       }
       tareaNueva = true;
       return _addConId(tareas, _taskToMap(Task(
@@ -861,7 +871,7 @@ class DatabaseHelper {
         for (final (titulo, descripcion, puntos) in entry.value) {
           final tareaId = await crearTarea(
               titulo, descripcion, puntos, dificultad(puntos), dia);
-          if (tareaNueva) await asignar(usuarioId, tareaId);
+          if (tareaId != null && tareaNueva) await asignar(usuarioId, tareaId);
         }
       }
     }
@@ -872,14 +882,14 @@ class DatabaseHelper {
       final dia = dias[i];
       final oracion =
           await crearTarea('Orar', 'Hacer oración en familia.', 10, 'facil', dia);
-      if (tareaNueva) await conjunta(oracion);
+      if (oracion != null && tareaNueva) await conjunta(oracion);
       final biblia = await crearTarea(
           'Leer la Biblia', 'Leer la Biblia en familia.', 10, 'facil', dia);
-      if (tareaNueva) await conjunta(biblia);
+      if (biblia != null && tareaNueva) await conjunta(biblia);
       if (dia == 'sabado') {
         final iglesia = await crearTarea(
             'Ir a la iglesia', 'Asistir al servicio en familia.', 10, 'facil', dia);
-        if (tareaNueva) await conjunta(iglesia);
+        if (iglesia != null && tareaNueva) await conjunta(iglesia);
       }
     }
 
@@ -1434,6 +1444,17 @@ class DatabaseHelper {
         }
         _tombstone(_boxTareas, m);
         box.items.removeAt(i);
+        // Bloquear re-creación automática por _seedPerfilesSemana().
+        // Sin esto, al reabrir la app el seed no encuentra la tarea (fue
+        // borrada de la caja) y la crea de nuevo con un ID nuevo; la
+        // tombstone no la bloquea porque referencia el ID viejo.
+        final dia = m['dia'] as String?;
+        final titulo = m['titulo'] as String?;
+        if (dia != null && dia.isNotEmpty && titulo != null && titulo.isNotEmpty) {
+          _box(_boxMeta).put('blocked_seed:$titulo:$dia', <String, dynamic>{
+            'ts': DateTime.now().millisecondsSinceEpoch,
+          });
+        }
         await _guardarCache();
         try { await _client.pushDb(_exportar()); } catch (_) {}
         return;
