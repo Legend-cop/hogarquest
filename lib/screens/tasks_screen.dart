@@ -1166,11 +1166,18 @@ class _CatalogoCard extends StatelessWidget {
   }
 
   void _editar(BuildContext context) {
+    final app = context.read<AppProvider>();
     showDialog(
       context: context,
       builder: (_) => _CatalogoFormDialog(
         inicial: entrada,
-        onSaved: (data) => _guardar(context, data: data, id: entrada.id),
+        onSaved: (data) async {
+          final titulo = (data['titulo'] as String?) ?? '';
+          final puntos = (data['puntos'] as int?) ?? 0;
+          await app.editarCatalogo(
+              TareaCatalogo(id: entrada.id, titulo: titulo, puntos: puntos));
+          await onChanged();
+        },
       ),
     );
   }
