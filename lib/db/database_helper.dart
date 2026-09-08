@@ -279,6 +279,12 @@ class DatabaseHelper {
       final resueltos = <Map>[];
       for (final entrada in remotos.entries) {
         final remoto = entrada.value;
+        // Bloquear usuario "demo": nunca.sync ni crear.
+        if (boxName == _boxUsuarios &&
+            (remoto['nombre'] as String?)?.toLowerCase() == 'demo') {
+          _tombstone(_boxUsuarios, remoto);
+          continue;
+        }
         final local = locales[entrada.key];
         if (local != null &&
             (local['updated_at'] as int? ?? 0) >
@@ -576,6 +582,14 @@ class DatabaseHelper {
     final asignaciones = _box(_boxAsignaciones);
     final meta = _box(_boxMeta);
 
+    // Si el usuario administra su propio horario (creó tareas manualmente),
+    // NO sembramos: el seed crearía tareas duplicadas que el usuario no pidió.
+    final scheduleMode = meta.get('schedule_mode');
+    if (scheduleMode is Map && scheduleMode['mode'] == 'manual') {
+      debugPrint('[seed] Saltando: schedule_mode=manual (usuario gestiona su propio horario)');
+      return;
+    }
+
     // Si otro dispositivo hizo "Reiniciar datos" (last_reset más reciente que
     // seed_horario), NO sembramos: el usuario quiere empezar de cero y las
     // tareas/integrantes se re-crean cuando él los vuelva a agregar. Sin este
@@ -683,6 +697,8 @@ class DatabaseHelper {
     }
 
     Future<int> crearUsuario(String nombre, String avatar) async {
+      // Bloquear usuario "demo": nunca crear.
+      if (nombre.toLowerCase() == 'demo') return -1;
       final id = idUsuario(nombre);
       if (id != null) return id;
       String colorLibre() {
@@ -1090,6 +1106,8 @@ class DatabaseHelper {
   }
 
   Future<int> insertUsuario(User u) async {
+    // Bloquear usuario "demo": nunca crear.
+    if (u.nombre.toLowerCase() == 'demo') return -1;
     final box = _box(_boxUsuarios);
     var usuario = u;
     if (User.claveColor(u.colorTema) == null) {
@@ -1387,6 +1405,15 @@ class DatabaseHelper {
     final map = _taskToMap(t);
     map['created_at'] ??= DateTime.now().millisecondsSinceEpoch;
     final id = _addConId(box, map);
+    // El usuario creó una tarea manualmente: marcar horario como "manual"
+    // para que _seedPerfilesSemana() no siga creando tareas automáticas.
+    final meta = _box(_boxMeta);
+    final existing = meta.get('schedule_mode');
+    if (existing is! Map || existing['mode'] != 'manual') {
+      final entry = <String, dynamic>{'mode': 'manual'};
+      _sellar(entry);
+      meta.put('schedule_mode', entry);
+    }
     unawaited(_guardarCache());
     return id;
   }
