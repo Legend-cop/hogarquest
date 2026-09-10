@@ -590,6 +590,27 @@ class DatabaseHelper {
       return;
     }
 
+    // Guardia fuerte: si YA existen tareas para los días de esta semana,
+    // NO sembramos. Esto evita que el seed cree tareas duplicadas cuando
+    // el usuario ya tiene su propio horario (aunque schedule_mode no esté
+    // seteado, por ejemplo en el primer celular después de crear tareas).
+    const diasSemana = [
+      'domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado',
+    ];
+    var tareasExistentes = 0;
+    for (final m in tareas.items) {
+      final dia = m['dia'] as String?;
+      if (dia != null && diasSemana.contains(dia)) {
+        tareasExistentes++;
+      }
+    }
+    // Si hay 10+ tareas para la semana, el usuario claramente tiene su
+    // propio horario: no interferir. (El seed crearía ~42 tareas.)
+    if (tareasExistentes >= 10) {
+      debugPrint('[seed] Saltando: $tareasExistentes tareas existentes para la semana (usuario gestiona horario)');
+      return;
+    }
+
     // Si otro dispositivo hizo "Reiniciar datos" (last_reset más reciente que
     // seed_horario), NO sembramos: el usuario quiere empezar de cero y las
     // tareas/integrantes se re-crean cuando él los vuelva a agregar. Sin este
