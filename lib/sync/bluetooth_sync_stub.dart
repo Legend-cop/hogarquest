@@ -3,6 +3,9 @@ import 'package:flutter/foundation.dart';
 import '../db/database_helper.dart';
 import 'bluetooth_peer.dart';
 
+/// No disponible fuera de Android: nunca apaga el Bluetooth.
+Future<bool> desactivarBluetooth() async => false;
+
 /// Implementación no disponible fuera de Android (Nearby Connections es solo
 /// Android). La UI muestra el estado "no disponible".
 class BluetoothSyncService {

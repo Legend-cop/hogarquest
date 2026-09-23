@@ -17,6 +17,7 @@ class FotoWidget extends StatelessWidget {
   final Widget placeholder;
 
   const FotoWidget({
+    super.key,
     required this.url,
     this.local = '',
     this.size = 42,
@@ -40,8 +41,8 @@ class FotoWidget extends StatelessWidget {
         width: size,
         height: size,
         fit: fit,
-        placeholder: (_, __) => placeholder,
-        errorWidget: (_, __, ___) => placeholder,
+        placeholder: (_, _) => placeholder,
+        errorWidget: (_, _, _) => placeholder,
       );
     }
     return placeholder;

@@ -45,6 +45,9 @@ class AppProvider extends ChangeNotifier {
   List<User> get listaUsuarios => _usuarios;
   List<User> _usuarios = [];
 
+  /// Notifica a todas las vistas que recarguen sus datos (pull-to-refresh).
+  void refrescar() => notifyListeners();
+
   Future<void> init() async {
     _cargando = true;
     _error = null;
@@ -487,7 +490,8 @@ class AppProvider extends ChangeNotifier {
   }
 
   Future<void> completarTarea(int tareaId) async {
-    final uid = _usuarioActual!.id!;
+    final uid = _usuarioActual?.id;
+    if (uid == null) return;
     var a = await _db.getAsignacion(uid, tareaId);
     if (a == null) return;
     a = a.copyWith(completada: true, fechaCompletada: DateTime.now());
@@ -1033,7 +1037,8 @@ Future<List<(User, int)>> ranking(String periodo) async {
 
   /// Un integrante marca que cumplió el reto de la semana.
   Future<void> marcarRetoCumplido(Reto reto) async {
-    final uid = _usuarioActual!.id!;
+    final uid = _usuarioActual?.id;
+    if (uid == null) return;
     if (reto.cumplidos.contains(uid)) return;
     await _db.updateReto(reto.copyWith(
       cumplidos: [...reto.cumplidos, uid],

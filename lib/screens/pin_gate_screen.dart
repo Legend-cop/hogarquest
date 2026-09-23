@@ -72,10 +72,10 @@ class _PinGateScreenState extends State<PinGateScreen> {
                   const SizedBox(height: 18),
                   Text(
                     'Acceso de administrador',
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 22,
                       fontWeight: FontWeight.w800,
-                      color: AppColors.grisOscuro,
+                      color: textoTema(context),
                     ),
                   ),
                   const SizedBox(height: 8),

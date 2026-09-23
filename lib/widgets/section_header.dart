@@ -26,10 +26,11 @@ class SectionHeader extends StatelessWidget {
           const SizedBox(width: 8),
           Text(
             title,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.w800,
-              color: AppColors.grisOscuro,
+              color: Theme.of(context).textTheme.titleLarge?.color ??
+                  AppColors.grisOscuro,
             ),
           ),
           const Spacer(),

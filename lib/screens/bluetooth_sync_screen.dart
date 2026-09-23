@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 
 import '../db/database_helper.dart';
 import '../sync/bluetooth_sync.dart';
-import '../sync/bluetooth_sync_android.dart' show desactivarBluetooth;
 import '../theme/app_theme.dart';
 import '../widgets/duo_widgets.dart';
 import '../widgets/section_header.dart';

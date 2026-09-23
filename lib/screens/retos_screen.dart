@@ -309,7 +309,7 @@ class _FechaFinPicker extends StatelessWidget {
             child: Text(
               f == null
                   ? 'Sin límite (vence al terminar la semana)'
-                  : 'Vence el ${_formato(f!)}',
+                  : 'Vence el ${_formato(f)}',
               style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600),
             ),
           ),
@@ -507,10 +507,10 @@ class _RetoCard extends StatelessWidget {
                   const Icon(Icons.emoji_events, color: AppColors.amarillo, size: 16),
                   const SizedBox(width: 6),
                   Text('Ganaste +${reto.puntos} pts por este reto',
-                      style: const TextStyle(
+                      style: TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.w700,
-                          color: AppColors.grisOscuro)),
+                          color: textoTema(context))),
                 ],
               ),
             ),

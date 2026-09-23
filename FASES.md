@@ -157,3 +157,57 @@ Esfuerzo: M. Dependencias: Fases 1-5 estables.
 | 6 | Hora límite en tareas | ✅ |
 | 6 | Recordatorio local a la hora | ✅ |
 | 6 | Selector de rol copadres | ✅ |
+
+---
+
+## FASE 7 — Pulido general (bugs, UI/UX, logo, opciones)
+
+Fecha: septiembre 2026.
+
+### Bugs corregidos
+- **Sync P2P local reactivada**: `local_sync_io.start()` ahora inicializa
+  IPs, servidor HTTP, socket UDP y timers de beacon/sync (antes solo
+  ponía `_running = true` y no hacía nada). → ✅
+- **Dependencia `http` declarada** en `pubspec.yaml` (antes solo transitiva;
+  un `pub upgrade` podía romper el build). → ✅
+- **`setState` sin `mounted` tras `await`** corregido en
+  `tasks_screen._cargarDatos` y `rewards_screen._cargarDatos` (ambas vistas),
+  con `try/finally` para no dejar spinner infinito. → ✅
+- **Pull-to-refresh del dashboard** ahora recarga datos de verdad
+  (`AppProvider.refrescar()`); antes solo hacía `setState` vacío. → ✅
+- **`Future.wait` sin `try/catch`** en dashboard admin e integrante
+  (spinner infinito si una consulta fallaba). → ✅
+- **Crashes por `!`** en `completarTarea` / `marcarRetoCumplido`
+  (sesión expirada) y `GamificationService` con nivel ≤ 0. → ✅
+- **Casts duros** `as String` en `_mapToUser` / `_mapToTask` para datos
+  importados corruptos. → ✅
+- **`desactivarBluetooth`** añadida al stub web (faltaba y rompía
+  `flutter build web`). → ✅
+- Comentario corrupto con caracteres chinos en `admin_usuarios_screen`. → ✅
+
+### UI/UX
+- **Modo oscuro legible**: helper `textoTema(context)` y theme centralizado;
+  textos de dashboard, ranking, tareas, recompensas, retos, perfil, PIN,
+  gráficas y widgets (`SectionHeader`, `EmptyState`, `LevelProgress`,
+  `charts`) ya no usan `grisOscuro` hardcodeado (era invisible sobre el
+  fondo oscuro). Navegación y divider adaptados al tema. → ✅
+- **Splash animado**: logo con rebote (`elasticOut`) + fade del texto. → ✅
+
+### Logo / iconos
+- `gen_logo.py` corregido: escribe en las rutas reales del proyecto
+  (antes generaba en `assets/branding/res` y `web_icons`, que no se usan). → ✅
+- Regenerados: mipmaps Android + `ic_launcher_round` + **adaptive icon**
+  (`mipmap-anydpi-v26` con foreground/background/monochrome), icons y
+  favicon web, y **`app_icon.ico` de Windows** (antes era el icono por
+  defecto de Flutter). → ✅
+
+### Nuevas opciones
+- **Sonido on/off persistente** en Perfil → "Apariencia y sonido"
+  (`CelebrationService` guarda la preferencia en SharedPreferences). → ✅
+- **Tema según el sistema** (claro / oscuro / system) en el mismo panel
+  (`ThemeController.setModo`). → ✅
+
+### Verificación
+- `flutter analyze`: 0 errores (57 warnings preexistentes en
+  `database_helper.dart` por comparaciones nulas innecesarias).
+- `flutter build web`: ✅Built build\web.

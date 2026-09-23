@@ -2,8 +2,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 
 /// Paleta estilo Duolingo para HogarQuest.
-class AppColors {
-  static const verde = Color(0xFF58CC02);
+class AppColors {  static const verde = Color(0xFF58CC02);
   static const verdeOscuro = Color(0xFF46A302);
   static const verdeFondo = Color(0xFFE5FFCC);
   static const azul = Color(0xFF1CB0F6);
@@ -17,6 +16,13 @@ class AppColors {
   static const fondo = Color(0xFFF7F7F7);
   static const superficieOscura = Color(0xFF1F1F1F);
 }
+
+/// Color de texto principal según el tema activo (blanco en oscuro).
+/// Usar en Textos para que nunca queden invisibles en modo oscuro.
+Color textoTema(BuildContext context) =>
+    Theme.of(context).brightness == Brightness.dark
+        ? Colors.white
+        : AppColors.grisOscuro;
 
 class AppTheme {
   static ThemeData light() {
@@ -46,36 +52,38 @@ class AppTheme {
 
   static ThemeData _base(Brightness brightness, ColorScheme scheme) {
     final isDark = brightness == Brightness.dark;
+    // Color de texto principal según el modo (evita texto invisible en dark).
+    final texto = isDark ? Colors.white : AppColors.grisOscuro;
     return ThemeData(
       useMaterial3: true,
       brightness: brightness,
       colorScheme: scheme,
       scaffoldBackgroundColor: isDark ? AppColors.grisOscuro : AppColors.fondo,
       textTheme: ThemeData.light().textTheme.copyWith(
-            headlineMedium: const TextStyle(
+            headlineMedium: TextStyle(
               fontFamily: 'sans-serif',
               fontWeight: FontWeight.w800,
-              color: AppColors.grisOscuro,
+              color: texto,
               fontSize: 26,
             ),
-            titleLarge: const TextStyle(
+            titleLarge: TextStyle(
               fontWeight: FontWeight.w800,
-              color: AppColors.grisOscuro,
+              color: texto,
               fontSize: 20,
             ),
-            bodyMedium: const TextStyle(
-              color: AppColors.grisOscuro,
+            bodyMedium: TextStyle(
+              color: texto,
               fontSize: 15,
             ),
           ),
       appBarTheme: AppBarTheme(
         centerTitle: true,
         backgroundColor: isDark ? AppColors.grisOscuro : Colors.white,
-        foregroundColor: AppColors.grisOscuro,
+        foregroundColor: texto,
         elevation: 0,
         scrolledUnderElevation: 0,
-        titleTextStyle: const TextStyle(
-          color: AppColors.grisOscuro,
+        titleTextStyle: TextStyle(
+          color: texto,
           fontWeight: FontWeight.w800,
           fontSize: 18,
         ),
@@ -153,22 +161,24 @@ class AppTheme {
       ),
       navigationBarTheme: NavigationBarThemeData(
         backgroundColor: isDark ? AppColors.grisOscuro : Colors.white,
-        indicatorColor: AppColors.verdeFondo,
+        indicatorColor: isDark
+            ? AppColors.verde.withValues(alpha: 0.25)
+            : AppColors.verdeFondo,
         surfaceTintColor: Colors.transparent,
         labelTextStyle: WidgetStateProperty.resolveWith(
           (states) => TextStyle(
             fontWeight: FontWeight.w800,
             fontSize: 11,
             color: states.contains(WidgetState.selected)
-                ? AppColors.verdeOscuro
-                : AppColors.grisMedio,
+                ? (isDark ? AppColors.verde : AppColors.verdeOscuro)
+                : (isDark ? Colors.white70 : AppColors.grisMedio),
           ),
         ),
         iconTheme: WidgetStateProperty.resolveWith(
           (states) => IconThemeData(
             color: states.contains(WidgetState.selected)
-                ? AppColors.verdeOscuro
-                : AppColors.grisMedio,
+                ? (isDark ? AppColors.verde : AppColors.verdeOscuro)
+                : (isDark ? Colors.white70 : AppColors.grisMedio),
           ),
         ),
       ),
@@ -184,7 +194,7 @@ class AppTheme {
         ),
       ),
       dividerTheme: DividerThemeData(
-        color: AppColors.linea,
+        color: isDark ? Colors.white24 : AppColors.linea,
         thickness: 1,
         space: 1,
       ),
@@ -200,7 +210,7 @@ class AppTheme {
         backgroundColor: isDark ? AppColors.superficieOscura : Colors.white,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         titleTextStyle: TextStyle(
-          color: AppColors.grisOscuro,
+          color: texto,
           fontSize: 20,
           fontWeight: FontWeight.w800,
         ),

@@ -287,10 +287,10 @@ class _GraficaPuntos extends StatelessWidget {
                       children: [
                         Text(
                           '${datos[i].$2}',
-                          style: const TextStyle(
+                          style: TextStyle(
                               fontSize: 10,
                               fontWeight: FontWeight.w700,
-                              color: AppColors.grisOscuro),
+                              color: textoTema(context)),
                         ),
                         const SizedBox(height: 4),
                         Container(
@@ -346,8 +346,10 @@ class _RankingList extends StatelessWidget {
           padding: const EdgeInsets.all(16),
           child: Text(
             title,
-            style: const TextStyle(
-                fontSize: 20, fontWeight: FontWeight.w800, color: AppColors.grisOscuro),
+            style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.w800,
+                color: textoTema(context)),
           ),
         ),
         Padding(

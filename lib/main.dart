@@ -15,6 +15,7 @@ import 'screens/home_shell.dart';
 import 'screens/login_screen.dart';
 import 'screens/pin_gate_screen.dart';
 import 'screens/splash_screen.dart';
+import 'services/celebration_service.dart';
 import 'services/push_service.dart';
 import 'theme/app_theme.dart';
 
@@ -40,7 +41,9 @@ void main() async {
     await PushService.instance.inicializar();
   } catch (e) {
     // Sin config de Firebase (aún) la app funciona con notificaciones locales.
+    debugPrint('[Firebase] init omitido: $e');
   }
+  await CelebrationService.instance.cargar();
   runApp(const HogarQuestApp());
 }
 

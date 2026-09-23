@@ -29,7 +29,11 @@ class LevelProgress extends StatelessWidget {
             if (restantes > 0)
               Text(
                 '$restantes pts para subir',
-                style: const TextStyle(fontSize: 12, color: Colors.grey),
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Theme.of(context).textTheme.bodySmall?.color ??
+                      Colors.grey,
+                ),
               )
             else
               const Text('¡Nivel máximo alcanzado!',
@@ -42,7 +46,10 @@ class LevelProgress extends StatelessWidget {
           child: LinearProgressIndicator(
             value: progreso,
             minHeight: 10,
-            backgroundColor: Colors.black12,
+            backgroundColor:
+                Theme.of(context).brightness == Brightness.dark
+                    ? Colors.white12
+                    : Colors.black12,
             color: AppColors.azul,
           ),
         ),

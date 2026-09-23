@@ -89,7 +89,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return Scaffold(
       appBar: AppBar(title: const Text('HogarQuest')),
       body: RefreshIndicator(
-        onRefresh: () async => setState(() {}),
+        onRefresh: () async {
+          // Notifica al provider para que las vistas recarguen sus datos.
+          app.refrescar();
+          await Future<void>.delayed(const Duration(milliseconds: 400));
+        },
         child: user.esAdmin
             ? _AdminDashboard(app: app)
             : _IntegranteDashboard(app: app, user: user),
@@ -162,24 +166,29 @@ class _IntegranteDashboardState extends State<_IntegranteDashboard> {
   bool _cargando = true;
 
   Future<void> _cargar() async {
-    final f = await Future.wait([
-      widget.app.tareasConAsignacionDe(widget.user.id!),
-      widget.app.insigniasDe(widget.user.id!),
-      widget.app.listarInsignias(),
-      widget.app.puntosPorDia(widget.user.id!, dias: 30),
-      widget.app.tareasPendientesDeHoy(widget.user.id!),
-      widget.app.puntosPorDiaGlobal(dias: 84),
-    ]);
-    if (!mounted) return;
-    setState(() {
-      _tareas = f[0] as List<(Task, Assignment)>;
-      _insigniasIds = f[1] as List<int>;
-      _insignias = f[2] as List<badge_model.Badge>;
-      _puntosPorDia = f[3] as List<(DateTime, int)>;
-      _hoy = f[4] as List<(Task, Assignment)>;
-      _puntosGlobal84 = f[5] as List<(DateTime, int)>;
-      _cargando = false;
-    });
+    try {
+      final f = await Future.wait([
+        widget.app.tareasConAsignacionDe(widget.user.id!),
+        widget.app.insigniasDe(widget.user.id!),
+        widget.app.listarInsignias(),
+        widget.app.puntosPorDia(widget.user.id!, dias: 30),
+        widget.app.tareasPendientesDeHoy(widget.user.id!),
+        widget.app.puntosPorDiaGlobal(dias: 84),
+      ]);
+      if (!mounted) return;
+      setState(() {
+        _tareas = f[0] as List<(Task, Assignment)>;
+        _insigniasIds = f[1] as List<int>;
+        _insignias = f[2] as List<badge_model.Badge>;
+        _puntosPorDia = f[3] as List<(DateTime, int)>;
+        _hoy = f[4] as List<(Task, Assignment)>;
+        _puntosGlobal84 = f[5] as List<(DateTime, int)>;
+        _cargando = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _cargando = false);
+    }
   }
 
   void _onCambio() {
@@ -457,19 +466,24 @@ class _AdminDashboardState extends State<_AdminDashboard> {
   }
 
   Future<void> _cargar() async {
-    final futuros = await Future.wait([
-      widget.app.estadisticas(),
-      widget.app.pendientesDeAprobacion(),
-      widget.app.listarIntegrantes(),
-      widget.app.puntosPorDiaGlobal(dias: 30),
-    ]);
-    if (!mounted) return;
-    setState(() {
-      _est = futuros[0] as Map<String, Object?>;
-      _pendientes = futuros[1] as List<(Task, Assignment, User)>;
-      _puntosPorDia = futuros[3] as List<(DateTime, int)>;
-      _cargando = false;
-    });
+    try {
+      final futuros = await Future.wait([
+        widget.app.estadisticas(),
+        widget.app.pendientesDeAprobacion(),
+        widget.app.listarIntegrantes(),
+        widget.app.puntosPorDiaGlobal(dias: 30),
+      ]);
+      if (!mounted) return;
+      setState(() {
+        _est = futuros[0] as Map<String, Object?>;
+        _pendientes = futuros[1] as List<(Task, Assignment, User)>;
+        _puntosPorDia = futuros[3] as List<(DateTime, int)>;
+        _cargando = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _cargando = false);
+    }
   }
 
   void _irATareas() => HomeTabs.index.value = 1;
@@ -701,9 +715,9 @@ class _RecordatorioAprobaciones extends StatelessWidget {
               Expanded(
                 child: Text(
                   'Tienes $cantidad tarea${cantidad == 1 ? '' : 's'} completada${cantidad == 1 ? '' : 's'} por aprobar',
-                  style: const TextStyle(
+                  style: TextStyle(
                       fontWeight: FontWeight.w800,
-                      color: AppColors.grisOscuro,
+                      color: textoTema(context),
                       fontSize: 14),
                 ),
               ),
@@ -744,9 +758,9 @@ class _RecordatorioHoy extends StatelessWidget {
                   children: [
                     Text(
                       '¡Tienes ${tareas.length} tarea${tareas.length == 1 ? '' : 's'} pendiente${tareas.length == 1 ? '' : 's'} hoy!',
-                      style: const TextStyle(
+                      style: TextStyle(
                           fontWeight: FontWeight.w800,
-                          color: AppColors.grisOscuro,
+                          color: textoTema(context),
                           fontSize: 14),
                     ),
                     const SizedBox(height: 2),
@@ -814,8 +828,8 @@ class _LeccionDelDiaCard extends StatelessWidget {
                   children: [
                     Text(
                       '¡Hola, ${user.nombre}!',
-                      style: const TextStyle(
-                        color: AppColors.grisOscuro,
+                      style: TextStyle(
+                        color: textoTema(context),
                         fontSize: 20,
                         fontWeight: FontWeight.w800,
                       ),
@@ -849,10 +863,10 @@ class _LeccionDelDiaCard extends StatelessWidget {
                         color: AppColors.grisMedio)),
                 Text(
                   '${user.nivel}',
-                  style: const TextStyle(
+                  style: TextStyle(
                       fontSize: 32,
                       fontWeight: FontWeight.w800,
-                      color: AppColors.grisOscuro),
+                      color: textoTema(context)),
                 ),
               ],
             ),
@@ -898,10 +912,10 @@ class _RachaPill extends StatelessWidget {
             const SizedBox(width: 6),
             Text(
               '$value',
-              style: const TextStyle(
+              style: TextStyle(
                   fontWeight: FontWeight.w800,
                   fontSize: 16,
-                  color: AppColors.grisOscuro),
+                  color: textoTema(context)),
             ),
             const SizedBox(width: 4),
             Flexible(
@@ -992,8 +1006,10 @@ class _StatCard extends StatelessWidget {
           const SizedBox(height: 4),
           AnimatedNumber(
             value: int.tryParse(value) ?? 0,
-            style: const TextStyle(
-                fontSize: 20, fontWeight: FontWeight.w800, color: AppColors.grisOscuro),
+            style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.w800,
+                color: textoTema(context)),
           ),
           Text(label,
               maxLines: 1,

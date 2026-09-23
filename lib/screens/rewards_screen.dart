@@ -65,9 +65,13 @@ class _AdminRewardsViewState extends State<_AdminRewardsView> {
   }
 
   Future<void> _cargarDatos() async {
+    if (!mounted) return;
     setState(() => _cargando = true);
-    _recompensas = await widget.app.listarRecompensas();
-    setState(() => _cargando = false);
+    try {
+      _recompensas = await widget.app.listarRecompensas();
+    } finally {
+      if (mounted) setState(() => _cargando = false);
+    }
   }
 
   @override
@@ -498,11 +502,15 @@ class _UserRewardsViewState extends State<_UserRewardsView> {
   }
 
   Future<void> _cargarDatos() async {
+    if (!mounted) return;
     setState(() => _cargando = true);
-    _recompensas = await widget.app.listarRecompensas();
-    _canjes = await widget.app.canjesDe(widget.user.id!);
-    _bloqueado = await widget.app.tieneTareasVencidas(widget.user.id!);
-    setState(() => _cargando = false);
+    try {
+      _recompensas = await widget.app.listarRecompensas();
+      _canjes = await widget.app.canjesDe(widget.user.id!);
+      _bloqueado = await widget.app.tieneTareasVencidas(widget.user.id!);
+    } finally {
+      if (mounted) setState(() => _cargando = false);
+    }
   }
 
   @override
@@ -622,10 +630,10 @@ class _UserRewardsViewState extends State<_UserRewardsView> {
                                         color: AppColors.grisMedio)),
                                 const SizedBox(height: 4),
                                 Text('Coste: ${r.costoPuntos} pts',
-                                    style: const TextStyle(
+                                    style: TextStyle(
                                         fontSize: 12,
                                         fontWeight: FontWeight.w800,
-                                        color: AppColors.grisOscuro)),
+                                        color: textoTema(context))),
                                 if (jaCambiado)
                                   Text(
                                     'Canjeado el: ${_canjes.firstWhere((c) => c.$2.id == r.id).$1.fecha}',
@@ -684,10 +692,10 @@ class _MisCanjes extends StatelessWidget {
             const SizedBox(width: 6),
             Text(
               'Mis canjes (${entre.length})',
-              style: const TextStyle(
+              style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w800,
-                  color: AppColors.grisOscuro),
+                  color: textoTema(context)),
             ),
             const Spacer(),
             Chip(

@@ -35,12 +35,14 @@ class GamificationService {
 
   /// Nombre visible del nivel.
   static String nombreNivel(int nivel) {
+    if (nivel <= 0) return niveles[1]!;
     if (nivel <= 5) return niveles[nivel]!;
     return 'Maestro nivel $nivel';
   }
 
   /// Puntos mínimos y máximos del nivel actual.
   static (int, int) rangoNivel(int nivel) {
+    if (nivel <= 1) return (0, 99);
     if (nivel <= 5) {
       final max = nivel < 5 ? limites[nivel + 1]! - 1 : 800;
       return (limites[nivel]!, max);

@@ -53,24 +53,31 @@ class _TasksScreenState extends State<TasksScreen>
   }
 
   Future<void> _cargarDatos() async {
+    if (!mounted) return;
     setState(() => _cargando = true);
     final app = context.read<AppProvider>();
     final user = app.usuarioActual;
     if (user == null) return;
+    if (!mounted) return;
     setState(() => _usuarioActual = user);
 
-    if (user.esAdmin) {
-      final tareas = await app.listarTareas();
-      setState(() => _todasLasTareas = tareas);
-    } else {
-      final mis = await app.tareasConAsignacionDe(user.id!);
-      final hist = await app.historialDe(user.id!);
-      setState(() {
-        _misTareas = mis;
-        _historial = hist;
-      });
+    try {
+      if (user.esAdmin) {
+        final tareas = await app.listarTareas();
+        if (!mounted) return;
+        setState(() => _todasLasTareas = tareas);
+      } else {
+        final mis = await app.tareasConAsignacionDe(user.id!);
+        final hist = await app.historialDe(user.id!);
+        if (!mounted) return;
+        setState(() {
+          _misTareas = mis;
+          _historial = hist;
+        });
+      }
+    } finally {
+      if (mounted) setState(() => _cargando = false);
     }
-    setState(() => _cargando = false);
   }
 
   @override
@@ -763,10 +770,10 @@ class _SubgrupoTarea extends StatelessWidget {
           const SizedBox(width: 4),
           Text(
             nombre,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 13,
               fontWeight: FontWeight.w700,
-              color: AppColors.grisOscuro,
+              color: textoTema(context),
             ),
           ),
         ],
@@ -856,10 +863,10 @@ class _SemanaTaskCard extends StatelessWidget {
                   Expanded(
                     child: Text(
                       'La misma tarea se repite para la misma persona el mismo día.',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 11,
                         fontWeight: FontWeight.w700,
-                        color: AppColors.grisOscuro,
+                        color: textoTema(context),
                       ),
                     ),
                   ),
@@ -1182,16 +1189,6 @@ class _CatalogoCard extends StatelessWidget {
     );
   }
 
-  Future<void> _guardar(BuildContext context,
-      {required Map<String, Object?> data, int? id}) async {
-    final app = context.read<AppProvider>();
-    final titulo = (data['titulo'] as String?) ?? '';
-    final puntos = (data['puntos'] as int?) ?? 0;
-    await app.editarCatalogo(
-        TareaCatalogo(id: id, titulo: titulo, puntos: puntos));
-    await onChanged();
-  }
-
   void _eliminar(BuildContext context) async {
     final app = context.read<AppProvider>();
     await app.eliminarCatalogo(entrada.id!);
@@ -1401,7 +1398,7 @@ class _AdminTaskCard extends StatelessWidget {
     }
     final fl = data['fechaLimite'] as DateTime?;
     if (fl != null && fl.isAfter(DateTime.now())) {
-      final nid = ((id ?? data['titulo'].hashCode) as int).abs() % 1000000;
+      final nid = (id ?? data['titulo'].hashCode).abs() % 1000000;
       await NotificationService.instance.cancelarTarea(nid);
       await NotificationService.instance.programarTarea(
         id: nid,
@@ -1532,7 +1529,11 @@ class _IntegranteTasksList extends StatelessWidget {
         _diasOrden.indexOf(a.$1.dia).compareTo(_diasOrden.indexOf(b.$1.dia)));
 
     return RefreshIndicator(
-      onRefresh: () async => app.tareasConAsignacionDe(app.usuarioActual!.id!),
+      onRefresh: () async {
+        final app2 = context.read<AppProvider>();
+        final u = app2.usuarioActual;
+        if (u != null) await app2.tareasConAsignacionDe(u.id!);
+      },
       child: ListView(
         padding: const EdgeInsets.all(12),
         children: [
@@ -1869,8 +1870,8 @@ class _HistorialCard extends StatelessWidget {
             ),
             child: Text(
               '+${task.puntos} pts',
-              style: const TextStyle(
-                  color: AppColors.grisOscuro, fontWeight: FontWeight.w800),
+              style: TextStyle(
+                  color: textoTema(context), fontWeight: FontWeight.w800),
             ),
           ),
         ],

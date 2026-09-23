@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
-import 'dart:math';
 
 import 'package:flutter/foundation.dart';
 
@@ -61,7 +60,20 @@ class LocalSyncService {
     _db = db;
     _household = db.householdCode;
     _running = true;
+    await _cargarIpsLocales();
+    await _iniciarHttp();
+    await _iniciarUdp();
+    // Beacon periódico para descubrir pares y ronda de sync periódica.
+    _beaconTimer = Timer.periodic(const Duration(seconds: 10), (_) {
+      if (_running) _enviarBeacon();
+    });
+    _syncTimer = Timer.periodic(const Duration(seconds: 15), (_) {
+      if (_running) unawaited(_sincronizarConPeers());
+    });
+    _enviarBeacon();
+    unawaited(_sincronizarConPeers());
     debugPrint('[LocalSync] iniciado (hogar: $_household)');
+    _notificar();
   }
 
   Future<void> stop() async {

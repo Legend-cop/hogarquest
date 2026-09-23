@@ -34,7 +34,7 @@ class _AdminUsuariosScreenState extends State<AdminUsuariosScreen> {
   }
 
   /// Refresco en segundo plano por cambios del provider. No muestra el spinner
-  /// ni重建 la lista si los datos no cambiaron, para que el scroll no se
+  /// ni reconstruye la lista si los datos no cambiaron, para que el scroll no se
   /// "trabé" ni parpadee al recargar cada vez que el provider avisa.
   Future<void> _refrescar() async {
     if (_cargando) return;

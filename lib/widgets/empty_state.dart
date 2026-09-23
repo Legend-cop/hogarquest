@@ -35,10 +35,11 @@ class EmptyState extends StatelessWidget {
             Text(
               message,
               textAlign: TextAlign.center,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.w800,
-                color: AppColors.grisOscuro,
+                color: Theme.of(context).textTheme.titleLarge?.color ??
+                    AppColors.grisOscuro,
               ),
             ),
             if (hint != null) ...[
@@ -46,7 +47,10 @@ class EmptyState extends StatelessWidget {
               Text(
                 hint!,
                 textAlign: TextAlign.center,
-                style: const TextStyle(color: AppColors.grisMedio),
+                style: TextStyle(
+                  color: Theme.of(context).textTheme.bodySmall?.color ??
+                      AppColors.grisMedio,
+                ),
               ),
             ],
           ],

@@ -7,12 +7,12 @@ import 'package:file_picker/file_picker.dart';
 import 'package:provider/provider.dart';
 
 import 'local_sync_screen.dart';
-import 'login_screen.dart';
 
 import '../db/photo_picker.dart';
 import '../db/photo_store.dart';
 import '../db/upload_client.dart';
 import '../providers/app_provider.dart';
+import '../providers/theme_controller.dart';
 import '../screens/bluetooth_sync_screen.dart';
 import '../theme/app_theme.dart';
 import '../widgets/duo_widgets.dart';
@@ -25,6 +25,7 @@ import '../models/castigo.dart';
 import '../models/redemption.dart';
 import '../models/reward.dart';
 import '../models/task.dart';
+import '../services/celebration_service.dart';
 import '../services/gamification_service.dart';
 import '../services/notification_service.dart';
 
@@ -123,6 +124,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
             const SizedBox(height: 20),
             _RecordatorioCard(userId: user.id!),
+            const SizedBox(height: 20),
+            const _AjustesCard(),
             const SizedBox(height: 20),
             const Divider(),
             SectionHeader(title: 'Mis insignias'),
@@ -528,10 +531,10 @@ class _AvatarCard extends StatelessWidget {
         const SizedBox(height: 12),
         Text(
           user.nombre,
-          style: const TextStyle(
+          style: TextStyle(
               fontSize: 22,
               fontWeight: FontWeight.w800,
-              color: AppColors.grisOscuro),
+              color: textoTema(context)),
         ),
         const SizedBox(height: 8),
         Row(
@@ -935,6 +938,94 @@ class _RedemptionsSectionState extends State<_RedemptionsSection> {
   }
 }
 
+/// Ajustes de apariencia y sonido: tema (claro/oscuro/sistema) y sonidos.
+class _AjustesCard extends StatefulWidget {
+  const _AjustesCard();
+
+  @override
+  State<_AjustesCard> createState() => _AjustesCardState();
+}
+
+class _AjustesCardState extends State<_AjustesCard> {
+  @override
+  Widget build(BuildContext context) {
+    final tema = context.watch<ThemeController>();
+    return DuoCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+            child: Text(
+              'Apariencia y sonido',
+              style: TextStyle(
+                fontWeight: FontWeight.w800,
+                color: Theme.of(context).textTheme.titleLarge?.color ??
+                    AppColors.grisOscuro,
+              ),
+            ),
+          ),
+          ListTile(
+            leading: const Icon(Icons.dark_mode, color: AppColors.morado),
+            title: const Text('Tema'),
+            subtitle: Text(switch (tema.mode) {
+              ThemeMode.dark => 'Oscuro',
+              ThemeMode.system => 'Según el sistema',
+              ThemeMode.light => 'Claro',
+            }),
+            onTap: () => _elegirTema(context, tema),
+          ),
+          const Divider(),
+          SwitchListTile(
+            secondary: const Icon(Icons.volume_up, color: AppColors.azul),
+            title: const Text('Sonidos'),
+            subtitle: const Text('Celebraciones y recompensas'),
+            value: CelebrationService.instance.habilitado,
+            onChanged: (v) {
+              CelebrationService.instance.habilitado = v;
+              setState(() {});
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _elegirTema(BuildContext context, ThemeController tema) async {
+    final modo = await showDialog<ThemeMode>(
+      context: context,
+      builder: (ctx) => SimpleDialog(
+        title: const Text('Tema'),
+        children: [
+          RadioGroup<ThemeMode>(
+            groupValue: tema.mode,
+            onChanged: (v) {
+              if (v != null) Navigator.pop(ctx, v);
+            },
+            child: const Column(
+              children: [
+                RadioListTile(
+                  title: Text('Claro'),
+                  value: ThemeMode.light,
+                ),
+                RadioListTile(
+                  title: Text('Oscuro'),
+                  value: ThemeMode.dark,
+                ),
+                RadioListTile(
+                  title: Text('Según el sistema'),
+                  value: ThemeMode.system,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+    if (modo != null) await tema.setModo(modo);
+  }
+}
+
 class _RecordatorioCard extends StatefulWidget {
   final int userId;
   const _RecordatorioCard({required this.userId});
@@ -942,7 +1033,6 @@ class _RecordatorioCard extends StatefulWidget {
   @override
   State<_RecordatorioCard> createState() => _RecordatorioCardState();
 }
-
 class _RecordatorioCardState extends State<_RecordatorioCard> {
   int? _minutos;
   bool _cargando = true;
@@ -1116,11 +1206,11 @@ class _CastigosSectionState extends State<_CastigosSection> {
           children: [
             const Icon(Icons.gavel, color: AppColors.rojo, size: 20),
             const SizedBox(width: 6),
-            const Text('Castigos y quitas',
+            Text('Castigos y quitas',
                 style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w800,
-                    color: AppColors.grisOscuro)),
+                    color: textoTema(context))),
             const Spacer(),
             if (_puntosSemana > 0)
               Chip(

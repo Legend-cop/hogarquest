@@ -7,7 +7,6 @@ import '../providers/app_provider.dart';
 import '../theme/app_theme.dart';
 import '../widgets/charts.dart';
 import '../widgets/duo_widgets.dart';
-import '../widgets/section_header.dart';
 import '../widgets/user_avatar.dart';
 
 /// Resumen de la actividad de un integrante: HOY y SEMANA.
@@ -253,8 +252,10 @@ class _Caja extends StatelessWidget {
           Icon(icon, size: 20, color: color),
           const SizedBox(height: 4),
           Text(value,
-              style: const TextStyle(
-                  fontSize: 16, fontWeight: FontWeight.w800, color: AppColors.grisOscuro)),
+              style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w800,
+                  color: textoTema(context))),
           Text(label,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,

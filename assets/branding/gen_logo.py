@@ -135,25 +135,70 @@ def save_maskable(size, path):
 
 if __name__ == "__main__":
     base = os.path.dirname(os.path.abspath(__file__))
+    # Raíz del proyecto Flutter (assets/branding -> ../..)
+    root = os.path.abspath(os.path.join(base, "..", ".."))
     logo = make_logo(1024)
     logo.save(os.path.join(base, "hq_logo_1024.png"))
 
-    # Android mipmaps
-    android_res = os.path.join(base, "res")
+    # Android mipmaps (ruta real del proyecto)
+    android_res = os.path.join(root, "android", "app", "src", "main", "res")
     sizes = {"mipmap-mdpi": 48, "mipmap-hdpi": 72, "mipmap-xhdpi": 96,
              "mipmap-xxhdpi": 144, "mipmap-xxxhdpi": 192}
     for folder, s in sizes.items():
         d = os.path.join(android_res, folder)
         os.makedirs(d, exist_ok=True)
         logo.resize((s, s), Image.LANCZOS).save(os.path.join(d, "ic_launcher.png"))
+        logo.resize((s, s), Image.LANCZOS).save(os.path.join(d, "ic_launcher_round.png"))
 
-    # Web icons
-    web_icons = os.path.join(base, "web_icons")
+    # Adaptive icon (Android 8+): foreground con margen + XML
+    import math
+    fg_sizes = {"mipmap-mdpi": 108, "mipmap-hdpi": 162, "mipmap-xhdpi": 216,
+                "mipmap-xxhdpi": 324, "mipmap-xxxhdpi": 432}
+    for folder, s in fg_sizes.items():
+        d = os.path.join(android_res, folder)
+        os.makedirs(d, exist_ok=True)
+        fg = Image.new("RGBA", (s, s), (0, 0, 0, 0))
+        # zona segura: el logo ocupa ~62% del icono adaptive
+        inner = int(s * 0.62)
+        tmp = logo.resize((inner, inner), Image.LANCZOS)
+        off = (s - inner) // 2
+        fg.paste(tmp, (off, off), tmp)
+        fg.save(os.path.join(d, "ic_launcher_foreground.png"))
+        # capa de fondo con el gradiente del logo
+        bg = Image.new("RGBA", (s, s), (0, 0, 0, 0))
+        bd = ImageDraw.Draw(bg)
+        c_top = (109, 219, 56); c_bot = (65, 158, 20)
+        for y in range(s):
+            bd.line([0, y, s, y], fill=lerp(c_top, c_bot, y / s) + (255,))
+        bg.save(os.path.join(d, "ic_launcher_background.png"))
+    anydpi = os.path.join(android_res, "mipmap-anydpi-v26")
+    os.makedirs(anydpi, exist_ok=True)
+    adaptive_xml = """<?xml version="1.0" encoding="utf-8"?>
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <background android:drawable="@mipmap/ic_launcher_background"/>
+    <foreground android:drawable="@mipmap/ic_launcher_foreground"/>
+    <monochrome android:drawable="@mipmap/ic_launcher_foreground"/>
+</adaptive-icon>
+"""
+    with open(os.path.join(anydpi, "ic_launcher.xml"), "w") as f:
+        f.write(adaptive_xml)
+    with open(os.path.join(anydpi, "ic_launcher_round.xml"), "w") as f:
+        f.write(adaptive_xml)
+
+    # Web icons (ruta real del proyecto)
+    web_icons = os.path.join(root, "web", "icons")
     os.makedirs(web_icons, exist_ok=True)
     logo.resize((192, 192), Image.LANCZOS).save(os.path.join(web_icons, "Icon-192.png"))
     logo.resize((512, 512), Image.LANCZOS).save(os.path.join(web_icons, "Icon-512.png"))
-    logo.resize((32, 32), Image.LANCZOS).save(os.path.join(base, "favicon.png"))
+    logo.resize((32, 32), Image.LANCZOS).save(os.path.join(root, "web", "favicon.png"))
     save_maskable(192, os.path.join(web_icons, "Icon-maskable-192.png"))
     save_maskable(512, os.path.join(web_icons, "Icon-maskable-512.png"))
 
-    print("OK: logo 1024 + android mipmaps + web icons generados")
+    # Windows .ico desde el logo
+    ico_path = os.path.join(root, "windows", "runner", "resources", "app_icon.ico")
+    if os.path.isdir(os.path.dirname(ico_path)):
+        ico_sizes = [16, 24, 32, 48, 64, 128, 256]
+        logo.save(ico_path, format="ICO",
+                  sizes=[(s2, s2) for s2 in ico_sizes])
+
+    print("OK: logo 1024 + android mipmaps/adaptive + web icons + windows ico")

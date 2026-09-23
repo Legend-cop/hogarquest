@@ -961,7 +961,7 @@ class DatabaseHelper {
   User _mapToUser(Map map) {
     return User(
       id: map['id'] as int?,
-      nombre: map['nombre'] as String,
+      nombre: (map['nombre'] as String?) ?? '',
       avatar: (map['avatar'] as String?) ?? '',
       foto: (map['foto'] as String?) ?? '',
       fotoLocal: (map['foto_local'] as String?) ?? '',
@@ -1012,7 +1012,7 @@ class DatabaseHelper {
   Task _mapToTask(Map map) {
     return Task(
       id: map['id'] as int?,
-      titulo: map['titulo'] as String,
+      titulo: (map['titulo'] as String?) ?? '',
       descripcion: (map['descripcion'] as String?) ?? '',
       puntos: (map['puntos'] as int?) ?? 0,
       dificultad: (map['dificultad'] as String?) ?? 'media',

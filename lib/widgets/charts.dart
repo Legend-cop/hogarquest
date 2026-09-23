@@ -115,10 +115,14 @@ class _BarChartState extends State<BarChart> {
                           child: Text(
                             widget.valueLabel?.call(widget.data[i].$2) ??
                                 '${widget.data[i].$2} pts',
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 11,
                               fontWeight: FontWeight.w800,
-                              color: AppColors.grisOscuro,
+                              color: Theme.of(context)
+                                      .textTheme
+                                      .titleLarge
+                                      ?.color ??
+                                  AppColors.grisOscuro,
                             ),
                           ),
                         )
@@ -171,7 +175,8 @@ class _BarChartState extends State<BarChart> {
               color: i == widget.highlightIndex
                   ? AppColors.verde
                   : (_seleccionado == i
-                      ? AppColors.grisOscuro
+                      ? (Theme.of(context).textTheme.titleLarge?.color ??
+                          AppColors.grisOscuro)
                       : AppColors.grisMedio),
             ),
           ),
@@ -258,10 +263,11 @@ class DonutChart extends StatelessWidget {
                   if (centerText != null)
                     Text(
                       centerText!,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 20,
                         fontWeight: FontWeight.w800,
-                        color: AppColors.grisOscuro,
+                        color: Theme.of(context).textTheme.titleLarge?.color ??
+                            AppColors.grisOscuro,
                       ),
                     ),
                   if (centerSub != null)
@@ -309,8 +315,8 @@ class StreakHeatmap extends StatelessWidget {
   }
 
   Color _colorNivel(int n) {
-    if (n == 0) return Colors.grey.withOpacity(0.18);
-    return color.withOpacity(0.3 + n * 0.18);
+    if (n == 0) return Colors.grey.withValues(alpha: 0.18);
+    return color.withValues(alpha: 0.3 + n * 0.18);
   }
 
   @override
