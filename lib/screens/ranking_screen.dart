@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../models/user.dart';
 import '../providers/app_provider.dart';
+import '../services/gamification_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/duo_widgets.dart';
 import '../widgets/empty_state.dart';
@@ -15,21 +16,24 @@ class RankingScreen extends StatefulWidget {
   State<RankingScreen> createState() => _RankingScreenState();
 }
 
-class _RankingScreenState extends State<RankingScreen>
-    with SingleTickerProviderStateMixin {
-  late TabController _tabController;
+class _RankingScreenState extends State<RankingScreen> {
+  int _pestana = 0; // 0 semanal · 1 mensual · 2 salón de la fama
   bool _cargando = true;
   List<(User, int, int)> _rankingSemanal = []; // (usuario, pts, perdidos)
   List<(User, int, int)> _rankingMensual = [];
+  List<(User, int, int)> _rankingAnterior = []; // semana anterior (para ligas)
+  int _puntosFamiliaSemana = 0;
+  bool _ligasBloqueadas = true;
   List<(DateTime, int)> _puntosGlobal = [];
   List<(DateTime, int)> _puntosGlobal30 = [];
   List<_Recorde> _fama = [];
   late AppProvider _provider;
 
+  static const _metaFamiliar = 100;
+
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this);
     _provider = context.read<AppProvider>();
     _provider.addListener(_onChange);
     _cargarDatos();
@@ -49,10 +53,15 @@ class _RankingScreenState extends State<RankingScreen>
     final puntosGlobal = await app.puntosPorDiaGlobal(dias: 7);
     final puntosGlobal30 = await app.puntosPorDiaGlobal(dias: 30);
     final fama = await _calcularFama(app);
+    final anterior = await app.rankingSemanaAnterior();
+    final puntosFamilia = await app.puntosFamiliaSemana();
     if (!mounted) return;
     setState(() {
       _rankingSemanal = semanal;
       _rankingMensual = mensual;
+      _rankingAnterior = anterior;
+      _ligasBloqueadas = anterior.isEmpty;
+      _puntosFamiliaSemana = puntosFamilia;
       _puntosGlobal = puntosGlobal;
       _puntosGlobal30 = puntosGlobal30;
       _fama = fama;
@@ -119,10 +128,21 @@ class _RankingScreenState extends State<RankingScreen>
     return resultado;
   }
 
+  /// Liga actual del usuario según el ranking de la semana anterior.
+  (String?, int) get _ligaUsuario {
+    final id = _provider.usuarioActual?.id;
+    if (id == null || _ligasBloqueadas) return (null, -1);
+    final idx = _rankingAnterior.indexWhere((e) => e.$1.id == id);
+    if (idx < 0) return (null, -1);
+    return (
+      GamificationService.ligaDe(idx + 1, _rankingAnterior.length),
+      idx + 1,
+    );
+  }
+
   @override
   void dispose() {
     _provider.removeListener(_onChange);
-    _tabController.dispose();
     super.dispose();
   }
 
@@ -136,37 +156,469 @@ class _RankingScreenState extends State<RankingScreen>
       bottom: false,
       child: Column(
         children: [
-          Container(
-            color: Theme.of(context).colorScheme.surface,
-            child: TabBar(
-              controller: _tabController,
-              tabs: const [
-                Tab(text: 'Semanal', icon: Icon(Icons.date_range_outlined)),
-                Tab(text: 'Mensual', icon: Icon(Icons.calendar_today_outlined)),
-                Tab(text: 'Salón de la Fama', icon: Icon(Icons.emoji_events)),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+            child: SegmentedButton<int>(
+              segments: const [
+                ButtonSegment(
+                  value: 0,
+                  label: Text('Semanal'),
+                  icon: Icon(Icons.date_range_outlined, size: 18),
+                ),
+                ButtonSegment(
+                  value: 1,
+                  label: Text('Mensual'),
+                  icon: Icon(Icons.calendar_today_outlined, size: 18),
+                ),
+                ButtonSegment(
+                  value: 2,
+                  label: Text('Salón de la Fama'),
+                  icon: Icon(Icons.emoji_events, size: 18),
+                ),
               ],
+              selected: {_pestana},
+              onSelectionChanged: (s) =>
+                  setState(() => _pestana = s.first),
             ),
           ),
           Expanded(
-            child: TabBarView(
-              controller: _tabController,
-              children: [
-                _RankingList(
-                  title: 'Top 10 Semanal',
+            child: switch (_pestana) {
+              0 => _VistaSemanal(
                   items: _rankingSemanal,
                   puntosGlobal: _puntosGlobal,
+                  ligas: _PanelLigas(
+                    bloqueadas: _ligasBloqueadas,
+                    ligaUsuario: _ligaUsuario.$1,
+                    posicion: _ligaUsuario.$2,
+                    totalIntegrantes: _rankingAnterior.length,
+                    puntosFamilia: _puntosFamiliaSemana,
+                    metaFamilia: _metaFamiliar,
+                  ),
                 ),
-                _RankingList(
+              1 => _RankingList(
                   title: 'Top 10 Mensual',
                   items: _rankingMensual,
                   resumen: _ResumenPeriodo(datos: _puntosGlobal30),
                 ),
-                _FamaList(records: _fama),
+              _ => _FamaGrid(records: _fama),
+            },
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// PANEL DE LIGAS
+// ---------------------------------------------------------------------------
+
+class _PanelLigas extends StatelessWidget {
+  final bool bloqueadas;
+  final String? ligaUsuario;
+  final int posicion;
+  final int totalIntegrantes;
+  final int puntosFamilia;
+  final int metaFamilia;
+
+  const _PanelLigas({
+    required this.bloqueadas,
+    required this.ligaUsuario,
+    required this.posicion,
+    required this.totalIntegrantes,
+    required this.puntosFamilia,
+    required this.metaFamilia,
+  });
+
+  static const _definiciones = <(String, IconData, Color)>[
+    ('Bronce', Icons.shield, Color(0xFFCD7F32)),
+    ('Plata', Icons.shield, Color(0xFFB8B8B8)),
+    ('Oro', Icons.emoji_events, Color(0xFFFFB300)),
+    ('Obsidiana', Icons.diamond, Color(0xFF7B68EE)),
+  ];
+
+  int get _diasRestantes => 6 - (DateTime.now().weekday % 7);
+
+  @override
+  Widget build(BuildContext context) {
+    final restantes = _diasRestantes;
+    final progreso =
+        (puntosFamilia / metaFamilia).clamp(0.0, 1.0);
+    final texto = textoTema(context);
+    final suave = textoSuaveTema(context);
+
+    return DuoCard(
+      margin: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+      padding: const EdgeInsets.all(14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.emoji_events,
+                  color: AppColors.amarillo, size: 20),
+              const SizedBox(width: 8),
+              Text(
+                'Ligas',
+                style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w800,
+                    color: texto),
+              ),
+              const Spacer(),
+              Icon(Icons.schedule, size: 14, color: suave),
+              const SizedBox(width: 4),
+              Text(
+                restantes <= 0
+                    ? 'Último día'
+                    : 'Quedan $restantes días',
+                style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: suave),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              for (final (nombre, icono, color) in _definiciones) ...[
+                Expanded(
+                  child: _LigaChip(
+                    nombre: nombre,
+                    icono: icono,
+                    color: color,
+                    activa: nombre == ligaUsuario,
+                    atenuada: bloqueadas,
+                  ),
+                ),
+                if (nombre != 'Obsidiana') const SizedBox(width: 6),
               ],
+            ],
+          ),
+          const SizedBox(height: 10),
+          if (bloqueadas)
+            Row(
+              children: [
+                Icon(Icons.lock_outline, size: 16, color: suave),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    'Completa una semana de tareas para desbloquear tu liga.',
+                    style: TextStyle(fontSize: 12, color: suave),
+                  ),
+                ),
+              ],
+            )
+          else
+            Row(
+              children: [
+                Icon(Icons.emoji_events, size: 16, color: suave),
+                const SizedBox(width: 6),
+                Text(
+                  ligaUsuario == null
+                      ? 'Sin liga esta semana'
+                      : '$ligaUsuario · puesto $posicion de $totalIntegrantes',
+                  style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: suave),
+                ),
+              ],
+            ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Meta familiar',
+                  style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                      color: suave),
+                ),
+              ),
+              Text(
+                '$puntosFamilia/$metaFamilia pts',
+                style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                    color: progreso >= 1.0
+                        ? AppColors.verdeOscuro
+                        : suave),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: LinearProgressIndicator(
+              value: progreso,
+              minHeight: 10,
+              backgroundColor: AppColors.linea,
+              color: progreso >= 1.0 ? AppColors.verde : AppColors.azul,
             ),
           ),
         ],
       ),
+    );
+  }
+}
+
+class _LigaChip extends StatelessWidget {
+  final String nombre;
+  final IconData icono;
+  final Color color;
+  final bool activa;
+  final bool atenuada;
+
+  const _LigaChip({
+    required this.nombre,
+    required this.icono,
+    required this.color,
+    required this.activa,
+    required this.atenuada,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final opacidad = atenuada ? 0.35 : 1.0;
+    return Opacity(
+      opacity: opacidad,
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+        decoration: BoxDecoration(
+          color: activa
+              ? color.withValues(alpha: 0.15)
+              : Colors.transparent,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: activa ? color : Colors.transparent,
+            width: 2,
+          ),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icono, size: 22, color: color),
+            const SizedBox(height: 4),
+            Text(
+              nombre,
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w800,
+                color: textoTema(context),
+              ),
+            ),
+            if (activa) ...[
+              const SizedBox(height: 2),
+              Text(
+                'Tu liga',
+                style: TextStyle(
+                  fontSize: 9,
+                  fontWeight: FontWeight.w800,
+                  color: color,
+                ),
+              ),
+            ] else
+              const SizedBox(height: 14),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// VISTA SEMANAL (panel + gráfica + podio + filas)
+// ---------------------------------------------------------------------------
+
+class _VistaSemanal extends StatelessWidget {
+  final List<(User, int, int)> items;
+  final List<(DateTime, int)> puntosGlobal;
+  final _PanelLigas ligas;
+
+  const _VistaSemanal({
+    required this.items,
+    required this.puntosGlobal,
+    required this.ligas,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        ligas,
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
+          child: Text(
+            'Top 10 Semanal',
+            style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.w800,
+                color: textoTema(context)),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
+          child: Text(
+            'XP del periodo = tareas + retos − castigos. El orden es por el resultado final (neto).',
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 11, color: textoSuaveTema(context)),
+          ),
+        ),
+        if (puntosGlobal.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+            child: _GraficaPuntos(datos: puntosGlobal),
+          ),
+        Expanded(
+          child: items.isEmpty
+              ? EmptyState(
+                  icon: Icons.leaderboard,
+                  message: 'No hay datos disponibles',
+                  hint: 'Completa tareas para ver el ranking.',
+                )
+              : ListView(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  children: [
+                    if (items.length >= 3) ...[
+                      _Podio(top3: items.sublist(0, 3)),
+                      const SizedBox(height: 8),
+                    ],
+                    for (var i = items.length >= 3 ? 3 : 0; i < items.length; i++)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: _RankRow(
+                          posicion: i + 1,
+                          user: items[i].$1,
+                          puntos: items[i].$2,
+                          perdidos: items[i].$3,
+                          destacado: false,
+                        ),
+                      ),
+                  ],
+                ),
+        ),
+      ],
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// PODIO TOP 3 (estilo 3D)
+// ---------------------------------------------------------------------------
+
+class _Podio extends StatelessWidget {
+  final List<(User, int, int)> top3;
+
+  const _Podio({required this.top3});
+
+  @override
+  Widget build(BuildContext context) {
+    // Orden visual clásico: 2.º, 1.º, 3.º.
+    final orden = [
+      (top3[1], 2, 78.0, const Color(0xFFB8B8B8)),
+      (top3[0], 1, 104.0, const Color(0xFFFFB300)),
+      (top3[2], 3, 62.0, const Color(0xFFCD7F32)),
+    ];
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        for (final (item, lugar, alto, color) in orden) ...[
+          Expanded(
+            child: _PodioPuesto(
+              item: item,
+              lugar: lugar,
+              alto: alto,
+              color: color,
+            ),
+          ),
+          if (lugar != 3) const SizedBox(width: 8),
+        ],
+      ],
+    );
+  }
+}
+
+class _PodioPuesto extends StatelessWidget {
+  final (User, int, int) item;
+  final int lugar;
+  final double alto;
+  final Color color;
+
+  const _PodioPuesto({
+    required this.item,
+    required this.lugar,
+    required this.alto,
+    required this.color,
+  });
+
+  String get _medalla => switch (lugar) {
+        1 => '🥇',
+        2 => '🥈',
+        _ => '🥉',
+      };
+
+  @override
+  Widget build(BuildContext context) {
+    final (user, puntos, perdidos) = item;
+    final neto = puntos - perdidos;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(_medalla, style: const TextStyle(fontSize: 26)),
+        const SizedBox(height: 4),
+        UserAvatar(user: user, radius: lugar == 1 ? 26 : 20),
+        const SizedBox(height: 4),
+        Text(
+          user.nombre,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          textAlign: TextAlign.center,
+          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800),
+        ),
+        Text(
+          '= $neto pts',
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w800,
+            color: neto >= 0 ? AppColors.verdeOscuro : AppColors.rojo,
+          ),
+        ),
+        const SizedBox(height: 6),
+        // Bloque "3D": cara superior clara + cuerpo con borde inferior grueso.
+        Container(
+          height: alto,
+          width: double.infinity,
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.25),
+            borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(10)),
+            border: Border(
+              top: BorderSide(color: color, width: 3),
+              bottom: BorderSide(color: color, width: 6),
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: color.withValues(alpha: 0.35),
+                offset: const Offset(0, 5),
+                blurRadius: 0,
+              ),
+            ],
+          ),
+          alignment: Alignment.topCenter,
+          padding: const EdgeInsets.only(top: 8),
+          child: Text(
+            '$lugar.º',
+            style: TextStyle(
+              fontSize: lugar == 1 ? 20 : 16,
+              fontWeight: FontWeight.w900,
+              color: color,
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
@@ -329,14 +781,13 @@ class _GraficaPuntos extends StatelessWidget {
 class _RankingList extends StatelessWidget {
   final String title;
   final List<(User, int, int)> items;
-  final List<(DateTime, int)>? puntosGlobal;
   final Widget? resumen;
 
-  const _RankingList(
-      {required this.title,
-      required this.items,
-      this.puntosGlobal,
-      this.resumen});
+  const _RankingList({
+    required this.title,
+    required this.items,
+    this.resumen,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -364,11 +815,6 @@ class _RankingList extends StatelessWidget {
             padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
             child: resumen!,
           ),
-        if (puntosGlobal != null && puntosGlobal!.isNotEmpty)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
-            child: _GraficaPuntos(datos: puntosGlobal!),
-          ),
         Expanded(
           child: items.isEmpty
               ? EmptyState(
@@ -382,12 +828,15 @@ class _RankingList extends StatelessWidget {
                   itemBuilder: (context, i) {
                     final (user, puntos, perdidos) = items[i];
                     final esTop3 = i < 3;
-                    return _RankRow(
-                      posicion: i + 1,
-                      user: user,
-                      puntos: puntos,
-                      perdidos: perdidos,
-                      destacado: esTop3,
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: _RankRow(
+                        posicion: i + 1,
+                        user: user,
+                        puntos: puntos,
+                        perdidos: perdidos,
+                        destacado: esTop3,
+                      ),
                     );
                   },
                 ),
@@ -397,10 +846,11 @@ class _RankingList extends StatelessWidget {
   }
 }
 
-class _FamaList extends StatelessWidget {
+/// Salón de la Fama: récords de la familia en cuadrícula.
+class _FamaGrid extends StatelessWidget {
   final List<_Recorde> records;
 
-  const _FamaList({required this.records});
+  const _FamaGrid({required this.records});
 
   @override
   Widget build(BuildContext context) {
@@ -445,55 +895,89 @@ class _FamaList extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 20),
-        for (final r in records)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 12),
-            child: DuoCard(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-              child: Row(
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final columnas = constraints.maxWidth >= 700 ? 3 : 1;
+            if (columnas == 1) {
+              return Column(
                 children: [
-                  Container(
-                    width: 48,
-                    height: 48,
-                    decoration: BoxDecoration(
-                      color: r.color.withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(14),
+                  for (final r in records)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: _FamaCard(r: r),
                     ),
-                    child: Icon(r.icon, color: r.color, size: 26),
-                  ),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          r.titulo,
-                          style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w800,
-                              color: textoSuaveTema(context)),
-                        ),
-                        Text(
-                          r.detalle,
-                          style: const TextStyle(
-                              fontSize: 16, fontWeight: FontWeight.w800),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Text(
-                    r.valor,
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w800,
-                      color: r.color,
-                    ),
-                  ),
                 ],
-              ),
+              );
+            }
+            return GridView.count(
+              crossAxisCount: columnas,
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              mainAxisSpacing: 12,
+              crossAxisSpacing: 12,
+              childAspectRatio: 2.6,
+              children: [for (final r in records) _FamaCard(r: r)],
+            );
+          },
+        ),
+      ],
+    );
+  }
+}
+
+class _FamaCard extends StatelessWidget {
+  final _Recorde r;
+
+  const _FamaCard({required this.r});
+
+  @override
+  Widget build(BuildContext context) {
+    return DuoCard(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      child: Row(
+        children: [
+          Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              color: r.color.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Icon(r.icon, color: r.color, size: 26),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  r.titulo,
+                  style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                      color: textoSuaveTema(context)),
+                ),
+                Text(
+                  r.detalle,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                      fontSize: 16, fontWeight: FontWeight.w800),
+                ),
+              ],
             ),
           ),
-      ],
+          Text(
+            r.valor,
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w800,
+              color: r.color,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

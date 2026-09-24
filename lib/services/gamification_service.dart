@@ -51,6 +51,21 @@ class GamificationService {
     return (base, base + 399);
   }
 
+  /// Ligas ordenadas de menor a mayor (para el panel de trofeos).
+  static const List<String> ligas = ['Bronce', 'Plata', 'Oro', 'Obsidiana'];
+
+  /// Liga de un integrante según su posición (1-based) en el ranking de la
+  /// semana anterior. Percentiles: 0–24% Obsidiana, 25–49% Oro,
+  /// 50–74% Plata, 75–100% Bronce. Con un solo integrante: Obsidiana.
+  static String ligaDe(int posicion, int total) {
+    if (total <= 0) return 'Bronce';
+    final p = total <= 1 ? 0.0 : (posicion - 1) / total;
+    if (p < 0.25) return 'Obsidiana';
+    if (p < 0.50) return 'Oro';
+    if (p < 0.75) return 'Plata';
+    return 'Bronce';
+  }
+
   /// Progreso (0.0 - 1.0) hacia el siguiente nivel.
   static double progresoNivel(int puntos, int nivel) {
     final (min, max) = rangoNivel(nivel);

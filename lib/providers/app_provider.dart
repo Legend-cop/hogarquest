@@ -859,6 +859,71 @@ Future<List<(User, int)>> ranking(String periodo) async {
     resultado.sort((a, b) => b.$2.compareTo(a.$2));
     return resultado;
   }
+
+  /// Neto (ganado − castigado) de cada integrante en un rango de fechas.
+  /// Base derivada de las ligas y de la meta familiar (sin tablas nuevas).
+  Future<List<(User, int, int)>> _netoEnRango(
+      DateTime inicio, DateTime fin) async {
+    final usuarios = await _db.getIntegrantes();
+    final retos = await _db.getRetos();
+    final retosPuntos = <int, int>{};
+    for (final r in retos) {
+      if (!r.finalizado) continue;
+      final inicioReto =
+          DateTime(r.fechaInicio.year, r.fechaInicio.month, r.fechaInicio.day);
+      if (inicioReto.isBefore(inicio) || !inicioReto.isBefore(fin)) continue;
+      for (final uid in r.aprobados) {
+        retosPuntos[uid] = (retosPuntos[uid] ?? 0) + r.puntos;
+      }
+    }
+    final resultado = <(User, int, int)>[];
+    for (final u in usuarios) {
+      final aps = await _db.getAsignacionesAprobadasDeUsuarioEnRango(
+          u.id!, inicio, fin);
+      var pts = 0;
+      for (final a in aps) {
+        final t = await _db.getTareaById(a.tareaId);
+        pts += t?.puntos ?? 0;
+      }
+      pts += retosPuntos[u.id!] ?? 0;
+      final castigos = await _db.getCastigosDeUsuario(u.id!);
+      final perdidos = castigos
+          .where((c) => !c.fecha.isBefore(inicio) && c.fecha.isBefore(fin))
+          .fold<int>(0, (s, c) => s + c.puntos);
+      resultado.add((u, pts, perdidos));
+    }
+    return resultado;
+  }
+
+  /// Ranking NETO de la semana de calendario anterior (domingo a sábado).
+  /// Devuelve lista vacía si no hubo actividad, para mostrar el estado de
+  /// bloqueo de la liga (se desbloquea tras la primera semana completa).
+  Future<List<(User, int, int)>> rankingSemanaAnterior() async {
+    final hoy = DateTime.now();
+    final inicioEsta =
+        hoy.subtract(Duration(days: hoy.weekday % 7));
+    final fin = DateTime(inicioEsta.year, inicioEsta.month, inicioEsta.day);
+    final inicio = fin.subtract(const Duration(days: 7));
+    final base = await _netoEnRango(inicio, fin);
+    final hayDatos = base.any((e) => e.$2 > 0 || e.$3 > 0);
+    if (!hayDatos) return [];
+    base.sort((a, b) => (b.$2 - b.$3).compareTo(a.$2 - a.$3));
+    return base;
+  }
+
+  /// Puntos netos de TODA la familia en la semana de calendario en curso
+  /// (para la meta familiar del panel de ligas).
+  Future<int> puntosFamiliaSemana() async {
+    final hoy = DateTime.now();
+    final inicio =
+        hoy.subtract(Duration(days: hoy.weekday % 7));
+    final base = await _netoEnRango(
+      DateTime(inicio.year, inicio.month, inicio.day),
+      hoy.add(const Duration(days: 1)),
+    );
+    final total = base.fold<int>(0, (s, e) => s + (e.$2 - e.$3));
+    return total < 0 ? 0 : total;
+  }
   // ---------------------------------------------------------------
   // CASTIGOS
   // ---------------------------------------------------------------
