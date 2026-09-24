@@ -207,11 +207,11 @@ class _ResumenPeriodo extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('Resumen (30 días)',
+                Text('Resumen (30 días)',
                     style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w800,
-                        color: AppColors.grisMedio)),
+                        color: textoSuaveTema(context))),
                 const SizedBox(height: 2),
                 Text('$total pts familia',
                     style: const TextStyle(
@@ -234,8 +234,8 @@ class _ResumenPeriodo extends StatelessWidget {
                         fontSize: 18,
                         fontWeight: FontWeight.w800,
                         color: AppColors.grisOscuro)),
-                const Text('días activos',
-                    style: TextStyle(fontSize: 11, color: AppColors.grisMedio)),
+                Text('días activos',
+                    style: TextStyle(fontSize: 11, color: textoSuaveTema(context))),
               ],
             ),
           ),
@@ -309,10 +309,10 @@ class _GraficaPuntos extends StatelessWidget {
                         const SizedBox(height: 6),
                         Text(
                           _diasAbrev[datos[i].$1.weekday - 1],
-                          style: const TextStyle(
+                          style: TextStyle(
                               fontSize: 10,
                               fontWeight: FontWeight.w700,
-                              color: AppColors.grisMedio),
+                              color: textoSuaveTema(context)),
                         ),
                       ],
                     ),
@@ -356,7 +356,7 @@ class _RankingList extends StatelessWidget {
           padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
           child: Text(
             'XP del periodo = tareas + retos − castigos. El orden es por el resultado final (neto).',
-            style: const TextStyle(fontSize: 11, color: AppColors.grisMedio),
+            style: TextStyle(fontSize: 11, color: textoSuaveTema(context)),
           ),
         ),
         if (resumen != null)
@@ -438,10 +438,10 @@ class _FamaList extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 4),
-        const Center(
+        Center(
           child: Text(
             'Los récords de la familia',
-            style: TextStyle(color: AppColors.grisMedio),
+            style: TextStyle(color: textoSuaveTema(context)),
           ),
         ),
         const SizedBox(height: 20),
@@ -468,10 +468,10 @@ class _FamaList extends StatelessWidget {
                       children: [
                         Text(
                           r.titulo,
-                          style: const TextStyle(
+                          style: TextStyle(
                               fontSize: 12,
                               fontWeight: FontWeight.w800,
-                              color: AppColors.grisMedio),
+                              color: textoSuaveTema(context)),
                         ),
                         Text(
                           r.detalle,
@@ -562,7 +562,7 @@ class _RankRow extends StatelessWidget {
                 Text(
                   '${user.edad} años · 🔥 ${user.racha} días',
                   style:
-                      const TextStyle(fontSize: 12, color: AppColors.grisMedio),
+                      TextStyle(fontSize: 12, color: textoSuaveTema(context)),
                 ),
               ],
             ),
@@ -579,8 +579,8 @@ class _RankRow extends StatelessWidget {
                           fontSize: 15,
                           color: AppColors.verdeOscuro)),
                   Text(' XP',
-                      style: const TextStyle(
-                          fontSize: 11, color: AppColors.grisMedio)),
+                      style: TextStyle(
+                          fontSize: 11, color: textoSuaveTema(context))),
                 ],
               ),
               if (perdidos > 0)
@@ -593,8 +593,8 @@ class _RankRow extends StatelessWidget {
                 )
               else
                 Text('Nivel ${user.nivel}',
-                    style: const TextStyle(
-                        fontSize: 11, color: AppColors.grisMedio)),
+                    style: TextStyle(
+                        fontSize: 11, color: textoSuaveTema(context))),
               Text(
                 '= $neto pts',
                 style: TextStyle(

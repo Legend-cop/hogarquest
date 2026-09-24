@@ -166,7 +166,7 @@ class _AdminUsuariosScreenState extends State<AdminUsuariosScreen> {
                 'Castigo a ${u.nombre}. Los castigos son por portarse mal '
                 'o desobediencia; la quita de puntos por no cumplir tareas se '
                 'genera sola al vencer.',
-                style: const TextStyle(fontSize: 13, color: AppColors.grisMedio),
+                style: TextStyle(fontSize: 13, color: textoSuaveTema(context)),
               ),
               const SizedBox(height: 16),
               TextField(
@@ -238,7 +238,7 @@ class _AdminUsuariosScreenState extends State<AdminUsuariosScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text('Nueva contraseña para ${u.nombre}:',
-                style: const TextStyle(fontSize: 13, color: AppColors.grisMedio)),
+                style: TextStyle(fontSize: 13, color: textoSuaveTema(context))),
             const SizedBox(height: 12),
             TextField(
               controller: pass,
@@ -318,15 +318,15 @@ class _AdminUsuariosScreenState extends State<AdminUsuariosScreen> {
                                     padding: const EdgeInsets.symmetric(
                                         horizontal: 6, vertical: 2),
                                     decoration: BoxDecoration(
-                                      color: AppColors.grisMedio
-                                          .withValues(alpha: 0.2),
+                                      color:
+                                          textoSuaveTema(context).withValues(alpha: 0.2),
                                       borderRadius: BorderRadius.circular(6),
                                     ),
-                                    child: const Text('Inactivo',
+                                    child: Text('Inactivo',
                                         style: TextStyle(
                                             fontSize: 10,
                                             fontWeight: FontWeight.w800,
-                                            color: AppColors.grisMedio)),
+                                            color: textoSuaveTema(context))),
                                   ),
                                 ],
                               ],
@@ -365,17 +365,17 @@ class _AdminUsuariosScreenState extends State<AdminUsuariosScreen> {
                                       u.activo
                                           ? Icons.visibility_off
                                           : Icons.visibility,
-                                      color: AppColors.grisMedio,
+                                      color: textoSuaveTema(context),
                                     ),
                                     title: Text(u.activo
                                         ? 'Inactivar'
                                         : 'Activar'),
                                     trailing: u.activo
                                         ? null
-                                        : const Text('Inactivo',
+                                        : Text('Inactivo',
                                             style: TextStyle(
                                                 fontSize: 12,
-                                                color: AppColors.grisMedio)),
+                                                color: textoSuaveTema(context))),
                                   ),
                                 ),
                                 PopupMenuItem(
@@ -516,7 +516,7 @@ class _UsuarioFormDialogState extends State<_UsuarioFormDialog> {
               Text(
                 'El avatar se genera con las iniciales y un color según el nombre.',
                 style: TextStyle(
-                    fontSize: 12, color: AppColors.grisMedio),
+                    fontSize: 12, color: textoSuaveTema(context)),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 12),

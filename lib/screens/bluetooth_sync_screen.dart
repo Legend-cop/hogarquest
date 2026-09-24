@@ -89,7 +89,7 @@ class _BluetoothSyncScreenState extends State<BluetoothSyncScreen> {
                 padding: const EdgeInsets.only(top: 8),
                 child: Text(
                   'Esta función solo está disponible en Android.',
-                  style: TextStyle(color: AppColors.grisMedio, fontSize: 12),
+                  style: TextStyle(color: textoSuaveTema(context), fontSize: 12),
                 ),
               ),
             const SizedBox(height: 20),
@@ -122,13 +122,13 @@ class _BluetoothSyncScreenState extends State<BluetoothSyncScreen> {
                   padding: const EdgeInsets.only(bottom: 8),
                   child: Text(
                     'Última sincronización: ${_hora(ultima)}',
-                    style: TextStyle(color: AppColors.grisMedio, fontSize: 12),
+                    style: TextStyle(color: textoSuaveTema(context), fontSize: 12),
                   ),
                 ),
               SectionHeader(title: 'Dispositivos cercanos'),
               if (peers.isEmpty)
-                const Text('No se han detectado dispositivos.',
-                    style: TextStyle(color: AppColors.grisMedio))
+                Text('No se han detectado dispositivos.',
+                    style: TextStyle(color: textoSuaveTema(context)))
               else
                 for (final p in peers)
                   DuoCard(
@@ -144,13 +144,13 @@ class _BluetoothSyncScreenState extends State<BluetoothSyncScreen> {
                     ),
                   ),
             ] else
-              const Padding(
+              Padding(
                 padding: EdgeInsets.symmetric(vertical: 8),
                 child: Text(
                   'Activa la sincronización para compartir tareas, puntos y '
                   'recompensas con los demás dispositivos del hogar sin usar '
                   'internet (Bluetooth o Wi-Fi directo).',
-                  style: TextStyle(color: AppColors.grisMedio),
+                  style: TextStyle(color: textoSuaveTema(context)),
                 ),
               ),
             const SizedBox(height: 16),

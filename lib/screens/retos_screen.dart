@@ -349,7 +349,7 @@ class _SinRetoCard extends StatelessWidget {
                 ? 'Crea un reto familiar: todos lo cumplen y ganan puntos bonus.'
                 : 'Pídele al administrador que cree un reto familiar.',
             textAlign: TextAlign.center,
-            style: const TextStyle(fontSize: 13, color: AppColors.grisMedio),
+            style: TextStyle(fontSize: 13, color: textoSuaveTema(context)),
           ),
           if (esAdmin) ...[
             const SizedBox(height: 16),
@@ -453,20 +453,20 @@ class _RetoCard extends StatelessWidget {
             const SizedBox(height: 6),
             Row(
               children: [
-                const Icon(Icons.schedule, size: 14, color: AppColors.grisMedio),
+                Icon(Icons.schedule, size: 14, color: textoSuaveTema(context)),
                 const SizedBox(width: 4),
                 Text('Vence el ${_formatoFecha(reto.fechaFin!)}',
-                    style: const TextStyle(
+                    style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
-                        color: AppColors.grisMedio)),
+                        color: textoSuaveTema(context))),
               ],
             ),
           ],
           const SizedBox(height: 16),
           Text(
             'Cumplido por ${reto.cumplidos.length} integrante${reto.cumplidos.length == 1 ? '' : 's'}',
-            style: const TextStyle(fontSize: 12, color: AppColors.grisMedio),
+            style: TextStyle(fontSize: 12, color: textoSuaveTema(context)),
           ),
           const SizedBox(height: 8),
           if (!esAdmin)
@@ -496,8 +496,8 @@ class _RetoCard extends StatelessWidget {
                 ),
               )
             else
-              const Text('Reto finalizado',
-                  style: TextStyle(color: AppColors.grisMedio, fontSize: 12)),
+              Text('Reto finalizado',
+                  style: TextStyle(color: textoSuaveTema(context), fontSize: 12)),
           ],
           if (yaAprobado)
             Padding(
@@ -593,7 +593,7 @@ class _RetosPasadosState extends State<_RetosPasados> {
         for (final r in pasados)
           ListTile(
             dense: true,
-            leading: const Icon(Icons.flag, color: AppColors.grisMedio),
+            leading: Icon(Icons.flag, color: textoSuaveTema(context)),
             title: Text(r.titulo),
             subtitle: Text(
                 '${r.cumplidos.length} cumplidos · +${r.puntos} pts'),

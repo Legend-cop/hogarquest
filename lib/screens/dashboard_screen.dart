@@ -270,8 +270,8 @@ class _IntegranteDashboardState extends State<_IntegranteDashboard> {
                           if (restantes > 0)
                             Text(
                               '$restantes pts para subir',
-                              style: const TextStyle(
-                                  fontSize: 12, color: AppColors.grisMedio),
+                              style: TextStyle(
+                                  fontSize: 12, color: textoSuaveTema(context)),
                             )
                           else
                             const Text('¡Nivel máximo!',
@@ -339,11 +339,11 @@ class _IntegranteDashboardState extends State<_IntegranteDashboard> {
                                     ),
                                   ),
                                   const SizedBox(height: 2),
-                                  const Text(
+                                  Text(
                                     'puntos esta semana',
                                     style: TextStyle(
                                       fontSize: 12,
-                                      color: AppColors.grisMedio,
+                                      color: textoSuaveTema(context),
                                     ),
                                   ),
                                 ],
@@ -362,11 +362,11 @@ class _IntegranteDashboardState extends State<_IntegranteDashboard> {
                                     ),
                                   ),
                                   const SizedBox(height: 2),
-                                  const Text(
+                                  Text(
                                     'días activos',
                                     style: TextStyle(
                                       fontSize: 12,
-                                      color: AppColors.grisMedio,
+                                      color: textoSuaveTema(context),
                                     ),
                                   ),
                                 ],
@@ -410,8 +410,8 @@ class _IntegranteDashboardState extends State<_IntegranteDashboard> {
                       ),
                 SectionHeader(title: 'Insignias'),
                 if (insigniasIds.isEmpty)
-                  const Text('Completa tareas para ganar insignias.',
-                      style: TextStyle(color: AppColors.grisMedio))
+                  Text('Completa tareas para ganar insignias.',
+                      style: TextStyle(color: textoSuaveTema(context)))
                 else
                   Wrap(
                     spacing: 8,
@@ -721,7 +721,7 @@ class _RecordatorioAprobaciones extends StatelessWidget {
                       fontSize: 14),
                 ),
               ),
-              const Icon(Icons.chevron_right, color: AppColors.grisMedio),
+              Icon(Icons.chevron_right, color: textoSuaveTema(context)),
             ],
           ),
         ),
@@ -768,13 +768,13 @@ class _RecordatorioHoy extends StatelessWidget {
                       tareas.map((t) => t.$1.titulo).take(3).join(' · '),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                          fontSize: 12, color: AppColors.grisMedio),
+                      style: TextStyle(
+                          fontSize: 12, color: textoSuaveTema(context)),
                     ),
                   ],
                 ),
               ),
-              const Icon(Icons.chevron_right, color: AppColors.grisMedio),
+              Icon(Icons.chevron_right, color: textoSuaveTema(context)),
             ],
           ),
         ),
@@ -839,8 +839,8 @@ class _LeccionDelDiaCard extends StatelessWidget {
                       pendientes > 0
                           ? '$pendientes tareas te esperan'
                           : 'Todo listo por hoy 🎉',
-                      style: const TextStyle(
-                          color: AppColors.grisMedio, fontSize: 13),
+                      style: TextStyle(
+                          color: textoSuaveTema(context), fontSize: 13),
                     ),
                   ],
                 ),
@@ -856,11 +856,11 @@ class _LeccionDelDiaCard extends StatelessWidget {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Text('NIVEL',
+                Text('NIVEL',
                     style: TextStyle(
                         fontSize: 11,
                         fontWeight: FontWeight.w800,
-                        color: AppColors.grisMedio)),
+                        color: textoSuaveTema(context))),
                 Text(
                   '${user.nivel}',
                   style: TextStyle(
@@ -922,7 +922,7 @@ class _RachaPill extends StatelessWidget {
               child: Text(
                 label,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontSize: 11, color: AppColors.grisMedio),
+                style: TextStyle(fontSize: 11, color: textoSuaveTema(context)),
               ),
             ),
           ],
@@ -1014,7 +1014,7 @@ class _StatCard extends StatelessWidget {
           Text(label,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontSize: 11, color: AppColors.grisMedio)),
+              style: TextStyle(fontSize: 11, color: textoSuaveTema(context))),
         ],
       ),
     );
@@ -1062,10 +1062,10 @@ class _MiniTaskCard extends StatelessWidget {
                 const SizedBox(height: 2),
                 Text(
                   dificultad.toUpperCase(),
-                  style: const TextStyle(
+                  style: TextStyle(
                       fontSize: 11,
                       fontWeight: FontWeight.w800,
-                      color: AppColors.grisMedio),
+                      color: textoSuaveTema(context)),
                 ),
               ],
             ),

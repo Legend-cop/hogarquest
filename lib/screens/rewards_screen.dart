@@ -273,8 +273,8 @@ class _EntregaCanjesDialogState extends State<_EntregaCanjesDialog> {
       content: SizedBox(
         width: 420,
         child: pendientes.isEmpty
-            ? const Text('No hay recompensas pendientes de entregar.',
-                style: TextStyle(color: AppColors.grisMedio))
+            ? Text('No hay recompensas pendientes de entregar.',
+                style: TextStyle(color: textoSuaveTema(context)))
             : ListView.builder(
                 shrinkWrap: true,
                 itemCount: pendientes.length,
@@ -625,9 +625,9 @@ class _UserRewardsViewState extends State<_UserRewardsView> {
                                 Text(r.descripcion,
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
-                                    style: const TextStyle(
+                                    style: TextStyle(
                                         fontSize: 12,
-                                        color: AppColors.grisMedio)),
+                                        color: textoSuaveTema(context))),
                                 const SizedBox(height: 4),
                                 Text('Coste: ${r.costoPuntos} pts',
                                     style: TextStyle(
@@ -637,9 +637,9 @@ class _UserRewardsViewState extends State<_UserRewardsView> {
                                 if (jaCambiado)
                                   Text(
                                     'Canjeado el: ${_canjes.firstWhere((c) => c.$2.id == r.id).$1.fecha}',
-                                    style: const TextStyle(
+                                    style: TextStyle(
                                         fontSize: 11,
-                                        color: AppColors.grisMedio),
+                                        color: textoSuaveTema(context)),
                                   ),
                               ],
                             ),
@@ -650,7 +650,7 @@ class _UserRewardsViewState extends State<_UserRewardsView> {
                             child: jaCambiado
                                 ? DuoButton(
                                     label: 'Canjeado',
-                                    color: AppColors.grisMedio,
+                                    color: AppColors.grisOscuro.withValues(alpha: 0.35),
                                     borderColor: AppColors.grisOscuro,
                                     onPressed: null,
                                   )

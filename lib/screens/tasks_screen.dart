@@ -554,14 +554,14 @@ class _AdminSemanaTabState extends State<_AdminSemanaTab> {
               const SizedBox(height: 8),
             ],
           if (sinDia.isNotEmpty) ...[
-            const Padding(
+            Padding(
               padding: EdgeInsets.fromLTRB(4, 12, 4, 6),
               child: Text(
                 'Todos los días',
                 style: TextStyle(
                   fontWeight: FontWeight.w800,
                   fontSize: 16,
-                  color: AppColors.grisMedio,
+                  color: textoSuaveTema(context),
                 ),
               ),
             ),
@@ -742,10 +742,10 @@ class _DiaSemanaHeader extends StatelessWidget {
             ),
             child: Text(
               '$total tarea${total == 1 ? '' : 's'}',
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 11,
                 fontWeight: FontWeight.w700,
-                color: AppColors.grisMedio,
+                color: textoSuaveTema(context),
               ),
             ),
           ),
@@ -766,7 +766,7 @@ class _SubgrupoTarea extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(4, 6, 4, 2),
       child: Row(
         children: [
-          Icon(Icons.person, size: 14, color: AppColors.grisMedio),
+          Icon(Icons.person, size: 14, color: textoSuaveTema(context)),
           const SizedBox(width: 4),
           Text(
             nombre,
@@ -822,10 +822,10 @@ class _SemanaTaskCard extends StatelessWidget {
                     Text(
                       '${tarea.puntos} pts • ${tarea.dificultad.toUpperCase()}'
                       '${tarea.frecuencia != 'unica' ? ' • ${_capitalizar(tarea.frecuencia)}' : ''}',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 11,
                         fontWeight: FontWeight.w800,
-                        color: AppColors.grisMedio,
+                        color: textoSuaveTema(context),
                       ),
                     ),
                   ],
@@ -835,9 +835,9 @@ class _SemanaTaskCard extends StatelessWidget {
           ),
           const SizedBox(height: 10),
           if (asignados.isEmpty)
-            const Text(
+            Text(
               'Sin asignar',
-              style: TextStyle(fontSize: 11, color: AppColors.grisMedio),
+              style: TextStyle(fontSize: 11, color: textoSuaveTema(context)),
             )
           else
             Wrap(
@@ -1023,14 +1023,14 @@ class _AdminListaTabState extends State<_AdminListaTab> {
               const SizedBox(height: 8),
             ],
           if (sinDia.isNotEmpty) ...[
-            const Padding(
+            Padding(
               padding: EdgeInsets.fromLTRB(4, 12, 4, 6),
               child: Text(
                 'Todos los días',
                 style: TextStyle(
                   fontWeight: FontWeight.w800,
                   fontSize: 16,
-                  color: AppColors.grisMedio,
+                  color: textoSuaveTema(context),
                 ),
               ),
             ),
@@ -1043,14 +1043,14 @@ class _AdminListaTabState extends State<_AdminListaTab> {
             const SizedBox(height: 8),
           ],
           if (inactivas.isNotEmpty) ...[
-            const Padding(
+            Padding(
               padding: EdgeInsets.fromLTRB(4, 12, 4, 6),
               child: Text(
                 'Inactivas',
                 style: TextStyle(
                   fontWeight: FontWeight.w800,
                   fontSize: 16,
-                  color: AppColors.grisMedio,
+                  color: textoSuaveTema(context),
                 ),
               ),
             ),
@@ -1102,12 +1102,12 @@ class _AdminCatalogoTab extends StatelessWidget {
       child: ListView(
         padding: const EdgeInsets.all(12),
         children: [
-          const Padding(
+          Padding(
             padding: EdgeInsets.fromLTRB(4, 0, 4, 6),
             child: Text(
               'Puntos por defecto de cada tarea. Se prellenan al crear una '
               'tarea nueva y se pueden editar. Ordenadas por dificultad.',
-              style: TextStyle(fontSize: 12, color: AppColors.grisMedio),
+              style: TextStyle(fontSize: 12, color: textoSuaveTema(context)),
             ),
           ),
           for (final c in lista) _CatalogoCard(entrada: c, onChanged: onChanged),
@@ -1145,10 +1145,10 @@ class _CatalogoCard extends StatelessWidget {
                 const SizedBox(height: 2),
                 Text(
                   '${entrada.puntos} pts · ${_capitalizar(_dificultadPara(entrada.puntos))}',
-                  style: const TextStyle(
+                  style: TextStyle(
                       fontSize: 11,
                       fontWeight: FontWeight.w800,
-                      color: AppColors.grisMedio),
+                      color: textoSuaveTema(context)),
                 ),
               ],
             ),
@@ -1307,7 +1307,7 @@ class _AdminTaskCard extends StatelessWidget {
             if (tarea.fechaLimite != null)
               Text(
                 'Límite: ${_fmtLimite(tarea.fechaLimite!)}',
-                style: const TextStyle(fontSize: 12, color: AppColors.grisMedio),
+                style: TextStyle(fontSize: 12, color: textoSuaveTema(context)),
               ),
             const SizedBox(height: 6),
             Chip(
@@ -1461,8 +1461,8 @@ class _CardActionsAdmin extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 8),
-        const Text('Asignaciones:',
-            style: TextStyle(fontSize: 12, color: AppColors.grisMedio)),
+        Text('Asignaciones:',
+            style: TextStyle(fontSize: 12, color: textoSuaveTema(context))),
         const SizedBox(height: 4),
         _AsignadosList(asignados: asignados),
       ],
@@ -1477,9 +1477,9 @@ class _AsignadosList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (asignados.isEmpty) {
-      return const Text(
+      return Text(
         'Sin asignar',
-        style: TextStyle(fontSize: 11, color: AppColors.grisMedio),
+        style: TextStyle(fontSize: 11, color: textoSuaveTema(context)),
       );
     }
     return Wrap(
@@ -1569,7 +1569,8 @@ class _IntegranteTasksList extends StatelessWidget {
               const SizedBox(height: 8),
             ],
           if (sinDia.isNotEmpty) ...[
-            const _DiaHeader(nombre: 'Otros', color: AppColors.grisMedio),
+            _DiaHeader(
+                nombre: 'Otros', color: textoSuaveTema(context).withValues(alpha: 0.45)),
             ...sinDia.map((t) => _MiniTaskCard(
                   task: t.$1,
                   assignment: t.$2,
@@ -1685,7 +1686,7 @@ class _DiaHeader extends StatelessWidget {
           ),
           if (bloqueado) ...[
             const SizedBox(width: 6),
-            const Icon(Icons.lock_outline, size: 15, color: AppColors.grisMedio),
+            Icon(Icons.lock_outline, size: 15, color: textoSuaveTema(context)),
           ],
           if (esHoy) ...[
             const SizedBox(width: 8),
@@ -1747,10 +1748,10 @@ class _MiniTaskCard extends StatelessWidget {
                   Text(
                     '${task.dificultad.toUpperCase()}'
                     '${task.fechaLimite != null ? " · ${_fmtLimite(task.fechaLimite!)}" : ""}',
-                    style: const TextStyle(
+                    style: TextStyle(
                         fontSize: 11,
                         fontWeight: FontWeight.w800,
-                        color: AppColors.grisMedio),
+                        color: textoSuaveTema(context)),
                   ),
                   const SizedBox(height: 4),
                   Chip(
@@ -1775,22 +1776,22 @@ class _MiniTaskCard extends StatelessWidget {
                       height: 44,
                       alignment: Alignment.center,
                       decoration: BoxDecoration(
-                        color: AppColors.grisMedio.withValues(alpha: 0.15),
+                        color: textoSuaveTema(context).withValues(alpha: 0.15),
                         borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: AppColors.grisMedio),
+                        border: Border.all(color: textoSuaveTema(context)),
                       ),
-                      child: const Row(
+                      child: Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           Icon(Icons.lock_outline,
-                              size: 15, color: AppColors.grisMedio),
+                              size: 15, color: textoSuaveTema(context)),
                           SizedBox(width: 4),
                           Text(
                             'Bloqueada',
                             style: TextStyle(
                                 fontSize: 11,
                                 fontWeight: FontWeight.w800,
-                                color: AppColors.grisMedio),
+                                color: textoSuaveTema(context)),
                           ),
                         ],
                       ),
@@ -1856,8 +1857,8 @@ class _HistorialCard extends StatelessWidget {
                   assignment.fechaCompletada != null
                       ? 'Completada el: ${assignment.fechaCompletada!.toLocal().toString().split(" ").first}'
                       : 'Asignada el: ${assignment.fechaAsignada!.toLocal().toString().split(" ").first}',
-                  style: const TextStyle(
-                      fontSize: 11, color: AppColors.grisMedio),
+                  style: TextStyle(
+                      fontSize: 11, color: textoSuaveTema(context)),
                 ),
               ],
             ),

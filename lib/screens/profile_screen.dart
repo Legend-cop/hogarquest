@@ -548,8 +548,8 @@ class _AvatarCard extends StatelessWidget {
         const SizedBox(height: 8),
         Text(
           '${user.puntos} pts XP acumulados',
-          style: const TextStyle(
-              color: AppColors.grisMedio, fontWeight: FontWeight.w700),
+          style: TextStyle(
+              color: textoSuaveTema(context), fontWeight: FontWeight.w700),
         ),
       ],
     );
@@ -731,7 +731,7 @@ class _InfoRow extends StatelessWidget {
         children: [
           Icon(icon, color: AppColors.azul, size: 20),
           const SizedBox(width: 12),
-          Text(label, style: const TextStyle(color: Colors.grey)),
+          Text(label, style: TextStyle(color: textoSuaveTema(context))),
           const Spacer(),
           Text(value, style: const TextStyle(fontWeight: FontWeight.w600)),
         ],
@@ -800,8 +800,8 @@ class _InsigniasSectionState extends State<_InsigniasSection> {
       return const Center(child: CircularProgressIndicator());
     }
     if (_detalle.isEmpty) {
-      return const Text('Completa tareas para ganar insignias.',
-          style: TextStyle(color: Colors.grey));
+      return Text('Completa tareas para ganar insignias.',
+          style: TextStyle(color: textoSuaveTema(context)));
     }
     return Column(
       children: [
@@ -846,8 +846,8 @@ class _InsigniasSectionState extends State<_InsigniasSection> {
                       ),
                       const SizedBox(height: 2),
                       Text(d.$1.descripcion,
-                          style: const TextStyle(
-                              color: AppColors.grisMedio, fontSize: 12)),
+                          style: TextStyle(
+                              color: textoSuaveTema(context), fontSize: 12)),
                       const SizedBox(height: 8),
                       LinearProgressIndicator(
                         value: d.$3 == 0 ? 0 : d.$2 / d.$3,
@@ -860,8 +860,8 @@ class _InsigniasSectionState extends State<_InsigniasSection> {
                       const SizedBox(height: 4),
                       Text(
                         d.$4 ? 'Completada' : '${d.$2}/${d.$3}',
-                        style: const TextStyle(
-                            color: AppColors.grisMedio, fontSize: 12),
+                        style: TextStyle(
+                            color: textoSuaveTema(context), fontSize: 12),
                       ),
                     ],
                   ),
@@ -910,8 +910,8 @@ class _RedemptionsSectionState extends State<_RedemptionsSection> {
     }
 
     if (_canjes.isEmpty) {
-      return const Text('Aún no se ha canjeado ninguna recompensa.',
-          style: TextStyle(color: Colors.grey));
+      return Text('Aún no se ha canjeado ninguna recompensa.',
+          style: TextStyle(color: textoSuaveTema(context)));
     }
 
     return ListView.builder(
@@ -1223,18 +1223,18 @@ class _CastigosSectionState extends State<_CastigosSection> {
         ),
         const SizedBox(height: 8),
         if (_castigos.isEmpty)
-          const Text('Sin castigos ni quitas. ¡Sigue así! 🎉',
-              style: TextStyle(color: AppColors.grisMedio, fontSize: 13))
+          Text('Sin castigos ni quitas. ¡Sigue así! 🎉',
+              style: TextStyle(color: textoSuaveTema(context), fontSize: 13))
         else ...[
           if (tareas.isNotEmpty) ...[
-            const Text('Por tareas sin cumplir',
-                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: AppColors.grisMedio)),
+            Text('Por tareas sin cumplir',
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: textoSuaveTema(context))),
             ...tareas.map((c) => _fila(c, Icons.event_busy, Colors.orange)),
             const SizedBox(height: 8),
           ],
           if (disciplina.isNotEmpty) ...[
-            const Text('Castigos (disciplina)',
-                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: AppColors.grisMedio)),
+            Text('Castigos (disciplina)',
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: textoSuaveTema(context))),
             ...disciplina.map((c) => _fila(c, Icons.error_outline, AppColors.rojo)),
           ],
         ],

@@ -203,14 +203,14 @@ class _Header extends StatelessWidget {
                         padding: const EdgeInsets.symmetric(
                             horizontal: 6, vertical: 2),
                         decoration: BoxDecoration(
-                          color: AppColors.grisMedio.withValues(alpha: 0.2),
+                          color: textoSuaveTema(context).withValues(alpha: 0.2),
                           borderRadius: BorderRadius.circular(6),
                         ),
-                        child: const Text('Inactivo',
+                        child: Text('Inactivo',
                             style: TextStyle(
                                 fontSize: 10,
                                 fontWeight: FontWeight.w800,
-                                color: AppColors.grisMedio)),
+                                color: textoSuaveTema(context))),
                       ),
                     ],
                   ],
@@ -218,8 +218,8 @@ class _Header extends StatelessWidget {
                 const SizedBox(height: 4),
                 Text(
                   'Nivel ${u?.nivel ?? 1} · ${u?.puntos ?? 0} pts · 🔥 ${u?.racha ?? 0} días',
-                  style: const TextStyle(
-                      fontSize: 13, color: AppColors.grisMedio),
+                  style: TextStyle(
+                      fontSize: 13, color: textoSuaveTema(context)),
                 ),
               ],
             ),
@@ -259,7 +259,7 @@ class _Caja extends StatelessWidget {
           Text(label,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontSize: 9, color: AppColors.grisMedio)),
+              style: TextStyle(fontSize: 9, color: textoSuaveTema(context))),
         ],
       ),
     );
@@ -288,8 +288,8 @@ class _TareasHoyCard extends StatelessWidget {
               style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
           const SizedBox(height: 10),
           if (tareas.isEmpty)
-            const Text('Hoy no tiene tareas asignadas.',
-                style: TextStyle(color: AppColors.grisMedio))
+            Text('Hoy no tiene tareas asignadas.',
+                style: TextStyle(color: textoSuaveTema(context)))
           else ...[
             // Pendientes
             for (final m in pendientes)
@@ -302,8 +302,8 @@ class _TareasHoyCard extends StatelessWidget {
                     style: const TextStyle(fontWeight: FontWeight.w600)),
                 subtitle: Text('Pendiente · +${m['puntos']} pts',
                     style: const TextStyle(fontSize: 11)),
-                trailing: const Icon(Icons.schedule,
-                    size: 16, color: AppColors.grisMedio),
+                trailing: Icon(Icons.schedule,
+                    size: 16, color: textoSuaveTema(context)),
               ),
             // Completadas
             for (final m in completadas)
@@ -347,31 +347,32 @@ class _SemanasCard extends StatelessWidget {
           const Text('Semana',
               style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
           const SizedBox(height: 10),
-          _linea(Icons.stars, 'Racha actual', '${user?.racha ?? 0} días',
+          _linea(context, Icons.stars, 'Racha actual', '${user?.racha ?? 0} días',
               AppColors.rojo),
-          _linea(Icons.military_tech, 'Nivel', '${user?.nivel ?? 1}',
+          _linea(context, Icons.military_tech, 'Nivel', '${user?.nivel ?? 1}',
               AppColors.amarillo),
-          _linea(Icons.stars, 'Puntos totales', '${user?.puntos ?? 0} pts',
-              AppColors.morado),
+          _linea(context, Icons.stars, 'Puntos totales',
+              '${user?.puntos ?? 0} pts', AppColors.morado),
           const SizedBox(height: 8),
-          const Text(
+          Text(
             'Detalles del día arriba: pendientes y aprobadas de HOY. '
             'La semana suma los últimos 7 días.',
-            style: TextStyle(fontSize: 12, color: AppColors.grisMedio),
+            style: TextStyle(fontSize: 12, color: textoSuaveTema(context)),
           ),
         ],
       ),
     );
   }
 
-  Widget _linea(IconData icon, String label, String value, Color color) {
+  Widget _linea(
+      BuildContext context, IconData icon, String label, String value, Color color) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 5),
       child: Row(
         children: [
           Icon(icon, size: 18, color: color),
           const SizedBox(width: 10),
-          Text(label, style: const TextStyle(color: AppColors.grisMedio)),
+          Text(label, style: TextStyle(color: textoSuaveTema(context))),
           const Spacer(),
           Text(value, style: const TextStyle(fontWeight: FontWeight.w800)),
         ],
@@ -462,21 +463,21 @@ class _CastigosCardState extends State<_CastigosCard> {
               style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
           const SizedBox(height: 8),
           if (tareas.isNotEmpty) ...[
-            const Text('Por tareas sin cumplir',
-                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: AppColors.grisMedio)),
+            Text('Por tareas sin cumplir',
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: textoSuaveTema(context))),
             for (final c in tareas)
               _filaCastigo(c, Icons.event_busy, Colors.orange),
             const SizedBox(height: 8),
           ],
           if (disciplina.isNotEmpty) ...[
-            const Text('Castigos (disciplina)',
-                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: AppColors.grisMedio)),
+            Text('Castigos (disciplina)',
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: textoSuaveTema(context))),
             for (final c in disciplina)
               _filaCastigo(c, Icons.gavel, AppColors.rojo),
           ],
-          const Text(
+          Text(
             'Toca el botón de restaurar para perdonar un castigo y devolver los puntos.',
-            style: TextStyle(fontSize: 11, color: AppColors.grisMedio),
+            style: TextStyle(fontSize: 11, color: textoSuaveTema(context)),
           ),
         ],
       ),
@@ -591,11 +592,11 @@ class _GraficoCumplimientoState extends State<_GraficoCumplimiento> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text('Últimos 30 días: $total pts',
-                      style: const TextStyle(
-                          fontSize: 12, color: AppColors.grisMedio)),
+                      style: TextStyle(
+                          fontSize: 12, color: textoSuaveTema(context))),
                   Text('${datos.where((e) => e.$2 > 0).length} días activos',
-                      style: const TextStyle(
-                          fontSize: 12, color: AppColors.grisMedio)),
+                      style: TextStyle(
+                          fontSize: 12, color: textoSuaveTema(context))),
                 ],
               );
             },

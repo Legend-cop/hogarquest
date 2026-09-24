@@ -2,7 +2,8 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 
 /// Paleta estilo Duolingo para HogarQuest.
-class AppColors {  static const verde = Color(0xFF58CC02);
+class AppColors {
+  static const verde = Color(0xFF58CC02);
   static const verdeOscuro = Color(0xFF46A302);
   static const verdeFondo = Color(0xFFE5FFCC);
   static const azul = Color(0xFF1CB0F6);
@@ -23,6 +24,14 @@ Color textoTema(BuildContext context) =>
     Theme.of(context).brightness == Brightness.dark
         ? Colors.white
         : AppColors.grisOscuro;
+
+/// Color de texto secundario/tenue según el tema (blanco 70% en oscuro).
+/// Sustituye a `AppColors.grisMedio` en textos e iconos: el gris medio
+/// sobre fondo oscuro queda ilegible.
+Color textoSuaveTema(BuildContext context) =>
+    Theme.of(context).brightness == Brightness.dark
+        ? Colors.white70
+        : AppColors.grisMedio;
 
 class AppTheme {
   static ThemeData light() {
@@ -54,27 +63,37 @@ class AppTheme {
     final isDark = brightness == Brightness.dark;
     // Color de texto principal según el modo (evita texto invisible en dark).
     final texto = isDark ? Colors.white : AppColors.grisOscuro;
+    final suave = isDark ? Colors.white70 : AppColors.grisMedio;
+    // Base de tipografía con colores correctos por brillo (antes se usaba
+    // la de claro siempre, dejando bodySmall/hint en negro sobre oscuro).
+    final baseText = ThemeData(brightness: brightness).textTheme;
     return ThemeData(
       useMaterial3: true,
       brightness: brightness,
       colorScheme: scheme,
       scaffoldBackgroundColor: isDark ? AppColors.grisOscuro : AppColors.fondo,
-      textTheme: ThemeData.light().textTheme.copyWith(
-            headlineMedium: TextStyle(
+      textTheme: baseText.copyWith(
+            headlineMedium: baseText.headlineMedium?.copyWith(
               fontFamily: 'sans-serif',
               fontWeight: FontWeight.w800,
               color: texto,
               fontSize: 26,
             ),
-            titleLarge: TextStyle(
+            titleLarge: baseText.titleLarge?.copyWith(
               fontWeight: FontWeight.w800,
               color: texto,
               fontSize: 20,
             ),
-            bodyMedium: TextStyle(
+            titleMedium: baseText.titleMedium?.copyWith(color: texto),
+            bodyLarge: baseText.bodyLarge?.copyWith(color: texto),
+            bodyMedium: baseText.bodyMedium?.copyWith(
               color: texto,
               fontSize: 15,
             ),
+            bodySmall: baseText.bodySmall?.copyWith(color: suave),
+            labelLarge: baseText.labelLarge?.copyWith(color: texto),
+            labelMedium: baseText.labelMedium?.copyWith(color: suave),
+            labelSmall: baseText.labelSmall?.copyWith(color: suave),
           ),
       appBarTheme: AppBarTheme(
         centerTitle: true,
@@ -116,7 +135,11 @@ class AppTheme {
           borderSide: const BorderSide(color: AppColors.verde, width: 3),
         ),
         labelStyle: TextStyle(
-          color: isDark ? Colors.white70 : AppColors.grisMedio,
+          color: suave,
+          fontWeight: FontWeight.w600,
+        ),
+        hintStyle: TextStyle(
+          color: suave,
           fontWeight: FontWeight.w600,
         ),
       ),
@@ -187,9 +210,11 @@ class AppTheme {
           borderRadius: BorderRadius.circular(10),
           side: BorderSide.none,
         ),
-        backgroundColor: AppColors.verdeFondo,
-        labelStyle: const TextStyle(
-          color: AppColors.verdeOscuro,
+        backgroundColor: isDark
+            ? AppColors.verde.withValues(alpha: 0.2)
+            : AppColors.verdeFondo,
+        labelStyle: TextStyle(
+          color: isDark ? AppColors.verde : AppColors.verdeOscuro,
           fontWeight: FontWeight.w800,
         ),
       ),
@@ -199,12 +224,12 @@ class AppTheme {
         space: 1,
       ),
       tabBarTheme: TabBarThemeData(
-        labelColor: AppColors.verdeOscuro,
-        unselectedLabelColor: AppColors.grisMedio,
+        labelColor: isDark ? AppColors.verde : AppColors.verdeOscuro,
+        unselectedLabelColor: suave,
         labelStyle: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14),
         unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
         indicatorColor: AppColors.verde,
-        dividerColor: AppColors.linea,
+        dividerColor: isDark ? Colors.white24 : AppColors.linea,
       ),
       dialogTheme: DialogThemeData(
         backgroundColor: isDark ? AppColors.superficieOscura : Colors.white,
@@ -217,6 +242,8 @@ class AppTheme {
       ),
       snackBarTheme: SnackBarThemeData(
         behavior: SnackBarBehavior.floating,
+        backgroundColor: isDark ? AppColors.superficieOscura : null,
+        contentTextStyle: TextStyle(color: texto),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
       pageTransitionsTheme: const PageTransitionsTheme(

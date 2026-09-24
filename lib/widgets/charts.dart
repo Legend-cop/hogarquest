@@ -273,9 +273,9 @@ class DonutChart extends StatelessWidget {
                   if (centerSub != null)
                     Text(
                       centerSub!,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 10,
-                        color: AppColors.grisMedio,
+                        color: textoSuaveTema(context),
                       ),
                     ),
                 ],
@@ -375,9 +375,9 @@ class StreakHeatmap extends StatelessWidget {
                         child: Center(
                           child: Text(
                             l,
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 9,
-                              color: AppColors.grisMedio,
+                              color: textoSuaveTema(context),
                             ),
                           ),
                         ),
@@ -398,9 +398,9 @@ class StreakHeatmap extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.end,
             children: [
-              const Text(
+              Text(
                 'Menos',
-                style: TextStyle(fontSize: 10, color: AppColors.grisMedio),
+                style: TextStyle(fontSize: 10, color: textoSuaveTema(context)),
               ),
               const SizedBox(width: 6),
               for (int n = 0; n <= 4; n++)
@@ -414,9 +414,9 @@ class StreakHeatmap extends StatelessWidget {
                   ),
                 ),
               const SizedBox(width: 6),
-              const Text(
+              Text(
                 'Más',
-                style: TextStyle(fontSize: 10, color: AppColors.grisMedio),
+                style: TextStyle(fontSize: 10, color: textoSuaveTema(context)),
               ),
             ],
           ),

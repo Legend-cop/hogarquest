@@ -85,7 +85,7 @@ class _LocalSyncScreenState extends State<LocalSyncScreen> {
                     ],
                   ),
                   const SizedBox(height: 12),
-                  const Text('Código de hogar', style: TextStyle(color: AppColors.grisMedio)),
+                  Text('Código de hogar', style: TextStyle(color: textoSuaveTema(context))),
                   SelectableText(
                     sync.householdCode ?? '—',
                     style: const TextStyle(
@@ -95,7 +95,7 @@ class _LocalSyncScreenState extends State<LocalSyncScreen> {
                   Text(
                     'Los dispositivos de tu familia deben mostrar el mismo código '
                     'para sincronizarse sin internet.',
-                    style: const TextStyle(color: AppColors.grisMedio, fontSize: 12),
+                    style: TextStyle(color: textoSuaveTema(context), fontSize: 12),
                   ),
                   const SizedBox(height: 12),
                   Text(
@@ -123,12 +123,12 @@ class _LocalSyncScreenState extends State<LocalSyncScreen> {
               style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: 8),
           if (peers.isEmpty)
-            const Padding(
+            Padding(
               padding: EdgeInsets.symmetric(vertical: 12),
               child: Text(
                 'Ninguno detectado todavía. Asegúrate de que los dispositivos '
                 'estén en la misma Wi-Fi. Puedes agregar uno manualmente abajo.',
-                style: TextStyle(color: AppColors.grisMedio),
+                style: TextStyle(color: textoSuaveTema(context)),
               ),
             )
           else
@@ -186,14 +186,14 @@ class _LocalSyncScreenState extends State<LocalSyncScreen> {
                   const Text('Acerca de Bluetooth',
                       style: TextStyle(fontWeight: FontWeight.w800)),
                   const SizedBox(height: 6),
-                  const Text(
+                  Text(
                     'El transporte Bluetooth como respaldo sin Wi-Fi está en '
                     'evaluación: los plugins BLE estándar de Flutter son solo '
                     'clientes (no pueden actuar de servidor para intercambiar '
                     'datos) y algunos requieren licencia comercial. Mientras '
                     'tanto, usa la misma Wi-Fi (o agrega la IP manualmente) para '
                     'sincronizar sin internet.',
-                    style: TextStyle(color: AppColors.grisMedio, fontSize: 13),
+                    style: TextStyle(color: textoSuaveTema(context), fontSize: 13),
                   ),
                 ],
               ),

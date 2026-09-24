@@ -83,8 +83,8 @@ class _PinGateScreenState extends State<PinGateScreen> {
                     'Hola ${user?.nombre ?? ''}, ingresa tu PIN para '
                     'entrar al panel de administración.',
                     textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      color: AppColors.grisMedio,
+                    style: TextStyle(
+                      color: textoSuaveTema(context),
                       fontSize: 15,
                     ),
                   ),

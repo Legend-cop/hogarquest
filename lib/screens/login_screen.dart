@@ -54,13 +54,16 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     final app = context.watch<AppProvider>();
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Scaffold(
       body: Container(
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [Color(0xFFE5FFCC), Colors.white],
+            colors: isDark
+                ? const [Color(0xFF1E3314), AppColors.grisOscuro]
+                : const [Color(0xFFE5FFCC), Colors.white],
           ),
         ),
         child: SafeArea(
@@ -94,22 +97,22 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                     ),
                     const SizedBox(height: 24),
-                    const Text(
+                    Text(
                       'HogarQuest',
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         fontSize: 34,
                         fontWeight: FontWeight.w800,
-                        color: AppColors.verdeOscuro,
+                        color: isDark ? AppColors.verde : AppColors.verdeOscuro,
                         letterSpacing: -0.5,
                       ),
                     ),
                     const SizedBox(height: 6),
-                    const Text(
+                    Text(
                       '¡Aprende, coopera y gana premios!',
                       textAlign: TextAlign.center,
                       style: TextStyle(
-                          color: AppColors.grisMedio,
+                          color: textoSuaveTema(context),
                           fontSize: 14,
                           fontWeight: FontWeight.w600),
                     ),
@@ -187,10 +190,10 @@ class _LoginScreenState extends State<LoginScreen> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        const Text(
+                        Text(
                           '¿Olvidaste tu contraseña? ',
                           style: TextStyle(
-                              fontSize: 13, color: AppColors.grisMedio),
+                              fontSize: 13, color: textoSuaveTema(context)),
                         ),
                           TextButton(
                             onPressed: () => ScaffoldMessenger.of(context)
