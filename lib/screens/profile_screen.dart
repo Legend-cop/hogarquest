@@ -1,19 +1,11 @@
-import 'dart:convert';
-import 'dart:typed_data';
-
 import 'package:flutter/material.dart';
-import 'package:file_saver/file_saver.dart';
-import 'package:file_picker/file_picker.dart';
 import 'package:provider/provider.dart';
-
-import 'local_sync_screen.dart';
 
 import '../db/photo_picker.dart';
 import '../db/photo_store.dart';
 import '../db/upload_client.dart';
 import '../providers/app_provider.dart';
-import '../providers/theme_controller.dart';
-import '../screens/bluetooth_sync_screen.dart';
+import 'settings_screen.dart';
 import '../theme/app_theme.dart';
 import '../widgets/duo_widgets.dart';
 import '../widgets/section_header.dart';
@@ -25,9 +17,7 @@ import '../models/castigo.dart';
 import '../models/redemption.dart';
 import '../models/reward.dart';
 import '../models/task.dart';
-import '../services/celebration_service.dart';
 import '../services/gamification_service.dart';
-import '../services/notification_service.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -98,6 +88,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
         title: const Text('Perfil del integrante'),
         actions: [
           IconButton(
+            tooltip: 'Ajustes',
+            icon: const Icon(Icons.settings),
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const SettingsScreen()),
+            ),
+          ),
+          IconButton(
             tooltip: 'Cerrar sesión',
             icon: const Icon(Icons.logout, color: AppColors.rojo),
             onPressed: () => _cerrarSesion(context),
@@ -113,105 +111,42 @@ class _ProfileScreenState extends State<ProfileScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            _AvatarCard(user: user, onCambiarFoto: _cambiarFoto),
-            const SizedBox(height: 24),
-            _InfoCard(
-              user: user,
-              editando: _editando,
-              nombreController: _nombreController,
-              colorTemaController: _colorTemaController,
-              onGuardado: () => setState(() => _editando = false),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 26, horizontal: 16),
+              decoration: BoxDecoration(
+                color: const Color(0xFF2A3B1D),
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: const [
+                  BoxShadow(
+                    color: Color(0x33000000),
+                    offset: Offset(0, 4),
+                    blurRadius: 0,
+                  ),
+                ],
+              ),
+              child: _AvatarCard(user: user, onCambiarFoto: _cambiarFoto),
             ),
             const SizedBox(height: 20),
-            _RecordatorioCard(userId: user.id!),
-            const SizedBox(height: 20),
-            const _AjustesCard(),
+            if (_editando)
+              _InfoCard(
+                user: user,
+                editando: _editando,
+                nombreController: _nombreController,
+                colorTemaController: _colorTemaController,
+                onGuardado: () => setState(() => _editando = false),
+              )
+            else
+              _StatsGrid(user: user),
             const SizedBox(height: 20),
             const Divider(),
-            SectionHeader(title: 'Mis insignias'),
+            SectionHeader(title: 'Medallero de insignias'),
             _InsigniasSection(user: user),
             const SizedBox(height: 20),
             SectionHeader(title: 'Canjes recientes'),
             _RedemptionsSection(user: user),
             const SizedBox(height: 20),
             _CastigosSection(userId: user.id!),
-            if (user.esAdmin) ...[
-              const SizedBox(height: 20),
-              const Divider(),
-              SectionHeader(title: 'Administración'),
-              DuoCard(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    ListTile(
-                      leading: const Icon(Icons.pin, color: AppColors.azul),
-                      title: const Text('PIN de administrador'),
-                      subtitle: const Text(
-                          'Protege el acceso al panel de administración.'),
-                      trailing: const Icon(Icons.chevron_right),
-                      onTap: () => _configurarPin(context),
-                    ),
-                    const Divider(),
-                    ListTile(
-                      leading:
-                          const Icon(Icons.download, color: AppColors.verdeOscuro),
-                      title: const Text('Exportar respaldo'),
-                      subtitle: const Text(
-                          'Descarga una copia completa de la base de datos.'),
-                      trailing: const Icon(Icons.chevron_right),
-                      onTap: () => _exportarRespaldo(context),
-                    ),
-                    const Divider(),
-                    ListTile(
-                      leading: const Icon(Icons.restore, color: AppColors.azul),
-                      title: const Text('Restaurar respaldo'),
-                      subtitle: const Text(
-                          'Carga un respaldo previamente descargado.'),
-                      trailing: const Icon(Icons.chevron_right),
-                      onTap: () => _restaurarRespaldo(context),
-                    ),
-                    const Divider(),
-                    ListTile(
-                      leading:
-                          const Icon(Icons.wifi_tethering, color: AppColors.azul),
-                      title: const Text('Sincronización local'),
-                      subtitle: const Text(
-                          'Sincroniza con otros dispositivos sin internet (misma Wi-Fi).'),
-                      trailing: const Icon(Icons.chevron_right),
-                      onTap: () => Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                            builder: (_) => const LocalSyncScreen()),
-                      ),
-                    ),
-                    const Divider(),
-                    ListTile(
-                      leading: const Icon(Icons.bluetooth, color: AppColors.azul),
-                      title: const Text('Sincronización por Bluetooth'),
-                      subtitle: const Text(
-                          'Sincroniza con otros dispositivos sin internet (Bluetooth/Wi-Fi directo).'),
-                      trailing: const Icon(Icons.chevron_right),
-                      onTap: () => Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                            builder: (_) => const BluetoothSyncScreen()),
-                      ),
-                    ),
-                    const Divider(),
-                    ListTile(
-                      leading: const Icon(Icons.delete_forever, color: AppColors.rojo),
-                      title: const Text('Reiniciar datos',
-                          style: TextStyle(color: AppColors.rojo)),
-                      subtitle: const Text(
-                          'Borra TODOS los datos y empieza de cero.'),
-                      trailing: const Icon(Icons.chevron_right,
-                          color: AppColors.rojo),
-                      onTap: () => _reiniciarDatos(context),
-                    ),
-                  ],
-                ),
-              ),
-            ],
             const SizedBox(height: 32),
             DuoButton(
               label: 'Cerrar sesión',
@@ -226,208 +161,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
         ),
       ),
     );
-  }
-
-  Future<void> _configurarPin(BuildContext context) async {
-    final pin = TextEditingController();
-    final confirmar = TextEditingController();
-    final nuevo = await showDialog<String>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('PIN de administrador'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text(
-              'Crea un PIN de 4 a 6 dígitos. Se pedirá cada vez que '
-              'inicies sesión como administrador.',
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: pin,
-              keyboardType: TextInputType.number,
-              maxLength: 6,
-              obscureText: true,
-              decoration: const InputDecoration(labelText: 'Nuevo PIN'),
-            ),
-            const SizedBox(height: 8),
-            TextField(
-              controller: confirmar,
-              keyboardType: TextInputType.number,
-              maxLength: 6,
-              obscureText: true,
-              decoration: const InputDecoration(labelText: 'Confirmar PIN'),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancelar'),
-          ),
-          FilledButton(
-            onPressed: () {
-              if (pin.text.length < 4 || pin.text != confirmar.text) {
-                ScaffoldMessenger.of(ctx).showSnackBar(
-                  const SnackBar(
-                    content: Text('Los PIN no coinciden o son muy cortos.'),
-                  ),
-                );
-                return;
-              }
-              Navigator.pop(ctx, pin.text);
-            },
-            child: const Text('Guardar'),
-          ),
-        ],
-      ),
-    );
-    if (nuevo == null) return;
-    final app = context.read<AppProvider>();
-    await app.fijarPin(nuevo);
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('PIN de administrador configurado.')),
-      );
-    }
-  }
-
-  Future<void> _exportarRespaldo(BuildContext context) async {
-    try {
-      final app = context.read<AppProvider>();
-      final json = await app.exportarRespaldo();
-      final bytes = Uint8List.fromList(utf8.encode(json));
-      final nombre =
-          'hogarquest_respaldo_${DateTime.now().toIso8601String().substring(0, 10)}';
-      await FileSaver.instance.saveFile(
-        name: nombre,
-        bytes: bytes,
-        fileExtension: 'json',
-        mimeType: MimeType.other,
-      );
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Respaldo descargado.')),
-        );
-      }
-      } catch (e) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('No se pudo exportar: $e')),
-          );
-        }
-      }
-    }
-
-  Future<void> _restaurarRespaldo(BuildContext context) async {
-    try {
-      final app = context.read<AppProvider>();
-      final resultado = await FilePicker.pickFiles(
-        type: FileType.custom,
-        allowedExtensions: const ['json'],
-      );
-      if (resultado.isEmpty) return;
-      final bytes = await resultado.single.readAsBytes();
-      final contenido = utf8.decode(bytes);
-      final data = jsonDecode(contenido);
-      if (data is! Map<String, dynamic>) {
-        throw Exception('El archivo no es un respaldo válido.');
-      }
-      final confirmar = await showDialog<bool>(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          title: const Text('Restaurar respaldo'),
-          content: const Text(
-            'Esto reemplazará los datos actuales por el contenido del '
-            'respaldo en este y otros dispositivos. ¿Continuar?',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Cancelar'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('Restaurar'),
-            ),
-          ],
-        ),
-      );
-      if (confirmar != true) return;
-      await app.importarRespaldo(data);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Respaldo restaurado.')),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('No se pudo restaurar: $e')),
-        );
-      }
-    }
-  }
-
-  Future<void> _reiniciarDatos(BuildContext context) async {
-    final controller = TextEditingController();
-    final confirmar = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Reiniciar datos'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text(
-              'Esta acción borrará TODOS los datos: usuarios, tareas, '
-              'asignaciones, puntos, insignias, castigos y retos.\n\n'
-              'No se puede deshacer. Solo se mantendrá tu usuario Admin '
-              'para que puedas volver a entrar.',
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: controller,
-              decoration: const InputDecoration(
-                labelText: 'Escribe REINICIAR para confirmar',
-                border: OutlineInputBorder(),
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancelar'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(
-                ctx, controller.text.trim() == 'REINICIAR'),
-            style: FilledButton.styleFrom(backgroundColor: AppColors.rojo),
-            child: const Text('Reiniciar'),
-          ),
-        ],
-      ),
-    );
-    controller.dispose();
-    if (confirmar != true) return;
-    if (!context.mounted) return;
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => const AlertDialog(
-        content: Row(
-          children: [
-            CircularProgressIndicator(),
-            SizedBox(width: 20),
-            Text('Reiniciando datos...'),
-          ],
-        ),
-      ),
-    );
-    final app = context.read<AppProvider>();
-    await app.reiniciarTodo();
-    if (!context.mounted) return;
-    Navigator.of(context, rootNavigator: true).pop();
   }
 
   Future<void> _cambiarFoto() async {
@@ -531,10 +264,8 @@ class _AvatarCard extends StatelessWidget {
         const SizedBox(height: 12),
         Text(
           user.nombre,
-          style: TextStyle(
-              fontSize: 22,
-              fontWeight: FontWeight.w800,
-              color: textoTema(context)),
+          style: const TextStyle(
+              fontSize: 22, fontWeight: FontWeight.w800, color: Colors.white),
         ),
         const SizedBox(height: 8),
         Row(
@@ -548,8 +279,8 @@ class _AvatarCard extends StatelessWidget {
         const SizedBox(height: 8),
         Text(
           '${user.puntos} pts XP acumulados',
-          style: TextStyle(
-              color: textoSuaveTema(context), fontWeight: FontWeight.w700),
+          style: const TextStyle(
+              color: Colors.white70, fontWeight: FontWeight.w700),
         ),
       ],
     );
@@ -579,6 +310,123 @@ class _Pill extends StatelessWidget {
           Text(text,
               style: TextStyle(
                   fontWeight: FontWeight.w800, color: color, fontSize: 13)),
+        ],
+      ),
+    );
+  }
+}
+
+
+/// Rejilla 2×2 de estadísticas del integrante (Nivel, Racha, XP, Edad).
+class _StatsGrid extends StatelessWidget {
+  final User user;
+  const _StatsGrid({required this.user});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: _StatTile(
+                icon: Icons.military_tech,
+                label: 'Nivel',
+                valor: '${user.nivel}',
+                color: AppColors.amarillo,
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: _StatTile(
+                icon: Icons.local_fire_department,
+                label: 'Racha',
+                valor: '${user.racha} días',
+                color: AppColors.rojo,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        Row(
+          children: [
+            Expanded(
+              child: _StatTile(
+                icon: Icons.star,
+                label: 'Puntos XP',
+                valor: '${user.puntos}',
+                color: AppColors.azul,
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: _StatTile(
+                icon: Icons.cake,
+                label: 'Edad',
+                valor: '${user.edad} años',
+                color: AppColors.morado,
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _StatTile extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String valor;
+  final Color color;
+
+  const _StatTile({
+    required this.icon,
+    required this.label,
+    required this.valor,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
+      decoration: BoxDecoration(
+        color: isDark ? AppColors.superficieOscura : Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: isDark
+              ? AppColors.grisMedio.withValues(alpha: 0.3)
+              : AppColors.linea,
+          width: 2,
+        ),
+        boxShadow: const [
+          BoxShadow(
+              color: Color(0x14000000), offset: Offset(0, 4), blurRadius: 0),
+        ],
+      ),
+      child: Column(
+        children: [
+          Icon(icon, color: color, size: 24),
+          const SizedBox(height: 6),
+          Text(
+            valor,
+            style: TextStyle(
+              fontWeight: FontWeight.w800,
+              fontSize: 17,
+              color: textoTema(context),
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              color: textoSuaveTema(context),
+            ),
+          ),
         ],
       ),
     );
@@ -685,58 +533,7 @@ class _InfoCardState extends State<_InfoCard> {
         ),
       );
     }
-
-    return DuoCard(
-      child: Column(
-        children: [
-          _InfoRow(icon: Icons.person, label: 'Nombre', value: widget.user.nombre),
-          const Divider(),
-          _InfoRow(icon: Icons.cake, label: 'Edad', value: '${widget.user.edad} años'),
-          const Divider(),
-          _InfoRow(
-            icon: Icons.palette,
-            label: 'Tema favorito',
-            value: widget.user.colorTema,
-          ),
-          const Divider(),
-          _InfoRow(icon: Icons.star, label: 'Nivel', value: 'Nivel ${widget.user.nivel}'),
-          const Divider(),
-          _InfoRow(
-            icon: Icons.local_fire_department,
-            label: 'Racha',
-            value: '${widget.user.racha} días',
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _InfoRow extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final String value;
-
-  const _InfoRow({
-    required this.icon,
-    required this.label,
-    required this.value,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Row(
-        children: [
-          Icon(icon, color: AppColors.azul, size: 20),
-          const SizedBox(width: 12),
-          Text(label, style: TextStyle(color: textoSuaveTema(context))),
-          const Spacer(),
-          Text(value, style: const TextStyle(fontWeight: FontWeight.w600)),
-        ],
-      ),
-    );
+    return const SizedBox.shrink();
   }
 }
 
@@ -803,8 +600,71 @@ class _InsigniasSectionState extends State<_InsigniasSection> {
       return Text('Completa tareas para ganar insignias.',
           style: TextStyle(color: textoSuaveTema(context)));
     }
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final logradas = _detalle.where((d) => d.$4).length;
     return Column(
       children: [
+        Padding(
+          padding: const EdgeInsets.only(bottom: 12),
+          child: Text(
+            '$logradas de ${_detalle.length} logradas',
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w800,
+              color: textoSuaveTema(context),
+            ),
+          ),
+        ),
+        Wrap(
+          spacing: 12,
+          runSpacing: 12,
+          alignment: WrapAlignment.center,
+          children: [
+            for (final d in _detalle)
+              Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 54,
+                    height: 54,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: d.$4
+                          ? AppColors.amarillo
+                          : (isDark ? Colors.white10 : AppColors.linea),
+                      boxShadow: d.$4
+                          ? [
+                              BoxShadow(
+                                color:
+                                    AppColors.amarillo.withValues(alpha: 0.45),
+                                blurRadius: 8,
+                              ),
+                            ]
+                          : null,
+                    ),
+                    child: Icon(
+                      _icono(d.$1.icono),
+                      size: 26,
+                      color: d.$4 ? Colors.white : textoSuaveTema(context),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  SizedBox(
+                    width: 68,
+                    child: Text(
+                      d.$1.nombre,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                          fontSize: 10, fontWeight: FontWeight.w700),
+                    ),
+                  ),
+                ],
+              ),
+          ],
+        ),
+        const SizedBox(height: 16),
         for (final d in _detalle)
           DuoCard(
             margin: const EdgeInsets.only(bottom: 10),
@@ -934,227 +794,6 @@ class _RedemptionsSectionState extends State<_RedemptionsSection> {
           ),
         );
       },
-    );
-  }
-}
-
-/// Ajustes de apariencia y sonido: tema (claro/oscuro/sistema) y sonidos.
-class _AjustesCard extends StatefulWidget {
-  const _AjustesCard();
-
-  @override
-  State<_AjustesCard> createState() => _AjustesCardState();
-}
-
-class _AjustesCardState extends State<_AjustesCard> {
-  @override
-  Widget build(BuildContext context) {
-    final tema = context.watch<ThemeController>();
-    return DuoCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-            child: Text(
-              'Apariencia y sonido',
-              style: TextStyle(
-                fontWeight: FontWeight.w800,
-                color: Theme.of(context).textTheme.titleLarge?.color ??
-                    AppColors.grisOscuro,
-              ),
-            ),
-          ),
-          ListTile(
-            leading: const Icon(Icons.dark_mode, color: AppColors.morado),
-            title: const Text('Tema'),
-            subtitle: Text(switch (tema.mode) {
-              ThemeMode.dark => 'Oscuro',
-              ThemeMode.system => 'Según el sistema',
-              ThemeMode.light => 'Claro',
-            }),
-            onTap: () => _elegirTema(context, tema),
-          ),
-          const Divider(),
-          SwitchListTile(
-            secondary: const Icon(Icons.volume_up, color: AppColors.azul),
-            title: const Text('Sonidos'),
-            subtitle: const Text('Celebraciones y recompensas'),
-            value: CelebrationService.instance.habilitado,
-            onChanged: (v) {
-              CelebrationService.instance.habilitado = v;
-              setState(() {});
-            },
-          ),
-        ],
-      ),
-    );
-  }
-
-  Future<void> _elegirTema(BuildContext context, ThemeController tema) async {
-    final modo = await showDialog<ThemeMode>(
-      context: context,
-      builder: (ctx) => SimpleDialog(
-        title: const Text('Tema'),
-        children: [
-          RadioGroup<ThemeMode>(
-            groupValue: tema.mode,
-            onChanged: (v) {
-              if (v != null) Navigator.pop(ctx, v);
-            },
-            child: const Column(
-              children: [
-                RadioListTile(
-                  title: Text('Claro'),
-                  value: ThemeMode.light,
-                ),
-                RadioListTile(
-                  title: Text('Oscuro'),
-                  value: ThemeMode.dark,
-                ),
-                RadioListTile(
-                  title: Text('Según el sistema'),
-                  value: ThemeMode.system,
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-    if (modo != null) await tema.setModo(modo);
-  }
-}
-
-class _RecordatorioCard extends StatefulWidget {
-  final int userId;
-  const _RecordatorioCard({required this.userId});
-
-  @override
-  State<_RecordatorioCard> createState() => _RecordatorioCardState();
-}
-class _RecordatorioCardState extends State<_RecordatorioCard> {
-  int? _minutos;
-  bool _cargando = true;
-  bool _permisoConcedido = true;
-
-  @override
-  void initState() {
-    super.initState();
-    _cargar();
-  }
-
-  Future<void> _cargar() async {
-    final minutos =
-        await NotificationService.instance.horaConfigurada(widget.userId);
-    final permiso =
-        await NotificationService.instance.permisoConcedido();
-    if (mounted) {
-      setState(() {
-        _minutos = minutos;
-        _permisoConcedido = permiso;
-        _cargando = false;
-      });
-    }
-  }
-
-  Future<void> _elegirHora() async {
-    final actual = _minutos ?? 8 * 60;
-    final app = context.read<AppProvider>();
-    final picked = await showTimePicker(
-      context: context,
-      initialTime: TimeOfDay(
-        hour: actual ~/ 60,
-        minute: actual % 60,
-      ),
-      helpText: 'Hora del recordatorio diario',
-    );
-    if (picked == null) return;
-    final minutos = picked.hour * 60 + picked.minute;
-    await NotificationService.instance.guardarHora(
-      app: app,
-      userId: widget.userId,
-      minutos: minutos,
-    );
-    if (mounted) {
-      setState(() => _minutos = minutos);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Recordatorio actualizado')),
-      );
-    }
-  }
-
-  Future<void> _solicitarPermiso() async {
-    final concedido =
-        await NotificationService.instance.solicitarPermiso();
-    if (!concedido) return;
-    if (mounted) {
-      setState(() => _permisoConcedido = true);
-    }
-  }
-
-  Future<void> _abrirAjustes() async {
-    await NotificationService.instance.abrirAjustes();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    if (_cargando) {
-      return const Center(child: CircularProgressIndicator());
-    }
-    final minutos = _minutos ?? 8 * 60;
-    final hora = minutos ~/ 60;
-    final minuto = minutos % 60;
-    final horaTexto = '${hora.toString().padLeft(2, '0')}:${minuto.toString().padLeft(2, '0')}';
-    final colores = Theme.of(context).colorScheme;
-    return Column(
-      children: [
-        DuoCard(
-          child: ListTile(
-            contentPadding:
-                const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-            leading: CircleAvatar(
-              backgroundColor: AppColors.amarillo.withValues(alpha: 0.2),
-              child: const Icon(Icons.alarm, color: AppColors.amarillo),
-            ),
-            title: const Text('Recordatorio diario',
-                style: TextStyle(fontWeight: FontWeight.w700)),
-            subtitle: Text(
-                'Notificación a las $horaTexto para tus tareas del día'),
-            trailing: TextButton(
-              onPressed: _elegirHora,
-              child: const Text('Cambiar hora'),
-            ),
-          ),
-        ),
-        if (!_permisoConcedido)
-          DuoCard(
-            child: Padding(
-              padding: const EdgeInsets.all(12),
-              child: Row(
-                children: [
-                  Icon(Icons.notifications_off,
-                      color: colores.error, size: 20),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      'Notificaciones bloqueadas. Para recibir los recordatorios, actívalas desde los Ajustes del sistema.',
-                      style: TextStyle(fontSize: 12, color: colores.onSurface),
-                    ),
-                  ),
-                  TextButton(
-                    onPressed: _abrirAjustes,
-                    child: const Text('Abrir Ajustes'),
-                  ),
-                  TextButton(
-                    onPressed: _solicitarPermiso,
-                    child: const Text('Reintentar'),
-                  ),
-                ],
-              ),
-            ),
-          ),
-      ],
     );
   }
 }
