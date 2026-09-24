@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:provider/provider.dart';
 
 import '../db/photo_picker.dart';
@@ -161,73 +162,21 @@ class _AdminRewardsViewState extends State<_AdminRewardsView> {
 
     return Column(
       children: [
-        Expanded(
-          child: _recompensas.isEmpty
-              ? const EmptyState(
-                  icon: Icons.card_giftcard,
-                  message: 'No hay recompensas disponibles',
-                  hint: 'Crea una recompensa para incentivar a los integrantes.',
-                )
-              : ListView.builder(
-                  padding: const EdgeInsets.all(12),
-                  itemCount: _recompensas.length,
-                  itemBuilder: (context, i) {
-                    final r = _recompensas[i];
-                    return DuoCard(
-                      padding: EdgeInsets.zero,
-                      child: ListTile(
-                        leading: (r.foto.isNotEmpty || r.fotoLocal.isNotEmpty)
-                            ? ClipRRect(
-                                borderRadius: BorderRadius.circular(10),
-                                child: FotoWidget(
-                                  url: _resolverFoto(r.foto),
-                                  local: r.fotoLocal,
-                                  size: 42,
-                                  placeholder: const DuoIconBadge(
-                                      icon: Icons.card_giftcard,
-                                      color: AppColors.azul,
-                                       size: 42),
-                                ),
-                              )
-                             : const DuoIconBadge(
-                                icon: Icons.card_giftcard,
-                                color: AppColors.azul,
-                                size: 42),
-                        title: Text(r.nombre,
-                            style: const TextStyle(fontWeight: FontWeight.w700)),
-                        subtitle: Text('${r.descripcion}\n• ${r.costoPuntos} pts'),
-                        trailing: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            IconButton(
-                              icon: const Icon(Icons.edit, color: AppColors.azul),
-                              onPressed: () => _editarRecompensa(context, r),
-                            ),
-                            IconButton(
-                              icon: const Icon(Icons.delete, color: AppColors.rojo),
-                              onPressed: () => _eliminarRecompensa(context, r),
-                            ),
-                          ],
-                        ),
-                      ),
-                    );
-                  },
-                ),
-        ),
         Padding(
-          padding: const EdgeInsets.all(12),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
+          padding: const EdgeInsets.fromLTRB(12, 10, 12, 4),
+          child: Row(
             children: [
-              DuoButton(
-                label: 'Nueva recompensa',
-                icon: Icons.add,
-                onPressed: () => _nuevaRecompensa(context),
+              Expanded(
+                child: DuoButton(
+                  label: 'Nueva recompensa',
+                  icon: Icons.add,
+                  onPressed: () => _nuevaRecompensa(context),
+                ),
               ),
-              const SizedBox(height: 10),
+              const SizedBox(width: 10),
               DuoButton(
-                label: 'Entregas',
-                icon: Icons.redeem,
+                label: '📋 Historial',
+                fullWidth: false,
                 onPressed: () => showDialog(
                   context: context,
                   builder: (_) => _EntregaCanjesDialog(app: widget.app),
@@ -236,7 +185,237 @@ class _AdminRewardsViewState extends State<_AdminRewardsView> {
             ],
           ),
         ),
+        Expanded(
+          child: _recompensas.isEmpty
+              ? const EmptyState(
+                  icon: Icons.card_giftcard,
+                  message: 'No hay recompensas disponibles',
+                  hint: 'Crea una recompensa para incentivar a los integrantes.',
+                )
+              : Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 800),
+                    child: GridView.builder(
+                      padding: const EdgeInsets.all(12),
+                      gridDelegate:
+                          const SliverGridDelegateWithMaxCrossAxisExtent(
+                        maxCrossAxisExtent: 260,
+                        mainAxisSpacing: 12,
+                        crossAxisSpacing: 12,
+                        childAspectRatio: 0.72,
+                      ),
+                      itemCount: _recompensas.length,
+                      itemBuilder: (context, i) {
+                        final r = _recompensas[i];
+                        return _RewardGridCard(
+                          reward: r,
+                          onEditar: () => _editarRecompensa(context, r),
+                          onEliminar: () => _eliminarRecompensa(context, r),
+                        );
+                      },
+                    ),
+                  ),
+                ),
+        ),
       ],
+    );
+  }
+}
+
+/// Chip dorado con los puntos de una recompensa.
+class _OroChip extends StatelessWidget {
+  final int pts;
+  const _OroChip({required this.pts});
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: isDark
+            ? AppColors.amarillo.withValues(alpha: 0.18)
+            : const Color(0xFFFFF3C4),
+        borderRadius: BorderRadius.circular(9),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.monetization_on, size: 14, color: AppColors.amarillo),
+          const SizedBox(width: 4),
+          Text(
+            '$pts pts',
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w800,
+              color: isDark ? AppColors.amarillo : const Color(0xFF8A6D00),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Acción mini (editar/eliminar) con hover en escritorio.
+class _MiniAccionGrid extends StatelessWidget {
+  final IconData icono;
+  final Color color;
+  final String tooltip;
+  final VoidCallback onPressed;
+
+  const _MiniAccionGrid({
+    required this.icono,
+    required this.color,
+    required this.tooltip,
+    required this.onPressed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: tooltip,
+      child: InkWell(
+        onTap: onPressed,
+        borderRadius: BorderRadius.circular(6),
+        child: Padding(
+          padding: const EdgeInsets.all(4),
+          child: Icon(icono, size: 17, color: color),
+        ),
+      ),
+    );
+  }
+}
+
+/// Tarjeta de recompensa en el grid del admin: foto, chip dorado y
+/// editar/eliminar al hacer hover (siempre visibles en táctil).
+class _RewardGridCard extends StatefulWidget {
+  final Reward reward;
+  final VoidCallback onEditar;
+  final VoidCallback onEliminar;
+
+  const _RewardGridCard({
+    required this.reward,
+    required this.onEditar,
+    required this.onEliminar,
+  });
+
+  @override
+  State<_RewardGridCard> createState() => _RewardGridCardState();
+}
+
+class _RewardGridCardState extends State<_RewardGridCard> {
+  bool _hover = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final r = widget.reward;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final siempreVisible = kIsWeb
+        ? (defaultTargetPlatform == TargetPlatform.android ||
+            defaultTargetPlatform == TargetPlatform.iOS)
+        : true;
+    final mostrar = siempreVisible || _hover;
+
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hover = true),
+      onExit: (_) => setState(() => _hover = false),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: isDark ? AppColors.superficieOscura : Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: _hover
+                ? AppColors.verde
+                : (isDark
+                    ? AppColors.grisMedio.withValues(alpha: 0.3)
+                    : AppColors.linea),
+            width: 2,
+          ),
+          boxShadow: const [
+            BoxShadow(
+                color: Color(0x14000000), offset: Offset(0, 4), blurRadius: 0),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Container(
+              height: 86,
+              decoration: BoxDecoration(
+                color: AppColors.amarillo.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: (r.foto.isNotEmpty || r.fotoLocal.isNotEmpty)
+                  ? Center(
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(10),
+                        child: FotoWidget(
+                          url: _resolverFoto(r.foto),
+                          local: r.fotoLocal,
+                          size: 78,
+                          placeholder: const Icon(Icons.card_giftcard,
+                              color: AppColors.azul, size: 34),
+                        ),
+                      ),
+                    )
+                  : const Center(
+                      child: Icon(Icons.card_giftcard,
+                          color: AppColors.azul, size: 36),
+                    ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              r.nombre,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+            ),
+            const SizedBox(height: 2),
+            Expanded(
+              child: Text(
+                r.descripcion,
+                maxLines: 3,
+                overflow: TextOverflow.ellipsis,
+                style:
+                    TextStyle(fontSize: 11, color: textoSuaveTema(context)),
+              ),
+            ),
+            const SizedBox(height: 6),
+            Row(
+              children: [
+                _OroChip(pts: r.costoPuntos),
+                const Spacer(),
+                AnimatedOpacity(
+                  duration: const Duration(milliseconds: 120),
+                  opacity: mostrar ? 1 : 0,
+                  child: mostrar
+                      ? Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            _MiniAccionGrid(
+                              icono: Icons.edit,
+                              color: AppColors.azul,
+                              tooltip: 'Editar',
+                              onPressed: widget.onEditar,
+                            ),
+                            _MiniAccionGrid(
+                              icono: Icons.delete,
+                              color: AppColors.rojo,
+                              tooltip: 'Eliminar',
+                              onPressed: widget.onEliminar,
+                            ),
+                          ],
+                        )
+                      : const SizedBox(width: 8),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -374,7 +553,9 @@ class _RewardFormDialogState extends State<_RewardFormDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Text('Nueva recompensa'),
+      title: Text(widget.initialData == null
+          ? 'Nueva recompensa'
+          : 'Editar recompensa'),
       content: SingleChildScrollView(
         child: Form(
           key: _formKey,
@@ -575,99 +756,202 @@ class _UserRewardsViewState extends State<_UserRewardsView> {
                   message: 'No hay recompensas disponibles para canjear',
                   hint: 'Contacta al administrador para agregar recompensas.',
                 )
-              : ListView.builder(
-                  padding: const EdgeInsets.all(12),
-                  itemCount: _recompensas.length + (_canjes.isEmpty ? 0 : 1),
-                  itemBuilder: (context, i) {
-                    if (_canjes.isNotEmpty && i == 0) {
-                      return _MisCanjes(entre: _canjes, user: widget.user);
-                    }
-                    final r = _recompensas[i - (_canjes.isEmpty ? 0 : 1)];
-                    final jaCambiado = _canjes.any((c) => c.$2.id == r.id);
-                    return DuoCard(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 12),
-                      child: Row(
-                        children: [
-                          if (r.foto.isNotEmpty || r.fotoLocal.isNotEmpty)
-                            ClipRRect(
-                              borderRadius: BorderRadius.circular(10),
-                              child: FotoWidget(
-                                url: _resolverFoto(r.foto),
-                                local: r.fotoLocal,
-                                size: 42,
-                                placeholder: DuoIconBadge(
-                                  icon: jaCambiado
-                                      ? Icons.check
-                                      : Icons.card_giftcard,
-                                  color: jaCambiado
-                                      ? AppColors.grisMedio
-                                      : AppColors.verde,
-                                  size: 42,
-                                ),
-                              ),
-                            )
-                          else
-                            DuoIconBadge(
-                              icon: jaCambiado ? Icons.check : Icons.card_giftcard,
-                              color: jaCambiado ? AppColors.grisMedio : AppColors.verde,
-                              size: 42,
-                            ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
+              : LayoutBuilder(
+                  builder: (context, constraints) {
+                    final cols = constraints.maxWidth >= 700 ? 3 : 2;
+                    return Center(
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 800),
+                        child: ListView(
+                          padding: const EdgeInsets.all(12),
+                          children: [
+                            if (_canjes.isNotEmpty) ...[
+                              _MisCanjes(entre: _canjes, user: widget.user),
+                              const SizedBox(height: 4),
+                            ],
+                            GridView.count(
+                              shrinkWrap: true,
+                              physics: const NeverScrollableScrollPhysics(),
+                              crossAxisCount: cols,
+                              mainAxisSpacing: 12,
+                              crossAxisSpacing: 12,
+                              childAspectRatio: 0.66,
                               children: [
-                                Text(r.nombre,
-                                    style: const TextStyle(
-                                        fontWeight: FontWeight.w700,
-                                        fontSize: 15)),
-                                Text(r.descripcion,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: TextStyle(
-                                        fontSize: 12,
-                                        color: textoSuaveTema(context))),
-                                const SizedBox(height: 4),
-                                Text('Coste: ${r.costoPuntos} pts',
-                                    style: TextStyle(
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w800,
-                                        color: textoTema(context))),
-                                if (jaCambiado)
-                                  Text(
-                                    'Canjeado el: ${_canjes.firstWhere((c) => c.$2.id == r.id).$1.fecha}',
-                                    style: TextStyle(
-                                        fontSize: 11,
-                                        color: textoSuaveTema(context)),
+                                for (final r in _recompensas)
+                                  _UserRewardCard(
+                                    reward: r,
+                                    jaCanjeado: _canjes
+                                        .any((c) => c.$2.id == r.id),
+                                    onCanjear: () => _canjearRecompensa(r),
                                   ),
                               ],
                             ),
-                          ),
-                          const SizedBox(width: 8),
-                          SizedBox(
-                            width: 118,
-                            child: jaCambiado
-                                ? DuoButton(
-                                    label: 'Canjeado',
-                                    color: AppColors.grisOscuro.withValues(alpha: 0.35),
-                                    borderColor: AppColors.grisOscuro,
-                                    onPressed: null,
-                                  )
-                                : DuoButton(
-                                    label: 'Canjear',
-                                    color: AppColors.azul,
-                                    borderColor: Color(0xFF1290C9),
-                                    onPressed: () => _canjearRecompensa(r),
-                                  ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                     );
                   },
                 ),
         ),
       ],
+    );
+  }
+}
+
+/// Tarjeta de recompensa para el integrante: foto, chip dorado y botón
+/// "Canjear" compacto estilo Duolingo.
+class _UserRewardCard extends StatelessWidget {
+  final Reward reward;
+  final bool jaCanjeado;
+  final VoidCallback onCanjear;
+
+  const _UserRewardCard({
+    required this.reward,
+    required this.jaCanjeado,
+    required this.onCanjear,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final r = reward;
+    return DuoCard(
+      padding: const EdgeInsets.all(12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Container(
+            height: 70,
+            decoration: BoxDecoration(
+              color: AppColors.amarillo.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: (r.foto.isNotEmpty || r.fotoLocal.isNotEmpty)
+                ? Center(
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(10),
+                      child: FotoWidget(
+                        url: _resolverFoto(r.foto),
+                        local: r.fotoLocal,
+                        size: 64,
+                        placeholder: Icon(
+                            jaCanjeado ? Icons.check : Icons.card_giftcard,
+                            color: jaCanjeado
+                                ? AppColors.grisMedio
+                                : AppColors.verde,
+                            size: 30),
+                      ),
+                    ),
+                  )
+                : Center(
+                    child: Icon(
+                        jaCanjeado ? Icons.check : Icons.card_giftcard,
+                        color:
+                            jaCanjeado ? AppColors.grisMedio : AppColors.verde,
+                        size: 32),
+                  ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            r.nombre,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+          ),
+          const SizedBox(height: 2),
+          Expanded(
+            child: Text(
+              r.descripcion,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(fontSize: 11, color: textoSuaveTema(context)),
+            ),
+          ),
+          const SizedBox(height: 6),
+          Row(
+            children: [
+              _OroChip(pts: r.costoPuntos),
+              if (jaCanjeado) ...[
+                const SizedBox(width: 6),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: AppColors.verdeFondo,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Text(
+                    'Canjeado',
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.verdeOscuro,
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+          const Spacer(),
+          const SizedBox(height: 8),
+          _MiniBoton(
+            label: jaCanjeado ? 'Canjeado' : 'Canjear',
+            color: jaCanjeado ? AppColors.grisOscuro : AppColors.azul,
+            borderColor:
+                jaCanjeado ? AppColors.grisOscuro : const Color(0xFF1290C9),
+            onPressed: jaCanjeado ? null : onCanjear,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Botón Duolingo compacto (altura 40) para las tarjetas del grid.
+class _MiniBoton extends StatelessWidget {
+  final String label;
+  final Color color;
+  final Color borderColor;
+  final VoidCallback? onPressed;
+
+  const _MiniBoton({
+    required this.label,
+    required this.color,
+    required this.borderColor,
+    required this.onPressed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final enabled = onPressed != null;
+    final bg = enabled ? color : AppColors.linea;
+    final bd = enabled ? borderColor : AppColors.grisMedio;
+    return SizedBox(
+      height: 40,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onPressed,
+          borderRadius: BorderRadius.circular(12),
+          child: Container(
+            height: 40,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: bg,
+              borderRadius: BorderRadius.circular(12),
+              border: Border(bottom: BorderSide(color: bd, width: 4)),
+            ),
+            child: Text(
+              label.toUpperCase(),
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 13,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 0.5,
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
