@@ -523,7 +523,7 @@ class _AdminDashboardState extends State<_AdminDashboard> {
 
     return Center(
           child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 760),
+            constraints: const BoxConstraints(maxWidth: 1000),
             child: ListView(
               controller: _scroll,
               padding: const EdgeInsets.all(16),
@@ -532,13 +532,16 @@ class _AdminDashboardState extends State<_AdminDashboard> {
                   _CumpleanosBanner(nombre: app.usuarioActual!.nombre),
                 if (app.usuarioActual?.esCumpleanosHoy ?? false)
                   const SizedBox(height: 16),
-                const _AdminHeader(),
+                _AdminHeader(
+                  nombre: app.usuarioActual?.nombre ?? 'Admin',
+                  pendientes: pendientes.length,
+                  onTapPendientes: _irAInicio,
+                  onIntegrantes: () => Navigator.of(context)
+                      .pushNamed('/admin/usuarios'),
+                  onNuevaTarea: _irATareas,
+                  onPremios: _irAPremios,
+                ),
                 const SizedBox(height: 16),
-                if (pendientes.isNotEmpty) ...[
-                  _RecordatorioAprobaciones(
-                      cantidad: pendientes.length, onTap: _irAInicio),
-                  const SizedBox(height: 16),
-                ],
                 // ===== Las 4 tarjetas compactas y responsivas =====
                 LayoutBuilder(
                   builder: (context, constraints) {
@@ -623,61 +626,100 @@ class _AdminDashboardState extends State<_AdminDashboard> {
                     ),
                   ],
                 ),
-                SectionHeader(title: 'Actividad familiar (30 días)'),
-                DuoCard(
-                  child: BarChart(
-                    data: puntosPorDia,
-                    labelFor: (d) => d.day.toString(),
-                    highlightIndex: puntosPorDia.length - 1,
-                  ),
-                ),
-                SectionHeader(key: _keyAprobaciones, title: 'Pendientes de aprobación'),
-                if (pendientes.isEmpty)
-                  const EmptyState(
-                    icon: Icons.hourglass_empty,
-                    message: 'Nada por aprobar',
-                    hint: 'Las tareas completadas aparecerán aquí.',
-                  )
-                else
-                  ...pendientes.map(
-                    (p) => DuoCard(
-                      padding: EdgeInsets.zero,
-                      child: ListTile(
-                        leading: CircleAvatar(
-                          backgroundColor: AppColors.verdeFondo,
-                          child: Text(
-                            p.$3.nombre.characters.first.toUpperCase(),
-                            style:
-                                const TextStyle(color: AppColors.verdeOscuro),
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    final dosColumnas = constraints.maxWidth >= 900;
+                    final grafico = Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        SectionHeader(title: 'Actividad familiar (30 días)'),
+                        DuoCard(
+                          child: BarChart(
+                            data: puntosPorDia,
+                            labelFor: (d) => d.day.toString(),
+                            highlightIndex: puntosPorDia.length - 1,
                           ),
                         ),
-                        title: Text(p.$1.titulo),
-                        subtitle: Text('${p.$3.nombre} · +${p.$1.puntos} pts'),
-                        trailing: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            IconButton(
-                              icon:
-                                  const Icon(Icons.close, color: AppColors.rojo),
-                              tooltip: 'Rechazar',
-                              onPressed: () =>
-                                  app.rechazarAsignacion(p.$2.id!),
+                      ],
+                    );
+                    final aprobaciones = Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        SectionHeader(
+                            key: _keyAprobaciones,
+                            title: 'Pendientes de aprobación'),
+                        if (pendientes.isEmpty)
+                          const EmptyState(
+                            icon: Icons.hourglass_empty,
+                            message: 'Nada por aprobar',
+                            hint: 'Las tareas completadas aparecerán aquí.',
+                          )
+                        else
+                          ...pendientes.map(
+                            (p) => DuoCard(
+                              padding: EdgeInsets.zero,
+                              child: ListTile(
+                                leading: CircleAvatar(
+                                  backgroundColor: AppColors.verdeFondo,
+                                  child: Text(
+                                    p.$3.nombre.characters.first.toUpperCase(),
+                                    style: const TextStyle(
+                                        color: AppColors.verdeOscuro),
+                                  ),
+                                ),
+                                title: Text(p.$1.titulo),
+                                subtitle: Text(
+                                    '${p.$3.nombre} · +${p.$1.puntos} pts'),
+                                trailing: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    IconButton(
+                                      icon: const Icon(Icons.close,
+                                          color: AppColors.rojo),
+                                      tooltip: 'Rechazar',
+                                      onPressed: () =>
+                                          app.rechazarAsignacion(p.$2.id!),
+                                    ),
+                                    IconButton(
+                                      icon: const Icon(Icons.check,
+                                          color: AppColors.verde),
+                                      tooltip: 'Aprobar',
+                                      onPressed: () {
+                                        lanzarConfeti(context);
+                                        unawaited(CelebrationService.instance
+                                            .success());
+                                        app.aprobarAsignacion(p.$2.id!);
+                                      },
+                                    ),
+                                  ],
+                                ),
+                              ),
                             ),
-                            IconButton(
-                              icon: const Icon(Icons.check,
-                                  color: AppColors.verde),
-                              tooltip: 'Aprobar',
-                              onPressed: () {
-                                 lanzarConfeti(context);
-                                 unawaited(CelebrationService.instance.success());
-                                 app.aprobarAsignacion(p.$2.id!);
-                               },
-                             ),
-                           ],
-                         ),
-                       ),
-                     ),
-                   ),
+                          ),
+                      ],
+                    );
+                    if (!dosColumnas) {
+                      return Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          grafico,
+                          const SizedBox(height: 16),
+                          aprobaciones,
+                        ],
+                      );
+                    }
+                    return Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(child: grafico),
+                        const SizedBox(width: 16),
+                        Expanded(child: aprobaciones),
+                      ],
+                    );
+                  },
+                ),
               ],
             ),
           ),
@@ -688,47 +730,6 @@ class _AdminDashboardState extends State<_AdminDashboard> {
 // =====================================================================
 // WIDGETS AUXILIARES
 // =====================================================================
-
-/// Recordatorio para el admin: hay tareas completadas por aprobar.
-class _RecordatorioAprobaciones extends StatelessWidget {
-  final int cantidad;
-  final VoidCallback onTap;
-
-  const _RecordatorioAprobaciones(
-      {required this.cantidad, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: AppColors.moradoClaro.withValues(alpha: 0.25),
-      borderRadius: BorderRadius.circular(16),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(16),
-        child: Padding(
-          padding: const EdgeInsets.all(14),
-          child: Row(
-            children: [
-              const Icon(Icons.assignment_turned_in,
-                  color: AppColors.morado, size: 26),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  'Tienes $cantidad tarea${cantidad == 1 ? '' : 's'} completada${cantidad == 1 ? '' : 's'} por aprobar',
-                  style: TextStyle(
-                      fontWeight: FontWeight.w800,
-                      color: textoTema(context),
-                      fontSize: 14),
-                ),
-              ),
-              Icon(Icons.chevron_right, color: textoSuaveTema(context)),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
 
 /// Recordatorio de tareas pendientes de HOY para el integrante.
 class _RecordatorioHoy extends StatelessWidget {
@@ -932,8 +933,31 @@ class _RachaPill extends StatelessWidget {
   }
 }
 
+/// Cabecera del admin: saludo personalizado, subtítulo predictivo de
+/// aprobaciones y botón "Gestionar Familia" con popover de acciones.
 class _AdminHeader extends StatelessWidget {
-  const _AdminHeader();
+  final String nombre;
+  final int pendientes;
+  final VoidCallback onTapPendientes;
+  final VoidCallback onIntegrantes;
+  final VoidCallback onNuevaTarea;
+  final VoidCallback onPremios;
+
+  const _AdminHeader({
+    required this.nombre,
+    required this.pendientes,
+    required this.onTapPendientes,
+    required this.onIntegrantes,
+    required this.onNuevaTarea,
+    required this.onPremios,
+  });
+
+  String get _subtitulo {
+    if (pendientes <= 0) return 'No hay pendientes. ¡Todo al día! 🎉';
+    return pendientes == 1
+        ? '1 tarea espera tu aprobación'
+        : '$pendientes tareas esperan tu aprobación';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -952,28 +976,99 @@ class _AdminHeader extends StatelessWidget {
           ),
         ],
       ),
-      child: const Row(
+      child: Row(
         children: [
-          Icon(Icons.admin_panel_settings, size: 44, color: Colors.white),
-          SizedBox(width: 16),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Panel del administrador',
-                  style: TextStyle(
+                  '¡Hola, $nombre! 👋',
+                  style: const TextStyle(
                     color: Colors.white,
                     fontSize: 20,
                     fontWeight: FontWeight.w800,
                   ),
                 ),
-                SizedBox(height: 4),
-                Text(
-                  'Gestiona integrantes, tareas y premios.',
-                  style: TextStyle(color: Colors.white70, fontSize: 13),
+                const SizedBox(height: 4),
+                GestureDetector(
+                  onTap: pendientes > 0 ? onTapPendientes : null,
+                  child: Text(
+                    _subtitulo,
+                    style: TextStyle(
+                      color: pendientes > 0
+                          ? AppColors.amarillo
+                          : Colors.white70,
+                      fontSize: 13,
+                      fontWeight: pendientes > 0
+                          ? FontWeight.w800
+                          : FontWeight.w400,
+                    ),
+                  ),
                 ),
               ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          PopupMenuButton<String>(
+            tooltip: 'Gestionar Familia',
+            onSelected: (v) {
+              switch (v) {
+                case 'integrantes':
+                  onIntegrantes();
+                case 'tarea':
+                  onNuevaTarea();
+                case 'premios':
+                  onPremios();
+              }
+            },
+            itemBuilder: (_) => const [
+              PopupMenuItem(
+                value: 'integrantes',
+                child: Row(children: [
+                  Icon(Icons.group, size: 20),
+                  SizedBox(width: 10),
+                  Text('Integrantes'),
+                ]),
+              ),
+              PopupMenuItem(
+                value: 'tarea',
+                child: Row(children: [
+                  Icon(Icons.playlist_add, size: 20),
+                  SizedBox(width: 10),
+                  Text('Nueva tarea'),
+                ]),
+              ),
+              PopupMenuItem(
+                value: 'premios',
+                child: Row(children: [
+                  Icon(Icons.card_giftcard, size: 20),
+                  SizedBox(width: 10),
+                  Text('Premios'),
+                ]),
+              ),
+            ],
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.white24,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.settings, size: 18, color: Colors.white),
+                  SizedBox(width: 6),
+                  Text(
+                    'Gestionar Familia',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ],
