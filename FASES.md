@@ -211,3 +211,76 @@ Fecha: septiembre 2026.
 - `flutter analyze`: 0 errores (57 warnings preexistentes en
   `database_helper.dart` por comparaciones nulas innecesarias).
 - `flutter build web`: ✅Built build\web.
+
+---
+
+## Plan por módulos UI/UX (sesión sept 2026) — Fases 1-5
+
+Mejoras aprobadas por módulos, 1 commit + verificación por fase.
+Verificación por fase: `flutter analyze --no-pub` (0 errores, ≤57 issues de
+línea base) + `flutter build web --no-pub` + push a `main`.
+
+### Fase 1 — Tareas (commit `c1f0753`)
+- **Planificador semanal unificado** `lib/widgets/weekly_planner.dart`:
+  vista por fechas con offset `< >` sobre tareas recurrentes (sin migración),
+  drag-drop de avatares para asignar, quick-add y alertas de vencidas. → ✅
+- **Vista admin** `tasks_screen._AdminTasksList`: planner como body + extra
+  "Todos los días"/"Inactivas" + FAB "Libro de Tareas" (panel lateral ≥700px,
+  bottom sheet en móvil) con catálogo, reasignar, editar, eliminar, crear
+  rápida y "Nueva entrada de catálogo". → ✅
+- **Catálogo** con `categoria`/`dificultad` (defaults en `fromMap`, sin ALTER). → ✅
+- Helpers: `HapticsService` (key `hq_haptica`), `idsTareasPendientes()`,
+  `buscarEnCatalogo` por prefijo. → ✅
+
+### Fase 2 — Perfil + Ajustes (commit `b9b0b67`)
+- **Perfil**: banner `#2A3B1D` con textos blancos, `_StatsGrid` 2×2
+  (Nivel/Racha/XP/Edad), "Medallero de insignias" (medallones ámbar si
+  logrados + "X de Y"), engranaje ⚙️ → Ajustes. → ✅
+- **`settings_screen.dart` nuevo** (maxWidth 700): Apariencia y sonido
+  (tema, sonidos, vibración), Notificaciones (hora/permisos), Administración
+  solo admin (PIN, exportar, restaurar, sync, bluetooth, "Reiniciar datos"
+  con confirmación `REINICIAR`). → ✅
+
+### Fase 3 — Tienda (commit `2a326a9`)
+- **Grid** 2 col móvil / 3 col ≥700px, maxWidth 800, chips dorados de costo
+  (`_OroChip`), hover muestra Editar/Eliminar en web (`_RewardGridCard`). → ✅
+- **Toolbar compacta**: "Nueva recompensa" + "📋 Historial" →
+  `_EntregaCanjesDialog`. → ✅
+- **Mis canjes** en `_UserRewardsView` con grid, chips "Canjeado". → ✅
+- **Fix**: título del diálogo "Editar recompensa" al editar (antes decía
+  "Nueva recompensa"). → ✅
+
+### Fase 4 — Ligas (commit `5747029`)
+- **`GamificationService.ligaDe(pos, total)`**: percentiles del ranking de la
+  semana anterior (0-24% Obsidiana, 25-49% Oro, 50-74% Plata, 75-100 Bronce). → ✅
+- **Derivadas sin BD**: `AppProvider._netoEnRango`, `rankingSemanaAnterior`
+  (lista vacía = estado de bloqueo), `puntosFamiliaSemana`. → ✅
+- **Panel de ligas** con 4 trofeos (chip "Tu liga" resaltado), reloj
+  "Quedan N días" (semana Sunday-start) y **meta familiar** X/100 con
+  `LinearProgressIndicator`. Estado vacío: "Completa una semana…". → ✅
+- **Segmented control** `[Semanal][Mensual][Salón de la Fama]` (reemplaza
+  TabBar/TabController). → ✅
+- **Podio Top 3 3D** (2.º-1.º-3.º con alturas 78/104/62 y sombra de color) +
+  filas 4+ con `_RankRow`. → ✅
+- **Salón de la Fama** en cuadrícula (3 col ≥700px, 1 col móvil). → ✅
+
+### Fase 5 — Dashboard Admin (commit `b42074c`)
+- **Header** "¡Hola, {nombre}! 👋" con subtítulo predictivo
+  ("N tareas esperan tu aprobación" / "¡Todo al día! 🎉"; clicable → sección
+  de aprobaciones). → ✅
+- **Popover "⚙️ Gestionar Familia"**: Integrantes, Nueva tarea, Premios. → ✅
+- **Métricas** (grid 4 `_StatCard`) + **3 botones compactos** intactos. → ✅
+- **2 columnas ≥900px**: gráfico 30 días | pendientes de aprobación con
+  ✔/✘; apilado en móvil. → ✅
+- **maxWidth 1000** (antes 760); se eliminó `_RecordatorioAprobaciones`
+  (duplicaba el subtítulo del header). → ✅
+
+### Resumen de estado (plan por módulos)
+
+| Fase | Módulo | Commit | Estado |
+|------|--------|--------|--------|
+| 1 | Tareas (planner + libro) | `c1f0753` | ✅ |
+| 2 | Perfil + Ajustes | `b9b0b67` | ✅ |
+| 3 | Tienda | `2a326a9` | ✅ |
+| 4 | Ligas | `5747029` | ✅ |
+| 5 | Dashboard Admin | `b42074c` | ✅ |
