@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../providers/app_provider.dart';
+import '../services/haptics_service.dart';
+import '../widgets/weekly_planner.dart';
 import '../services/notification_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/confetti.dart';
@@ -133,118 +135,325 @@ class _AdminTasksList extends StatefulWidget {
   State<_AdminTasksList> createState() => _AdminTasksListState();
 }
 
-class _AdminTasksListState extends State<_AdminTasksList>
-    with SingleTickerProviderStateMixin {
-  late final TabController _tabController;
+class _AdminTasksListState extends State<_AdminTasksList> {
   Map<int, List<User>> _asignados = {};
   List<TareaCatalogo> _catalogo = [];
-  bool _cargandoAsignados = true;
+  Set<int> _pendientes = {};
+  List<User> _integrantes = [];
+  int _semanaOffset = 0;
+  bool _cargando = true;
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this);
-    _tabController.addListener(() {
-      if (mounted) setState(() {});
-    });
-    _cargarAsignados();
+    _cargar();
   }
 
-  @override
-  void dispose() {
-    _tabController.dispose();
-    super.dispose();
-  }
-
-  Future<void> _cargarAsignados() async {
+  Future<void> _cargar() async {
     final app = context.read<AppProvider>();
     final results = await Future.wait([
       app.asignadosPorTarea(),
       app.listarCatalogo(),
+      app.idsTareasPendientes(),
+      app.listarIntegrantes(),
     ]);
     if (!mounted) return;
     setState(() {
       _asignados = results[0] as Map<int, List<User>>;
       _catalogo = results[1] as List<TareaCatalogo>;
-      _cargandoAsignados = false;
+      _pendientes = results[2] as Set<int>;
+      _integrantes = results[3] as List<User>;
+      _cargando = false;
     });
   }
 
   Future<void> _recargar() async {
-    setState(() => _cargandoAsignados = true);
-    await Future.wait([widget.onRefresh(), _cargarAsignados()]);
+    await Future.wait([widget.onRefresh(), _cargar()]);
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final enCatalogo = _tabController.index == 2;
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Tareas del hogar'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.settings_outlined),
-            tooltip: 'Castigos automáticos',
-            onPressed: () => _ajustesCastigos(context),
-          ),
-        ],
-        bottom: TabBar(
-          controller: _tabController,
-          tabs: const [
-            Tab(text: 'Semana', icon: Icon(Icons.calendar_view_week_outlined)),
-            Tab(text: 'Tareas', icon: Icon(Icons.checklist)),
-            Tab(text: 'Catálogo', icon: Icon(Icons.menu_book_outlined)),
-          ],
-        ),
-      ),
-      body: Column(
-        children: [
-          Expanded(
-            child: _cargandoAsignados
-                ? const Center(child: CircularProgressIndicator())
-                : TabBarView(
-                    controller: _tabController,
-                    children: [
-                      _AdminSemanaTab(
-                        tareas: widget.tareas,
-                        asignados: _asignados,
-                        onRefresh: _recargar,
-                      ),
-                      _AdminListaTab(
-                        tareas: widget.tareas,
-                        asignados: _asignados,
-                        catalogo: _catalogo,
-                        onRefresh: _recargar,
-                      ),
-                      _AdminCatalogoTab(
-                        catalogo: _catalogo,
-                        onChanged: _recargar,
-                      ),
-                    ],
-                  ),
-          ),
-          Padding(
-            padding: const EdgeInsets.all(12),
-            child: SizedBox(
-              width: double.infinity,
-              child: DuoButton(
-                label: enCatalogo ? 'Nueva en el catálogo' : 'Nueva tarea',
-                icon: Icons.add,
-                onPressed: () => enCatalogo
-                    ? _nuevaEntradaCatalogo(context)
-                    : _nuevaTarea(context),
-              ),
-            ),
-          ),
-        ],
+  /// Clave recurrente del modelo ("lunes"…"domingo") para una fecha.
+  String _claveDeFecha(DateTime f) => const [
+        'domingo',
+        'lunes',
+        'martes',
+        'miercoles',
+        'jueves',
+        'viernes',
+        'sabado',
+      ][f.weekday % 7];
+
+  void _snack(String msg) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+      ..clearSnackBars()
+      ..showSnackBar(SnackBar(
+        content: Text(msg),
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 2),
+      ));
+  }
+
+  /// Arrastra un avatar sobre una tarea: añade a esa persona como responsable
+  /// (sin quitar a quienes ya la tenían).
+  Future<void> _reasignar(Task tarea, User responsable) async {
+    final actuales =
+        (_asignados[tarea.id] ?? const <User>[]).map((u) => u.id!).toSet();
+    if (actuales.contains(responsable.id)) {
+      HapticsService.seleccion();
+      _snack('${responsable.nombre} ya tiene "${tarea.titulo}"');
+      return;
+    }
+    final ids = [...actuales, responsable.id!];
+    await context.read<AppProvider>().editarTarea(tarea, integrantesIds: ids);
+    HapticsService.seleccion();
+    _snack('Tarea asignada a ${responsable.nombre}');
+    await _recargar();
+  }
+
+  Future<void> _editarTarea(Task tarea) async {
+    final app = context.read<AppProvider>();
+    final usuarios = await app.listarIntegrantes();
+    if (!mounted) return;
+    final integrantesData =
+        (_asignados[tarea.id] ?? const <User>[]).map((u) => {'id': u.id}).toList();
+    showDialog(
+      context: context,
+      builder: (_) => _TaskFormDialog(
+        initialData: {
+          'titulo': tarea.titulo,
+          'descripcion': tarea.descripcion,
+          'puntos': tarea.puntos,
+          'dificultad': tarea.dificultad,
+          'fechaLimite': tarea.fechaLimite,
+          'frecuencia': tarea.frecuencia,
+          'dia': tarea.dia,
+          'categoria': tarea.categoria,
+          'integrantes': integrantesData,
+        },
+        onSaved: (data) => _guardarEdicion(tarea, data),
+        usuarios: usuarios,
+        catalogo: _catalogo,
       ),
     );
   }
 
-  void _ajustesCastigos(BuildContext context) async {
+  Future<void> _guardarEdicion(Task tarea, Map<String, Object?> data) async {
+    final app = context.read<AppProvider>();
+    final integrantesIds = (data['integrantes'] as List? ?? [])
+        .map((e) => e is Map ? (e['id'] as int?) ?? 0 : 0)
+        .where((id) => id != 0)
+        .toList();
+
+    final editada = tarea.copyWith(
+      titulo: data['titulo'] as String? ?? tarea.titulo,
+      descripcion: data['descripcion'] as String? ?? tarea.descripcion,
+      puntos: (data['puntos'] as int?) ?? tarea.puntos,
+      dificultad: data['dificultad'] as String? ?? tarea.dificultad,
+      fechaLimite: data['fechaLimite'] as DateTime? ?? tarea.fechaLimite,
+      frecuencia: data['frecuencia'] as String? ?? tarea.frecuencia,
+      dia: data['dia'] as String? ?? tarea.dia,
+      categoria: data['categoria'] as String? ?? tarea.categoria,
+    );
+    await app.editarTarea(editada, integrantesIds: integrantesIds);
+
+    final fl = data['fechaLimite'] as DateTime?;
+    if (fl != null && fl.isAfter(DateTime.now())) {
+      final nid = tarea.id! % 1000000;
+      await NotificationService.instance.cancelarTarea(nid);
+      await NotificationService.instance.programarTarea(
+        id: nid,
+        cuando: fl,
+        titulo: 'Tarea por vencer',
+        cuerpo: '${data['titulo']}',
+      );
+    }
+    if (mounted) Navigator.pop(context);
+    await _recargar();
+  }
+
+  Future<void> _eliminarTarea(Task tarea) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('¿Eliminar tarea?'),
+        content: const Text(
+            'Se eliminará la tarea y sus asignaciones. Si había castigos por '
+            'esa tarea, se devolverán los puntos a los integrantes.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Eliminar'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    await context.read<AppProvider>().eliminarTarea(tarea.id!);
+    await _recargar();
+  }
+
+  /// Creación rápida desde el pie de un día (con plantilla del catálogo).
+  Future<void> _crearRapida(String titulo, DateTime fecha,
+      {TareaCatalogo? plantilla}) async {
+    var c = plantilla;
+    if (c == null) {
+      final q = titulo.trim().toLowerCase();
+      for (final e in _catalogo) {
+        final t = e.titulo.trim().toLowerCase();
+        if (t == q || t.startsWith(q)) {
+          c = e;
+          break;
+        }
+      }
+    }
+    await context.read<AppProvider>().crearTarea(
+          titulo: c?.titulo ?? titulo,
+          puntos: c?.puntos ?? 0,
+          dificultad: c?.dificultad ?? 'media',
+          categoria: c?.categoria ?? 'General',
+          dia: _claveDeFecha(fecha),
+          frecuencia: 'semanal',
+          integrantesIds: [],
+        );
+    HapticsService.seleccion();
+    _snack(c != null
+        ? '"${c.titulo}" creada para el ${_nombreDia(_claveDeFecha(fecha))}'
+        : '"$titulo" creada para el ${_nombreDia(_claveDeFecha(fecha))}');
+    await _recargar();
+  }
+
+  /// Texto libre sin match en el catálogo: abre el formulario completo
+  /// prellenado con el día elegido.
+  void _crearLibre(String titulo, DateTime fecha) {
+    showDialog(
+      context: context,
+      builder: (_) => _TaskFormDialog(
+        initialData: {
+          'titulo': titulo,
+          'dia': _claveDeFecha(fecha),
+          'frecuencia': 'semanal',
+          'fechaLimite': DateTime(fecha.year, fecha.month, fecha.day, 23, 59),
+        },
+        onSaved: _crearDesdeDialog,
+        usuarios: _integrantes,
+        catalogo: _catalogo,
+      ),
+    );
+  }
+
+  void _nuevaTarea() {
+    showDialog(
+      context: context,
+      builder: (_) => _TaskFormDialog(
+        onSaved: _crearDesdeDialog,
+        usuarios: _integrantes,
+        catalogo: _catalogo,
+      ),
+    );
+  }
+
+  Future<void> _crearDesdeDialog(Map<String, Object?> data) async {
+    final app = context.read<AppProvider>();
+    final integrantesIds = (data['integrantes'] as List? ?? [])
+        .map((e) => e is Map ? (e['id'] as int?) ?? 0 : 0)
+        .where((id) => id != 0)
+        .toList();
+
+    await app.crearTarea(
+      titulo: data['titulo'] as String? ?? '',
+      descripcion: data['descripcion'] as String? ?? '',
+      puntos: (data['puntos'] as int?) ?? 0,
+      dificultad: data['dificultad'] as String? ?? 'media',
+      fechaLimite: data['fechaLimite'] as DateTime?,
+      frecuencia: data['frecuencia'] as String? ?? 'unica',
+      integrantesIds: integrantesIds,
+      dia: data['dia'] as String? ?? '',
+      categoria: data['categoria'] as String? ?? 'General',
+    );
+    if (mounted) Navigator.pop(context);
+    await _recargar();
+  }
+
+  void _nuevaEntradaCatalogo() {
+    showDialog(
+      context: context,
+      builder: (_) => _CatalogoFormDialog(
+        onSaved: (data) => _guardarCatalogo(data: data),
+      ),
+    );
+  }
+
+  Future<void> _guardarCatalogo(
+      {Map<String, Object?>? data, int? id}) async {
+    final app = context.read<AppProvider>();
+    if (data == null) return;
+    final titulo = (data['titulo'] as String?) ?? '';
+    final puntos = (data['puntos'] as int?) ?? 0;
+    final categoria = (data['categoria'] as String?) ?? 'General';
+    final dificultad = (data['dificultad'] as String?) ?? 'media';
+    if (id == null) {
+      await app.crearCatalogo(
+          titulo: titulo,
+          puntos: puntos,
+          categoria: categoria,
+          dificultad: dificultad);
+    } else {
+      await app.editarCatalogo(TareaCatalogo(
+        id: id,
+        titulo: titulo,
+        puntos: puntos,
+        categoria: categoria,
+        dificultad: dificultad,
+      ));
+    }
+    await _recargar();
+  }
+
+  /// Libro de tareas: catálogo CRUD en panel lateral (web) o bottom sheet.
+  void _abrirLibro() {
+    final ancho = MediaQuery.sizeOf(context).width;
+    if (ancho >= 700) {
+      showDialog(
+        context: context,
+        builder: (ctx) => Dialog(
+          alignment: Alignment.centerRight,
+          insetPadding: EdgeInsets.zero,
+          child: SizedBox(
+            width: 380,
+            height: MediaQuery.sizeOf(ctx).height,
+            child: _LibroTareas(
+              catalogo: _catalogo,
+              onChanged: _recargar,
+              onNuevo: _nuevaEntradaCatalogo,
+            ),
+          ),
+        ),
+      );
+    } else {
+      showModalBottomSheet(
+        context: context,
+        isScrollControlled: true,
+        showDragHandle: true,
+        builder: (ctx) => SizedBox(
+          height: MediaQuery.sizeOf(ctx).height * 0.75,
+          child: _LibroTareas(
+            catalogo: _catalogo,
+            onChanged: _recargar,
+            onNuevo: _nuevaEntradaCatalogo,
+          ),
+        ),
+      );
+    }
+  }
+
+  void _ajustesCastigos() async {
     final app = context.read<AppProvider>();
     var auto = await app.getAutoCastigos();
-    if (!context.mounted) return;
+    if (!mounted) return;
     await showDialog<void>(
       context: context,
       builder: (ctx) => StatefulBuilder(
@@ -272,609 +481,180 @@ class _AdminTasksListState extends State<_AdminTasksList>
     );
   }
 
-  void _nuevaTarea(BuildContext context) async {
-    final app = context.read<AppProvider>();
-    final usuarios = await app.listarIntegrantes();
-    if (!context.mounted) return;
-    showDialog(
-      context: context,
-      builder: (_) => _TaskFormDialog(
-        onSaved: (data) => _crearTareaDesdePestana(context, data: data),
-        usuarios: usuarios,
-        catalogo: _catalogo,
-      ),
-    );
-  }
-
-  void _nuevaEntradaCatalogo(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (_) => _CatalogoFormDialog(
-        onSaved: (data) => _guardarCatalogo(context, data: data),
-      ),
-    );
-  }
-
-  Future<void> _guardarCatalogo(BuildContext context,
-      {Map<String, Object?>? data, int? id}) async {
-    final app = context.read<AppProvider>();
-    if (data == null) return;
-    final titulo = (data['titulo'] as String?) ?? '';
-    final puntos = (data['puntos'] as int?) ?? 0;
-    if (id == null) {
-      await app.crearCatalogo(titulo: titulo, puntos: puntos);
-    } else {
-      await app.editarCatalogo(TareaCatalogo(id: id, titulo: titulo, puntos: puntos));
-    }
-    await _recargar();
-  }
-
-  Future<void> _crearTareaDesdePestana(BuildContext context,
-      {Map<String, Object?>? data}) async {
-    final app = context.read<AppProvider>();
-    if (data == null) return;
-
-    final List<int> integrantesIds = (data['integrantes'] as List? ?? [])
-        .map((e) => e is Map ? (e['id'] as int?) ?? 0 : 0)
-        .where((id) => id != 0)
-        .toList();
-
-    await app.crearTarea(
-      titulo: data['titulo'] as String? ?? '',
-      descripcion: data['descripcion'] as String? ?? '',
-      puntos: (data['puntos'] as int?) ?? 0,
-      dificultad: data['dificultad'] as String? ?? 'media',
-      fechaLimite: data['fechaLimite'] as DateTime?,
-      frecuencia: data['frecuencia'] as String? ?? 'unica',
-      integrantesIds: integrantesIds,
-      dia: data['dia'] as String? ?? '',
-      categoria: data['categoria'] as String? ?? 'General',
-    );
-    if (context.mounted) Navigator.pop(context);
-    await _recargar();
-  }
-}
-
-/// Vista semanal del admin: cada día con sus tareas y quién las tiene.
-/// Permite filtrar por integrante para revisar la semana de cada niño y
-/// evitar repeticiones.
-class _AdminSemanaTab extends StatefulWidget {
-  final List<Task> tareas;
-  final Map<int, List<User>> asignados;
-  final Future<void> Function() onRefresh;
-
-  const _AdminSemanaTab({
-    required this.tareas,
-    required this.asignados,
-    required this.onRefresh,
-  });
-
-  @override
-  State<_AdminSemanaTab> createState() => _AdminSemanaTabState();
-}
-
-class _AdminSemanaTabState extends State<_AdminSemanaTab> {
-  static const _diasOrden = [
-    'domingo',
-    'lunes',
-    'martes',
-    'miercoles',
-    'jueves',
-    'viernes',
-    'sabado',
-  ];
-
-  int? _filtroUsuario; // null = todos
-
-  late final Map<String, GlobalKey> _dayKeys;
-
-  @override
-  void initState() {
-    super.initState();
-    _dayKeys = {for (final d in _diasOrden) d: GlobalKey()};
-    WidgetsBinding.instance.addPostFrameCallback((_) => _irAHoy());
-  }
-
-  /// Lleva el scroll al día actual al abrir la pestaña Semana.
-  void _irAHoy() {
-    final key = _dayKeys[_IntegranteTasksList._diaHoy];
-    if (key?.currentContext != null) {
-      Scrollable.ensureVisible(
-        key!.currentContext!,
-        alignment: 0.0,
-        duration: const Duration(milliseconds: 400),
+  Widget _seccion(String titulo) => Padding(
+        padding: const EdgeInsets.fromLTRB(4, 16, 4, 8),
+        child: Text(
+          titulo,
+          style: TextStyle(
+            fontWeight: FontWeight.w800,
+            fontSize: 16,
+            color: textoSuaveTema(context),
+          ),
+        ),
       );
-    }
-  }
-
-  /// Agrupa las tareas por la primera persona asignada, ordenando los
-  /// grupos alfabéticamente (los "Sin asignar" al final). Así una tarea
-  /// nueva de un niño cae dentro del grupo correspondiente.
-  List<({User? persona, List<Task> tareas})> _gruposPorPersona(
-      List<Task> lista) {
-    final porPersona = <int?, List<Task>>{};
-    for (final t in lista) {
-      final asignados = _asignadosDe(t);
-      if (asignados.isEmpty) {
-        porPersona.putIfAbsent(null, () => []).add(t);
-      } else {
-        for (final u in asignados) {
-          porPersona.putIfAbsent(u.id, () => []).add(t);
-        }
-      }
-    }
-    final grupos = porPersona.entries.map((e) {
-      final persona = e.key == null
-          ? null
-          : _integrantes.where((u) => u.id == e.key).firstOrNull;
-      return (persona: persona, tareas: e.value);
-    }).toList();
-    grupos.sort((a, b) {
-      if (a.persona == null) return 1;
-      if (b.persona == null) return -1;
-      return a.persona!.nombre.compareTo(b.persona!.nombre);
-    });
-    return grupos;
-  }
-
-  List<User> get _integrantes {
-    final seen = <int>{};
-    final result = <User>[];
-    for (final lista in widget.asignados.values) {
-      for (final u in lista) {
-        if (seen.add(u.id!)) result.add(u);
-      }
-    }
-    return result;
-  }
-
-  List<User> _asignadosDe(Task t) =>
-      widget.asignados[t.id] ?? const <User>[];
-
-  /// Claves "dia|titulo" donde la misma tarea se repite para la misma persona
-  /// el mismo día (duplicado real que conviene revisar).
-  Set<String> _duplicadasEn(List<Task> tareas) {
-    final porDiaTitulo = <String, Map<int, int>>{};
-    for (final t in tareas) {
-      if (t.dia.isEmpty) continue;
-      final key = '${t.dia}|${t.titulo}';
-      final mapa = porDiaTitulo.putIfAbsent(key, () => <int, int>{});
-      for (final u in _asignadosDe(t)) {
-        mapa[u.id ?? -1] = (mapa[u.id ?? -1] ?? 0) + 1;
-      }
-    }
-    return {
-      for (final e in porDiaTitulo.entries)
-        if (e.value.values.any((c) => c > 1)) e.key,
-    };
-  }
-
-  bool _cumpleFiltro(Task t) =>
-      _filtroUsuario == null ||
-      _asignadosDe(t).any((u) => u.id == _filtroUsuario);
 
   @override
   Widget build(BuildContext context) {
     final activas = widget.tareas.where((t) => t.activa).toList();
-    final conDia =
-        activas.where((t) => t.dia.isNotEmpty && _cumpleFiltro(t)).toList();
-    final sinDia =
-        activas.where((t) => t.dia.isEmpty && _cumpleFiltro(t)).toList();
-    final integrantes = _integrantes;
-    final duplicadas = _duplicadasEn(conDia);
+    final sinDia = activas.where((t) => t.dia.isEmpty).toList();
+    final inactivas = widget.tareas.where((t) => !t.activa).toList();
 
-    if (activas.isEmpty && integrantes.isEmpty) {
-      return const EmptyState(
-        icon: Icons.calendar_view_week_outlined,
-        message: 'Aún no hay tareas activas.',
-        hint: 'Crea una tarea con su día para planificar la semana.',
-      );
-    }
-
-    final elegido = _filtroUsuario == null
-        ? null
-        : integrantes.where((u) => u.id == _filtroUsuario).firstOrNull;
-    var totalTareas = 0;
-    var totalXP = 0;
-    if (elegido != null) {
-      for (final t in activas) {
-        if (!_cumpleFiltro(t)) continue;
-        totalTareas++;
-        totalXP += t.puntos;
-      }
-    }
-
-    return RefreshIndicator(
-      onRefresh: widget.onRefresh,
-      child: ListView(
-        // Fuerza construir todas las secciones (el ListView es perezoso y el
-        // header de "hoy" podría no existir aún al hacer scroll hasta él).
-        // ignore: deprecated_member_use
-        cacheExtent: 100000,
-        padding: const EdgeInsets.all(12),
-        children: [
-          if (integrantes.isNotEmpty)
-            _FiltroSemana(
-              integrantes: integrantes,
-              seleccionado: _filtroUsuario,
-              onSeleccionar: (id) => setState(
-                  () => _filtroUsuario = _filtroUsuario == id ? null : id),
-            ),
-          if (elegido != null)
-            DuoCard(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-              color: AppColors.verdeFondo,
-              margin: const EdgeInsets.only(bottom: 8),
-              child: Row(
-                children: [
-                  const Icon(Icons.person,
-                      color: AppColors.verdeOscuro, size: 20),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      'Semana de ${elegido.nombre}: $totalTareas tareas · $totalXP XP',
-                      style: const TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w800,
-                        color: AppColors.verdeOscuro,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          if (_filtroUsuario != null &&
-              conDia.isEmpty &&
-              sinDia.isEmpty) ...[
-            EmptyState(
-              icon: Icons.person_search,
-              message: '${elegido?.nombre ?? 'Este'} no tiene tareas esta semana.',
-              hint: 'Asígnale tareas desde la pestaña Tareas.',
-            ),
-          ],
-          for (final dia in _diasOrden)
-            if (conDia.any((t) => t.dia == dia)) ...[
-              _DiaSemanaHeader(
-                key: _dayKeys[dia],
-                nombre: _nombreDia(dia),
-                total: conDia.where((t) => t.dia == dia).length,
-                esHoy: dia == _IntegranteTasksList._diaHoy,
-              ),
-              ..._gruposPorPersona(conDia.where((t) => t.dia == dia).toList())
-                  .expand((g) => [
-                        _SubgrupoTarea(persona: g.persona),
-                        ...g.tareas.map((t) => _SemanaTaskCard(
-                              tarea: t,
-                              asignados: _asignadosDe(t),
-                              duplicada:
-                                  duplicadas.contains('${t.dia}|${t.titulo}'),
-                            )),
-                        const SizedBox(height: 4),
-                      ]),
-              const SizedBox(height: 8),
-            ],
-          if (sinDia.isNotEmpty) ...[
-            Padding(
-              padding: EdgeInsets.fromLTRB(4, 12, 4, 6),
-              child: Text(
-                'Todos los días',
-                style: TextStyle(
-                  fontWeight: FontWeight.w800,
-                  fontSize: 16,
-                  color: textoSuaveTema(context),
-                ),
-              ),
-            ),
-            ..._gruposPorPersona(sinDia).expand((g) => [
-                  _SubgrupoTarea(persona: g.persona),
-                  ...g.tareas.map((t) => _SemanaTaskCard(
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Tareas del hogar'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.add_task),
+            tooltip: 'Nueva tarea',
+            onPressed: _nuevaTarea,
+          ),
+          IconButton(
+            icon: const Icon(Icons.settings_outlined),
+            tooltip: 'Castigos automáticos',
+            onPressed: _ajustesCastigos,
+          ),
+        ],
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        icon: const Icon(Icons.menu_book_outlined),
+        label: const Text('Libro de Tareas'),
+        onPressed: _abrirLibro,
+      ),
+      body: _cargando
+          ? const Center(child: CircularProgressIndicator())
+          : WeeklyPlanner(
+              tareas: widget.tareas,
+              asignados: _asignados,
+              integrantes: _integrantes,
+              catalogo: _catalogo,
+              pendientes: _pendientes,
+              semanaOffset: _semanaOffset,
+              onSemanaChanged: (o) => setState(() => _semanaOffset = o),
+              onRefresh: _recargar,
+              onReasignar: _reasignar,
+              onEditar: _editarTarea,
+              onEliminar: _eliminarTarea,
+              onCrearRapida: _crearRapida,
+              onCrearLibre: _crearLibre,
+              extra: [
+                if (sinDia.isNotEmpty) ...[
+                  _seccion('Todos los días'),
+                  ...sinDia.map((t) => _AdminTaskCard(
                         tarea: t,
-                        asignados: _asignadosDe(t),
-                        duplicada: false,
+                        asignados: _asignados[t.id] ?? const [],
+                        catalogo: _catalogo,
+                        onRefresh: _recargar,
                       )),
-                  const SizedBox(height: 4),
-                ]),
-            const SizedBox(height: 8),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
-/// Píldoras para filtrar la semana por cada integrante.
-class _FiltroSemana extends StatelessWidget {
-  final List<User> integrantes;
-  final int? seleccionado;
-  final ValueChanged<int?> onSeleccionar;
-
-  const _FiltroSemana({
-    required this.integrantes,
-    required this.seleccionado,
-    required this.onSeleccionar,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Row(
-        children: [
-          _PillFiltro(
-            nombre: 'Todos',
-            usuarioId: null,
-            activo: seleccionado == null,
-            onTap: () => onSeleccionar(null),
-          ),
-          const SizedBox(width: 8),
-          for (final u in integrantes)
-            Padding(
-              padding: const EdgeInsets.only(right: 8),
-              child: _PillFiltro(
-                nombre: u.nombre,
-                usuarioId: u.id,
-                avatar: u,
-                activo: seleccionado == u.id,
-                onTap: () => onSeleccionar(u.id),
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-}
-
-class _PillFiltro extends StatelessWidget {
-  final String nombre;
-  final User? avatar;
-  final int? usuarioId;
-  final bool activo;
-  final VoidCallback onTap;
-
-  const _PillFiltro({
-    required this.nombre,
-    required this.usuarioId,
-    required this.activo,
-    required this.onTap,
-    this.avatar,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final color = avatar == null
-        ? AppColors.azul
-        : UserAvatar.colorDe(avatar!);
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
-        decoration: BoxDecoration(
-          color: activo ? color : Colors.white,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: color, width: 2),
-          boxShadow: const [
-            BoxShadow(
-              color: Color(0x1A000000),
-              offset: Offset(0, 2),
-              blurRadius: 0,
-            ),
-          ],
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (avatar != null) ...[
-              UserAvatar(user: avatar!, radius: 10),
-              const SizedBox(width: 6),
-            ],
-            Text(
-              nombre,
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w800,
-                color: activo ? Colors.white : color,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _DiaSemanaHeader extends StatelessWidget {
-  final String nombre;
-  final int total;
-  final bool esHoy;
-
-  const _DiaSemanaHeader({
-    super.key,
-    required this.nombre,
-    required this.total,
-    this.esHoy = false,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final color = esHoy ? AppColors.verde : AppColors.azul;
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(4, 12, 4, 6),
-      child: Row(
-        children: [
-          Container(
-            width: 8,
-            height: 22,
-            decoration: BoxDecoration(
-              color: color,
-              borderRadius: BorderRadius.circular(4),
-            ),
-          ),
-          const SizedBox(width: 8),
-          Text(
-            nombre,
-            style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
-          ),
-          if (esHoy) ...[
-            const SizedBox(width: 8),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-              decoration: BoxDecoration(
-                color: AppColors.verde,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: const Text(
-                'HOY',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-            ),
-          ],
-          const Spacer(),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-            decoration: BoxDecoration(
-              color: AppColors.linea,
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Text(
-              '$total tarea${total == 1 ? '' : 's'}',
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w700,
-                color: textoSuaveTema(context),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _SubgrupoTarea extends StatelessWidget {
-  final User? persona;
-  const _SubgrupoTarea({this.persona});
-
-  @override
-  Widget build(BuildContext context) {
-    final nombre = persona?.nombre ?? 'Sin asignar';
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(4, 6, 4, 2),
-      child: Row(
-        children: [
-          Icon(Icons.person, size: 14, color: textoSuaveTema(context)),
-          const SizedBox(width: 4),
-          Text(
-            nombre,
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w700,
-              color: textoTema(context),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _SemanaTaskCard extends StatelessWidget {
-  final Task tarea;
-  final List<User> asignados;
-  final bool duplicada;
-
-  const _SemanaTaskCard({
-    required this.tarea,
-    required this.asignados,
-    required this.duplicada,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return DuoCard(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      margin: const EdgeInsets.only(bottom: 8),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              DuoIconBadge(
-                icon: Icons.checklist,
-                color: _colorPorDificultad(tarea.dificultad),
-                size: 40,
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      tarea.titulo,
-                      style: const TextStyle(
-                          fontWeight: FontWeight.w700, fontSize: 14),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      '${tarea.puntos} pts • ${tarea.dificultad.toUpperCase()}'
-                      '${tarea.frecuencia != 'unica' ? ' • ${_capitalizar(tarea.frecuencia)}' : ''}',
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w800,
-                        color: textoSuaveTema(context),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          if (asignados.isEmpty)
-            Text(
-              'Sin asignar',
-              style: TextStyle(fontSize: 11, color: textoSuaveTema(context)),
-            )
-          else
-            Wrap(
-              spacing: 6,
-              runSpacing: 6,
-              children: [
-                for (final u in asignados) _IntegrantePill(nombre: u.nombre),
+                ],
+                if (inactivas.isNotEmpty) ...[
+                  _seccion('Inactivas'),
+                  ...inactivas.map((t) => _AdminTaskCard(
+                        tarea: t,
+                        asignados: _asignados[t.id] ?? const [],
+                        catalogo: _catalogo,
+                        onRefresh: _recargar,
+                      )),
+                ],
+                const SizedBox(height: 72),
               ],
             ),
-          if (duplicada)
-            Container(
-              margin: const EdgeInsets.only(top: 8),
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-              decoration: BoxDecoration(
-                color: AppColors.amarillo.withValues(alpha: 0.25),
-                borderRadius: BorderRadius.circular(10),
+    );
+  }
+}
+
+/// Panel lateral/bottom-sheet con el catálogo CRUD ("Libro de Tareas").
+class _LibroTareas extends StatelessWidget {
+  final List<TareaCatalogo> catalogo;
+  final Future<void> Function() onChanged;
+  final VoidCallback onNuevo;
+
+  const _LibroTareas({
+    required this.catalogo,
+    required this.onChanged,
+    required this.onNuevo,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    int ordenD(int p) => p >= 10 ? 2 : (p >= 6 ? 1 : 0);
+    final lista = List<TareaCatalogo>.from(catalogo)
+      ..sort((a, b) {
+        final oa = ordenD(a.puntos);
+        final ob = ordenD(b.puntos);
+        if (oa != ob) return oa.compareTo(ob);
+        return a.puntos.compareTo(b.puntos);
+      });
+
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 8, 4),
+          child: Row(
+            children: [
+              const Icon(Icons.menu_book_outlined, size: 20),
+              const SizedBox(width: 8),
+              const Expanded(
+                child: Text(
+                  'Libro de Tareas',
+                  style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
+                ),
               ),
-              child: Row(
-                children: [
-                  const Icon(Icons.warning_amber_rounded,
-                      size: 16, color: AppColors.grisOscuro),
-                  const SizedBox(width: 6),
-                  Expanded(
-                    child: Text(
-                      'La misma tarea se repite para la misma persona el mismo día.',
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
-                        color: textoTema(context),
+              IconButton(
+                icon: const Icon(Icons.close),
+                tooltip: 'Cerrar',
+                onPressed: () => Navigator.pop(context),
+              ),
+            ],
+          ),
+        ),
+        const Divider(height: 1),
+        Expanded(
+          child: RefreshIndicator(
+            onRefresh: onChanged,
+            child: lista.isEmpty
+                ? ListView(
+                    children: const [
+                      SizedBox(height: 48),
+                      EmptyState(
+                        icon: Icons.menu_book_outlined,
+                        message: 'Registra tus tareas con sus puntos.',
+                        hint: 'Pulsa "Nueva en el catálogo" para empezar. Al '
+                            'crear una tarea, los puntos se rellenarán solos '
+                            'según el título.',
                       ),
-                    ),
+                    ],
+                  )
+                : ListView(
+                    padding: const EdgeInsets.all(12),
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(4, 0, 4, 6),
+                        child: Text(
+                          'Puntos por defecto de cada tarea. Se prellenan al '
+                          'crear una tarea nueva y se pueden editar. '
+                          'Ordenadas por dificultad.',
+                          style: TextStyle(
+                              fontSize: 12, color: textoSuaveTema(context)),
+                        ),
+                      ),
+                      for (final c in lista)
+                        _CatalogoCard(entrada: c, onChanged: onChanged),
+                    ],
                   ),
-                ],
-              ),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.all(12),
+          child: SizedBox(
+            width: double.infinity,
+            child: DuoButton(
+              label: 'Nueva en el catálogo',
+              icon: Icons.add,
+              onPressed: onNuevo,
             ),
-        ],
-      ),
+          ),
+        ),
+      ],
     );
   }
 }
@@ -910,207 +690,6 @@ class _IntegrantePill extends StatelessWidget {
               color: color,
             ),
           ),
-        ],
-      ),
-    );
-  }
-}
-
-class _AdminListaTab extends StatefulWidget {
-  final List<Task> tareas;
-  final Map<int, List<User>> asignados;
-  final List<TareaCatalogo> catalogo;
-  final Future<void> Function() onRefresh;
-
-  const _AdminListaTab({
-    required this.tareas,
-    required this.asignados,
-    required this.catalogo,
-    required this.onRefresh,
-  });
-
-  @override
-  State<_AdminListaTab> createState() => _AdminListaTabState();
-}
-
-class _AdminListaTabState extends State<_AdminListaTab> {
-  String _filtroCat = 'Todas';
-
-  static const _diasOrden = [
-    'domingo',
-    'lunes',
-    'martes',
-    'miercoles',
-    'jueves',
-    'viernes',
-    'sabado',
-  ];
-
-  @override
-  Widget build(BuildContext context) {
-    final tareas = widget.tareas
-        .where((t) => _filtroCat == 'Todas' || t.categoria == _filtroCat)
-        .toList();
-    final onRefresh = widget.onRefresh;
-    final asignados = widget.asignados;
-    final catalogo = widget.catalogo;
-    final activas = tareas.where((t) => t.activa).toList();
-    final inactivas = tareas.where((t) => !t.activa).toList();
-    final conDia = activas.where((t) => t.dia.isNotEmpty).toList();
-    final sinDia = activas.where((t) => t.dia.isEmpty).toList();
-
-    final vacio = tareas.isEmpty;
-    final mensajeVacio = _filtroCat == 'Todas'
-        ? 'Aún no hay tareas registradas.'
-        : 'No hay tareas en "$_filtroCat". Prueba otra categoría.';
-
-    return Column(
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
-          child: SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(
-              children: [
-                for (final c in ['Todas', ...CategoriaTarea.nombres])
-                  Padding(
-                    padding: const EdgeInsets.only(right: 6),
-                    child: FilterChip(
-                      label: Text(c),
-                      selected: _filtroCat == c,
-                      onSelected: (_) => setState(() => _filtroCat = c),
-                    ),
-                  ),
-              ],
-            ),
-          ),
-        ),
-        Expanded(
-          child: RefreshIndicator(
-            onRefresh: onRefresh,
-            child: vacio
-                ? LayoutBuilder(
-                    builder: (context, c) => SingleChildScrollView(
-                      physics: const AlwaysScrollableScrollPhysics(),
-                      child: SizedBox(
-                        height: c.maxHeight,
-                        child: EmptyState(
-                          icon: Icons.checklist,
-                          message: mensajeVacio,
-                          hint: 'Pulsa "Nueva tarea" para crear la primera.',
-                        ),
-                      ),
-                    ),
-                  )
-                : ListView(
-              padding: const EdgeInsets.all(12),
-        children: [
-          for (final dia in _diasOrden)
-            if (conDia.any((t) => t.dia == dia)) ...[
-              _DiaSemanaHeader(
-                nombre: _nombreDia(dia),
-                total: conDia.where((t) => t.dia == dia).length,
-                esHoy: dia == _IntegranteTasksList._diaHoy,
-              ),
-              ...conDia
-                  .where((t) => t.dia == dia)
-                  .map((t) => _AdminTaskCard(
-                        tarea: t,
-                        asignados: asignados[t.id] ?? const [],
-                        catalogo: catalogo,
-                        onRefresh: onRefresh,
-                      )),
-              const SizedBox(height: 8),
-            ],
-          if (sinDia.isNotEmpty) ...[
-            Padding(
-              padding: EdgeInsets.fromLTRB(4, 12, 4, 6),
-              child: Text(
-                'Todos los días',
-                style: TextStyle(
-                  fontWeight: FontWeight.w800,
-                  fontSize: 16,
-                  color: textoSuaveTema(context),
-                ),
-              ),
-            ),
-            ...sinDia.map((t) => _AdminTaskCard(
-                  tarea: t,
-                  asignados: asignados[t.id] ?? const [],
-                  catalogo: catalogo,
-                  onRefresh: onRefresh,
-                )),
-            const SizedBox(height: 8),
-          ],
-          if (inactivas.isNotEmpty) ...[
-            Padding(
-              padding: EdgeInsets.fromLTRB(4, 12, 4, 6),
-              child: Text(
-                'Inactivas',
-                style: TextStyle(
-                  fontWeight: FontWeight.w800,
-                  fontSize: 16,
-                  color: textoSuaveTema(context),
-                ),
-              ),
-            ),
-            ...inactivas.map((t) => _AdminTaskCard(
-                  tarea: t,
-                  asignados: asignados[t.id] ?? const [],
-                  catalogo: catalogo,
-                  onRefresh: onRefresh,
-                )),
-            const SizedBox(height: 8),
-          ],
-        ],
-      ),
-        ),
-      ),
-    ],
-  );
-  }
-}
-
-class _AdminCatalogoTab extends StatelessWidget {
-  final List<TareaCatalogo> catalogo;
-  final Future<void> Function() onChanged;
-
-  const _AdminCatalogoTab({required this.catalogo, required this.onChanged});
-
-  @override
-  Widget build(BuildContext context) {
-    if (catalogo.isEmpty) {
-      return const EmptyState(
-        icon: Icons.menu_book_outlined,
-        message: 'Registra tus tareas con sus puntos.',
-        hint: 'Pulsa "Nueva en el catálogo" para empezar. Al crear una tarea, '
-            'los puntos se rellenarán solos según el título.',
-      );
-    }
-
-    int ordenD(int p) => p >= 10 ? 2 : (p >= 6 ? 1 : 0);
-    final lista = List<TareaCatalogo>.from(catalogo)
-      ..sort((a, b) {
-        final oa = ordenD(a.puntos);
-        final ob = ordenD(b.puntos);
-        if (oa != ob) return oa.compareTo(ob);
-        return a.puntos.compareTo(b.puntos);
-      });
-
-    return RefreshIndicator(
-      onRefresh: onChanged,
-      child: ListView(
-        padding: const EdgeInsets.all(12),
-        children: [
-          Padding(
-            padding: EdgeInsets.fromLTRB(4, 0, 4, 6),
-            child: Text(
-              'Puntos por defecto de cada tarea. Se prellenan al crear una '
-              'tarea nueva y se pueden editar. Ordenadas por dificultad.',
-              style: TextStyle(fontSize: 12, color: textoSuaveTema(context)),
-            ),
-          ),
-          for (final c in lista) _CatalogoCard(entrada: c, onChanged: onChanged),
         ],
       ),
     );
@@ -1181,8 +760,13 @@ class _CatalogoCard extends StatelessWidget {
         onSaved: (data) async {
           final titulo = (data['titulo'] as String?) ?? '';
           final puntos = (data['puntos'] as int?) ?? 0;
-          await app.editarCatalogo(
-              TareaCatalogo(id: entrada.id, titulo: titulo, puntos: puntos));
+          await app.editarCatalogo(TareaCatalogo(
+            id: entrada.id,
+            titulo: titulo,
+            puntos: puntos,
+            categoria: (data['categoria'] as String?) ?? entrada.categoria,
+            dificultad: (data['dificultad'] as String?) ?? entrada.dificultad,
+          ));
           await onChanged();
         },
       ),
@@ -1210,6 +794,8 @@ class _CatalogoFormDialogState extends State<_CatalogoFormDialog> {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _tituloController;
   late final TextEditingController _puntosController;
+  late String _categoria;
+  late String _dificultad;
 
   @override
   void initState() {
@@ -1218,6 +804,14 @@ class _CatalogoFormDialogState extends State<_CatalogoFormDialog> {
         TextEditingController(text: widget.inicial?.titulo ?? '');
     _puntosController =
         TextEditingController(text: (widget.inicial?.puntos ?? 0).toString());
+    _categoria = widget.inicial?.categoria ?? 'General';
+    _dificultad = widget.inicial?.dificultad ?? _dificultadPara(widget.inicial?.puntos ?? 0);
+  }
+
+  String _dificultadPara(int puntos) {
+    if (puntos >= 10) return 'dificil';
+    if (puntos >= 6) return 'media';
+    return 'facil';
   }
 
   @override
@@ -1249,6 +843,27 @@ class _CatalogoFormDialogState extends State<_CatalogoFormDialog> {
               validator: (v) =>
                   (v == null || int.tryParse(v) == null) ? 'Número válido' : null,
             ),
+            const SizedBox(height: 12),
+            DropdownButtonFormField<String>(
+              initialValue: _categoria,
+              decoration: const InputDecoration(labelText: 'Categoría'),
+              items: [
+                for (final c in CategoriaTarea.nombres)
+                  DropdownMenuItem(value: c, child: Text(c)),
+              ],
+              onChanged: (v) => setState(() => _categoria = v ?? 'General'),
+            ),
+            const SizedBox(height: 12),
+            DropdownButtonFormField<String>(
+              initialValue: _dificultad,
+              decoration: const InputDecoration(labelText: 'Dificultad'),
+              items: const [
+                DropdownMenuItem(value: 'facil', child: Text('Fácil')),
+                DropdownMenuItem(value: 'media', child: Text('Media')),
+                DropdownMenuItem(value: 'dificil', child: Text('Difícil')),
+              ],
+              onChanged: (v) => setState(() => _dificultad = v ?? 'media'),
+            ),
           ],
         ),
       ),
@@ -1263,6 +878,8 @@ class _CatalogoFormDialogState extends State<_CatalogoFormDialog> {
             widget.onSaved?.call({
               'titulo': _tituloController.text,
               'puntos': int.tryParse(_puntosController.text) ?? 0,
+              'categoria': _categoria,
+              'dificultad': _dificultad,
             });
             Navigator.pop(context);
           },
@@ -1911,8 +1528,8 @@ class _TaskFormDialogState extends State<_TaskFormDialog> {
   final Set<int> _integrantesIds = {};
   bool _puntosManual = false;
 
-  /// Si el título coincide con el catálogo y el admin no tocó los puntos,
-  /// rellena los puntos por defecto (y la dificultad se sugiere sola).
+  /// Si el título coincide con el catálogo y el admin no tocó los campos,
+  /// rellena puntos/categoría/dificultad por defecto.
   void _autofillDesdeCatalogo() {
     if (_puntosManual || widget.catalogo.isEmpty) return;
     final t = _tituloController.text.trim().toLowerCase();
@@ -1922,6 +1539,16 @@ class _TaskFormDialogState extends State<_TaskFormDialog> {
         if (_puntosController.text != c.puntos.toString()) {
           _puntosController.text = c.puntos.toString();
         }
+        var cambia = false;
+        if (_categoria != c.categoria) {
+          _categoria = c.categoria;
+          cambia = true;
+        }
+        if (_dificultad != c.dificultad) {
+          _dificultad = c.dificultad;
+          cambia = true;
+        }
+        if (cambia) setState(() {});
         return;
       }
     }

@@ -955,6 +955,13 @@ Future<List<(User, int)>> ranking(String periodo) async {
 
   Future<List<Reto>> listarRetos() => _db.getRetos();
 
+  /// Ids de tareas con al menos una asignación sin completar
+  /// (para pintar la etiqueta "Vencida" en el planificador semanal).
+  Future<Set<int>> idsTareasPendientes() async {
+    final lista = await _db.getAsignacionesPendientes();
+    return lista.map((a) => a.tareaId).toSet();
+  }
+
   // ---------------------------------------------------------------
   // CATÁLOGO DE TAREAS (puntos por defecto)
   // ---------------------------------------------------------------
@@ -964,8 +971,15 @@ Future<List<(User, int)>> ranking(String periodo) async {
   Future<void> crearCatalogo({
     required String titulo,
     required int puntos,
+    String categoria = 'General',
+    String dificultad = 'media',
   }) async {
-    await _db.insertCatalogo(TareaCatalogo(titulo: titulo, puntos: puntos));
+    await _db.insertCatalogo(TareaCatalogo(
+      titulo: titulo,
+      puntos: puntos,
+      categoria: categoria,
+      dificultad: dificultad,
+    ));
     notifyListeners();
   }
 
@@ -979,12 +993,17 @@ Future<List<(User, int)>> ranking(String periodo) async {
     notifyListeners();
   }
 
-  /// Busca los puntos por defecto del catálogo para un título (si existe).
+  /// Busca la entrada del catálogo para un título (si existe).
   TareaCatalogo? buscarEnCatalogo(List<TareaCatalogo> catalogo, String titulo) {
     final t = titulo.trim().toLowerCase();
     if (t.isEmpty) return null;
+    // Coincidencia exacta primero, después por prefijo ("Tra" → "Trapear").
     for (final c in catalogo) {
       if (c.titulo.trim().toLowerCase() == t) return c;
+    }
+    for (final c in catalogo) {
+      final ct = c.titulo.trim().toLowerCase();
+      if (ct.startsWith(t) || t.startsWith(ct)) return c;
     }
     return null;
   }

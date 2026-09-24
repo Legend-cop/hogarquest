@@ -1873,7 +1873,13 @@ class DatabaseHelper {
   // CATÁLOGO DE TAREAS
   // ---------------------------------------------------------------
   Map<String, dynamic> _catalogoToMap(TareaCatalogo c) {
-    return {'id': c.id, 'titulo': c.titulo, 'puntos': c.puntos};
+    return {
+      'id': c.id,
+      'titulo': c.titulo,
+      'puntos': c.puntos,
+      'categoria': c.categoria,
+      'dificultad': c.dificultad,
+    };
   }
 
   TareaCatalogo _mapToCatalogo(Map map) {
@@ -1881,6 +1887,8 @@ class DatabaseHelper {
       id: map['id'] as int?,
       titulo: (map['titulo'] as String?) ?? '',
       puntos: (map['puntos'] as int?) ?? 0,
+      categoria: (map['categoria'] as String?) ?? 'General',
+      dificultad: (map['dificultad'] as String?) ?? 'media',
     );
   }
 

@@ -16,6 +16,7 @@ import 'screens/login_screen.dart';
 import 'screens/pin_gate_screen.dart';
 import 'screens/splash_screen.dart';
 import 'services/celebration_service.dart';
+import 'services/haptics_service.dart';
 import 'services/push_service.dart';
 import 'theme/app_theme.dart';
 
@@ -44,6 +45,7 @@ void main() async {
     debugPrint('[Firebase] init omitido: $e');
   }
   await CelebrationService.instance.cargar();
+  await HapticsService.cargar();
   runApp(const HogarQuestApp());
 }
 
