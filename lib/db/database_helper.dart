@@ -258,6 +258,13 @@ class DatabaseHelper {
       return false;
     }
 
+    // Tras un reinicio LOCAL, cualquier registro cuyo updated_at es anterior
+    // al reset se descarta aunque el servidor aún lo conserve: evita que
+    // datos viejos (ranking mensual, castigos, puntos…) "revivan" en el
+    // siguiente pull mientras el servidor procesa los tombstones.
+    final lrLocal = _box(_boxMeta).get('last_reset');
+    final tsResetLocal = lrLocal is Map ? (lrLocal['ts'] as int? ?? 0) : 0;
+
     for (final entry in data.entries) {
       if (entry.key == 'deleted') continue;
       final boxName = entry.key;
@@ -283,6 +290,14 @@ class DatabaseHelper {
         if (boxName == _boxUsuarios &&
             (remoto['nombre'] as String?)?.toLowerCase() == 'demo') {
           _tombstone(_boxUsuarios, remoto);
+          continue;
+        }
+        // Datos anteriores al último reset local: no reviven.
+        if (tsResetLocal > 0 &&
+            (remoto['updated_at'] as int? ?? 0) < tsResetLocal) {
+          final loc = locales[entrada.key];
+          if (loc != null) resueltos.add(loc);
+          victoriaLocal = true;
           continue;
         }
         final local = locales[entrada.key];
@@ -521,14 +536,8 @@ class DatabaseHelper {
       )));
     }
 
-    final recompensas = _box(_boxRecompensas);
-    if (recompensas.isEmpty) {
-      await _addConId(recompensas, _rewardToMap(Reward(nombre: 'Elegir película', descripcion: 'Elige la película de la noche en familia.', costoPuntos: 100)));
-      await _addConId(recompensas, _rewardToMap(Reward(nombre: 'Postre favorito', descripcion: 'Elige el postre del fin de semana.', costoPuntos: 150)));
-      await _addConId(recompensas, _rewardToMap(Reward(nombre: 'Hora extra de juego', descripcion: 'Una hora extra de juego o pantallas.', costoPuntos: 200)));
-      await _addConId(recompensas, _rewardToMap(Reward(nombre: 'Salida por helado', descripcion: 'Salida por helado a tu gusto.', costoPuntos: 300)));
-      await _addConId(recompensas, _rewardToMap(Reward(nombre: 'Actividad especial', descripcion: 'Elige una actividad especial para la familia.', costoPuntos: 500)));
-    }
+    // Nota: no se siembran recompensas de demostración; los datos inician
+    // desde 0 y el administrador crea los premios reales de la familia.
 
     final insignias = _box(_boxInsignias);
     final catalogoInsignias = [
@@ -581,6 +590,14 @@ class DatabaseHelper {
     final tareas = _box(_boxTareas);
     final asignaciones = _box(_boxAsignaciones);
     final meta = _box(_boxMeta);
+
+    // Inicio desde cero: el horario de demostración (Natalia, Emanuel,
+    // Sarais y ~42 tareas) solo se regenera si ya existía un seed previo.
+    // Instalaciones nuevas y reinicios empiezan con datos en 0.
+    if (meta.get('seed_horario') == null) {
+      debugPrint('[seed] Saltando: sin seed_horario (los datos inician desde 0)');
+      return;
+    }
 
     // Si el usuario administra su propio horario (creó tareas manualmente),
     // NO sembramos: el seed crearía tareas duplicadas que el usuario no pidió.
@@ -955,6 +972,7 @@ class DatabaseHelper {
       'rol': u.rol,
       'activo': u.activo ? 1 : 0,
       'pin': u.pin,
+      'mascota': u.mascota,
     };
   }
 
@@ -975,6 +993,7 @@ class DatabaseHelper {
       rol: (map['rol'] as String?) ?? 'integrante',
       activo: (map['activo'] as int? ?? 1) == 1,
       pin: (map['pin'] as String?) ?? '',
+      mascota: (map['mascota'] as String?) ?? '',
     );
   }
 
@@ -1347,15 +1366,23 @@ class DatabaseHelper {
     _reconnectTimer?.cancel();
     _debounce?.cancel();
 
-    // 1) Guardar el marcador de reset ANTES de limpiar.
-    _box(_boxMeta).put('last_reset', <String, dynamic>{
-      'ts': DateTime.now().millisecondsSinceEpoch,
-    });
-
-    for (final box in _boxes.values) {
-      box.items.clear();
+    // Borrar con tombstones (marcas de borrado): así el borrado se propaga
+    // al servidor y a los demás dispositivos en el siguiente pull, en lugar
+    // de que los registros "revivan" porque solo se vaciaron las cajas.
+    for (final entry in _boxes.entries) {
+      for (final item in entry.value.items) {
+        _tombstone(entry.key, item);
+      }
+      entry.value.items.clear();
     }
-    _tombstones.clear();
+    // El marcador de reset se guarda DESPUÉS de limpiar: si se guarda antes,
+    // este mismo clear lo borra y el seed vuelve a recrear la familia de
+    // demostración (el guard de _seedPerfilesSemana depende de él).
+    final tsReset = DateTime.now().millisecondsSinceEpoch;
+    _box(_boxMeta).put('last_reset', <String, dynamic>{
+      'ts': tsReset,
+      'updated_at': tsReset,
+    });
     // Crear solo el usuario Admin para que pueda entrar de nuevo.
     await _addConId(_box(_boxUsuarios), _userToMap(User(
       id: 0,

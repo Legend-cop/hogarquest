@@ -23,23 +23,61 @@ class PushService {
 
   int? _userId;
   bool _iniciado = false;
+  Future<bool>? _soporte;
+
+  /// ¿Este entorno puede usar FCM?
+  ///
+  /// En web esto depende del navegador y de que la página esté en un origen
+  /// seguro (HTTPS o localhost): sobre `http://<ip-lan>` no hay Push ni
+  /// service workers, y el SDK de Firebase lanza `messaging/unsupported-browser`
+  /// como promesa sin manejar ("Uncaught (in promise)" en la consola), así
+  /// que comprobamos el soporte antes de tocar cualquier API de messaging.
+  Future<bool> _soportado() => _soporte ??=_comprobarSoporte();
+
+  Future<bool> _comprobarSoporte() async {
+    if (!kIsWeb) return true;
+    for (var intento = 0; intento < 3; intento++) {
+      try {
+        return await _messaging.isSupported();
+      } catch (_) {
+        // El módulo JS de Firebase aún puede no haber terminado de cargar.
+        await Future<void>.delayed(const Duration(milliseconds: 300));
+      }
+    }
+    return false;
+  }
 
   /// Inicializa FCM una sola vez (permisos + listeners). Llámalo al arrancar.
   Future<void> inicializar() async {
     if (_iniciado) return;
     _iniciado = true;
 
-    await _messaging.requestPermission(
-      alert: true,
-      badge: true,
-      sound: true,
-    );
+    if (!await _soportado()) {
+      debugPrint(
+        '[Push] FCM no disponible en este navegador/origen: se omite.',
+      );
+      return;
+    }
 
-    FirebaseMessaging.onMessage.listen(_enPrimerPlano);
-    FirebaseMessaging.onMessageOpenedApp.listen(_alAbrir);
+    try {
+      await _messaging.requestPermission(
+        alert: true,
+        badge: true,
+        sound: true,
+      );
+    } catch (e) {
+      debugPrint('[Push] permiso de notificaciones no concedido: $e');
+    }
 
-    await _refrescarToken();
-    _messaging.onTokenRefresh.listen((_) => _refrescarToken());
+    try {
+      FirebaseMessaging.onMessage.listen(_enPrimerPlano);
+      FirebaseMessaging.onMessageOpenedApp.listen(_alAbrir);
+
+      await _refrescarToken();
+      _messaging.onTokenRefresh.listen((_) => _refrescarToken());
+    } catch (e) {
+      debugPrint('[Push] no se pudo iniciar FCM: $e');
+    }
   }
 
   /// Asocia el token del dispositivo al usuario que inicia sesión.
@@ -60,6 +98,7 @@ class PushService {
   }
 
   Future<String?> _tokenActual() async {
+    if (!await _soportado()) return null;
     try {
       if (kIsWeb) {
         return await _messaging.getToken(vapidKey: _vapidKey);

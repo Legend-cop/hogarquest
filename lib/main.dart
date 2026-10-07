@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 
 import 'firebase_options.dart';
@@ -46,6 +47,12 @@ void main() async {
   }
   await CelebrationService.instance.cargar();
   await HapticsService.cargar();
+  // Precarga Nunito para evitar el flash con la fuente fallback al arrancar.
+  try {
+    await GoogleFonts.getFont('Nunito');
+  } catch (_) {
+    // Sin conexión: la app arranca igual con la fuente por defecto.
+  }
   runApp(const HogarQuestApp());
 }
 

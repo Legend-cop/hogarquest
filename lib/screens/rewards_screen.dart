@@ -11,6 +11,8 @@ import '../providers/app_provider.dart';
 import '../theme/app_theme.dart';
 import '../widgets/duo_widgets.dart';
 import '../widgets/empty_state.dart';
+import '../widgets/hq_design.dart';
+import '../widgets/icons3d.dart';
 import '../models/reward.dart';
 import '../models/redemption.dart';
 import '../models/user.dart';
@@ -31,12 +33,9 @@ class RewardsScreen extends StatelessWidget {
     final user = app.usuarioActual;
     if (user == null) return const SizedBox.shrink();
 
-    return Scaffold(
-      appBar: AppBar(title: const Text('Recompensas')),
-      body: user.esAdmin
-          ? _AdminRewardsView(app: app)
-          : _UserRewardsView(user: user, app: app),
-    );
+    return user.esAdmin
+        ? _AdminRewardsView(app: app)
+        : _UserRewardsView(user: user, app: app);
   }
 }
 
@@ -163,7 +162,15 @@ class _AdminRewardsViewState extends State<_AdminRewardsView> {
     return Column(
       children: [
         Padding(
-          padding: const EdgeInsets.fromLTRB(12, 10, 12, 4),
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
+          child: PageTitle(
+            'Premios',
+            subtitle:
+                'Saldo: ${widget.app.usuarioActual?.puntos ?? 0} puntos',
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(12, 4, 12, 4),
           child: Row(
             children: [
               Expanded(
@@ -235,7 +242,7 @@ class _OroChip extends StatelessWidget {
       decoration: BoxDecoration(
         color: isDark
             ? AppColors.amarillo.withValues(alpha: 0.18)
-            : const Color(0xFFFFF3C4),
+            : AppColors.amarilloFondo,
         borderRadius: BorderRadius.circular(9),
       ),
       child: Row(
@@ -248,7 +255,7 @@ class _OroChip extends StatelessWidget {
             style: TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.w800,
-              color: isDark ? AppColors.amarillo : const Color(0xFF8A6D00),
+              color: isDark ? AppColors.amarillo : AppColors.grisOscuro,
             ),
           ),
         ],
@@ -325,7 +332,7 @@ class _RewardGridCardState extends State<_RewardGridCard> {
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
           color: isDark ? AppColors.superficieOscura : Colors.white,
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(18),
           border: Border.all(
             color: _hover
                 ? AppColors.verde
@@ -334,10 +341,6 @@ class _RewardGridCardState extends State<_RewardGridCard> {
                     : AppColors.linea),
             width: 2,
           ),
-          boxShadow: const [
-            BoxShadow(
-                color: Color(0x14000000), offset: Offset(0, 4), blurRadius: 0),
-          ],
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -371,7 +374,7 @@ class _RewardGridCardState extends State<_RewardGridCard> {
               r.nombre,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+              style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 14),
             ),
             const SizedBox(height: 2),
             Expanded(
@@ -701,9 +704,10 @@ class _UserRewardsViewState extends State<_UserRewardsView> {
   }
 
   Future<void> _canjearRecompensa(Reward recompensa) async {
+    final messenger = ScaffoldMessenger.of(context);
     final success = await widget.app.canjearRecompensa(recompensa);
     if (success) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      messenger.showSnackBar(
         SnackBar(
           content: Text('¡Has canjeado "${recompensa.nombre}" exitosamente!'),
         ),
@@ -711,9 +715,7 @@ class _UserRewardsViewState extends State<_UserRewardsView> {
       await _cargarDatos();
     } else {
       final msg = widget.app.error ?? 'No puedes canjear esta recompensa.';
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(msg)),
-      );
+      messenger.showSnackBar(SnackBar(content: Text(msg)));
       await _cargarDatos();
     }
   }
@@ -726,27 +728,50 @@ class _UserRewardsViewState extends State<_UserRewardsView> {
 
     return Column(
       children: [
-        if (_bloqueado)
-          Container(
-            width: double.infinity,
-            margin: const EdgeInsets.fromLTRB(12, 12, 12, 0),
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: Colors.red.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppColors.rojo.withValues(alpha: 0.4)),
-            ),
-            child: const Row(
-              children: [
-                Icon(Icons.lock_clock, color: AppColors.rojo),
-                SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    'Tienes tareas vencidas. Complétalas para poder canjear recompensas.',
-                    style: TextStyle(fontSize: 13, color: AppColors.rojo, fontWeight: FontWeight.w600),
-                  ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
+          child: PageTitle(
+            'Premios',
+            actions: [
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: AppColors.amarilloFondo,
+                  borderRadius: BorderRadius.circular(999),
                 ),
-              ],
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Bolt3D(size: 14, animar: false),
+                    const SizedBox(width: 4),
+                    Text(
+                      '${widget.user.puntos} XP',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w900,
+                        color: AppColors.amarilloOscuro,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        if (_bloqueado)
+          const Padding(
+            padding: EdgeInsets.fromLTRB(16, 4, 16, 4),
+            child: CardBox(
+              color: AppColors.rojoFondo,
+              child: Text(
+                'Tienes tareas vencidas. Complétalas para poder canjear '
+                'recompensas.',
+                style: TextStyle(
+                  fontWeight: FontWeight.w800,
+                  color: AppColors.grisOscuro,
+                ),
+              ),
             ),
           ),
         Expanded(
@@ -855,7 +880,7 @@ class _UserRewardCard extends StatelessWidget {
             r.nombre,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+            style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 14),
           ),
           const SizedBox(height: 2),
           Expanded(
@@ -895,9 +920,9 @@ class _UserRewardCard extends StatelessWidget {
           const SizedBox(height: 8),
           _MiniBoton(
             label: jaCanjeado ? 'Canjeado' : 'Canjear',
-            color: jaCanjeado ? AppColors.grisOscuro : AppColors.azul,
+            color: jaCanjeado ? AppColors.grisOscuro : AppColors.verde,
             borderColor:
-                jaCanjeado ? AppColors.grisOscuro : const Color(0xFF1290C9),
+                jaCanjeado ? AppColors.grisOscuro : AppColors.verdeOscuro,
             onPressed: jaCanjeado ? null : onCanjear,
           ),
         ],
@@ -906,7 +931,7 @@ class _UserRewardCard extends StatelessWidget {
   }
 }
 
-/// Botón Duolingo compacto (altura 40) para las tarjetas del grid.
+/// Botón relleno compacto estilo referencia (altura 44) para las tarjetas.
 class _MiniBoton extends StatelessWidget {
   final String label;
   final Color color;
@@ -922,34 +947,24 @@ class _MiniBoton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final enabled = onPressed != null;
-    final bg = enabled ? color : AppColors.linea;
-    final bd = enabled ? borderColor : AppColors.grisMedio;
-    return SizedBox(
-      height: 40,
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: onPressed,
-          borderRadius: BorderRadius.circular(12),
-          child: Container(
-            height: 40,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: bg,
-              borderRadius: BorderRadius.circular(12),
-              border: Border(bottom: BorderSide(color: bd, width: 4)),
-            ),
-            child: Text(
-              label.toUpperCase(),
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 13,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 0.5,
-              ),
-            ),
-          ),
+    return FilledButton(
+      onPressed: onPressed,
+      style: FilledButton.styleFrom(
+        minimumSize: const Size(0, 44),
+        backgroundColor: color,
+        disabledBackgroundColor:
+            Theme.of(context).brightness == Brightness.dark
+                ? AppColors.grisMedio
+                : AppColors.linea,
+        disabledForegroundColor: textoSuaveTema(context),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+      child: Text(
+        label.toUpperCase(),
+        style: const TextStyle(
+          fontSize: 13,
+          fontWeight: FontWeight.w800,
+          letterSpacing: 0.5,
         ),
       ),
     );
@@ -964,65 +979,63 @@ class _MisCanjes extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final pendientes = entre.where((c) => c.$1.estado == 'pendiente').length;
-    final entregadas = entre.where((c) => c.$1.estado == 'entregada').length;
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          children: [
-            const Icon(Icons.redeem, color: AppColors.azul, size: 20),
-            const SizedBox(width: 6),
-            Text(
-              'Mis canjes (${entre.length})',
-              style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w800,
-                  color: textoTema(context)),
-            ),
-            const Spacer(),
-            Chip(
-              label: Text('$pendientes pend. · $entregadas entr.',
-                  style: const TextStyle(
-                      color: AppColors.grisOscuro, fontSize: 11)),
-              visualDensity: VisualDensity.compact,
-              backgroundColor: AppColors.verdeFondo,
-            ),
-          ],
+        Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: Text(
+            'Mis canjes (${entre.length})',
+            style: const TextStyle(
+                fontSize: 18, fontWeight: FontWeight.w900),
+          ),
         ),
-        const SizedBox(height: 8),
         for (final c in entre)
-          ListTile(
-            dense: true,
-            contentPadding: EdgeInsets.zero,
-            leading: CircleAvatar(
-              radius: 16,
-              backgroundColor: AppColors.amarillo.withValues(alpha: 0.2),
-              child: const Icon(Icons.card_giftcard,
-                  color: AppColors.amarillo, size: 18),
-            ),
-            title: Text(c.$2.nombre,
-                style: const TextStyle(
-                    fontSize: 14, fontWeight: FontWeight.w700)),
-            subtitle: Text(
-              '${c.$1.fecha.day}/${c.$1.fecha.month} · ${c.$1.estado == 'entregada' ? 'Entregada' : 'Pendiente'}',
-              style: const TextStyle(fontSize: 12),
-            ),
-            trailing: Chip(
-              label: Text(c.$1.estado == 'entregada'
-                  ? 'ENTREGADA'
-                  : 'PENDIENTE',
-                  style: TextStyle(
-                      color: c.$1.estado == 'entregada'
-                          ? AppColors.verdeOscuro
-                          : AppColors.rojo,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w800)),
-              backgroundColor: (c.$1.estado == 'entregada'
-                      ? AppColors.verdeFondo
-                      : Colors.red)
-                  .withValues(alpha: 0.12),
+          CardBox(
+            child: Row(
+              children: [
+                CircleAvatar(
+                  radius: 16,
+                  backgroundColor: AppColors.amarillo.withValues(alpha: 0.2),
+                  child: const Icon(Icons.card_giftcard,
+                      color: AppColors.amarilloOscuro, size: 18),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(c.$2.nombre,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                              fontSize: 14, fontWeight: FontWeight.w900)),
+                      const SizedBox(height: 2),
+                      Text(
+                        '${c.$1.fecha.day}/${c.$1.fecha.month} · '
+                        '${c.$1.estado == 'entregada' ? 'Entregada' : 'Pendiente'}',
+                        style: const TextStyle(fontSize: 12),
+                      ),
+                    ],
+                  ),
+                ),
+                Chip(
+                  label: Text(
+                      c.$1.estado == 'entregada'
+                          ? 'ENTREGADA'
+                          : 'PENDIENTE',
+                      style: TextStyle(
+                          color: c.$1.estado == 'entregada'
+                              ? AppColors.verdeOscuro
+                              : AppColors.rojo,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w800)),
+                  backgroundColor: (c.$1.estado == 'entregada'
+                          ? AppColors.verdeFondo
+                          : Colors.red)
+                      .withValues(alpha: 0.12),
+                ),
+              ],
             ),
           ),
         const SizedBox(height: 8),

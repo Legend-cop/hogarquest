@@ -17,6 +17,10 @@ class User {
   final String pin;
   final List<int>? insigniasObtenidas;
 
+  /// Mascota elegida por el usuario (nombre del MascotType). Vacío = la que
+  /// le toca por defecto según su id.
+  final String mascota;
+
   const User({
     this.id,
     required this.nombre,
@@ -35,6 +39,7 @@ class User {
     this.activo = true,
     this.pin = '',
     this.insigniasObtenidas,
+    this.mascota = '',
   }) : _edad = edad;
 
   /// Edad calculada a partir de la fecha de nacimiento cuando existe, de modo
@@ -117,6 +122,7 @@ class User {
     bool? activo,
     String? pin,
     List<int>? insigniasObtenidas,
+    String? mascota,
   }) {
     return User(
       id: id ?? this.id,
@@ -136,6 +142,7 @@ class User {
       activo: activo ?? this.activo,
       pin: pin ?? this.pin,
       insigniasObtenidas: insigniasObtenidas ?? this.insigniasObtenidas,
+      mascota: mascota ?? this.mascota,
     );
   }
 
@@ -158,6 +165,7 @@ class User {
       'activo': activo ? 1 : 0,
       'pin': pin,
       'insignias_obtenidas': insigniasObtenidas,
+      'mascota': mascota,
     };
   }
 
@@ -182,6 +190,7 @@ class User {
       activo: (map['activo'] as int? ?? 1) == 1,
       pin: (map['pin'] as String?) ?? '',
       insigniasObtenidas: (map['insignias_obtenidas'] as List?)?.cast<int>(),
+      mascota: (map['mascota'] as String?) ?? '',
     );
   }
 }

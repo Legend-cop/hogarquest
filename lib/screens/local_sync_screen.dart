@@ -171,6 +171,9 @@ class _LocalSyncScreenState extends State<LocalSyncScreen> {
                     );
                   }
                 },
+                style: FilledButton.styleFrom(
+                  minimumSize: const Size(0, 52),
+                ),
                 child: const Text('Agregar'),
               ),
             ],

@@ -10,7 +10,8 @@ import '../services/celebration_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/confetti.dart';
 import '../widgets/duo_widgets.dart';
-import '../widgets/section_header.dart';
+import '../widgets/hq_design.dart';
+import '../widgets/icons3d.dart';
 
 String _formatoFecha(DateTime f) {
   final d = f.day.toString().padLeft(2, '0');
@@ -21,7 +22,10 @@ String _formatoFecha(DateTime f) {
 }
 
 class RetosScreen extends StatefulWidget {
-  const RetosScreen({super.key});
+  /// `false` al incrustarse dentro de Tareas (ya su propia cabecera).
+  final bool mostrarTitulo;
+
+  const RetosScreen({super.key, this.mostrarTitulo = true});
 
   @override
   State<RetosScreen> createState() => _RetosScreenState();
@@ -29,6 +33,7 @@ class RetosScreen extends StatefulWidget {
 
 class _RetosScreenState extends State<RetosScreen> {
   List<Reto> _retos = const [];
+  List<User> _integrantes = const [];
   bool _cargando = true;
   late AppProvider _provider;
 
@@ -54,10 +59,12 @@ class _RetosScreenState extends State<RetosScreen> {
 
   Future<void> _cargar() async {
     final app = context.read<AppProvider>();
-    final f = await app.retosDeLaSemana();
+    final results =
+        await Future.wait([app.retosDeLaSemana(), app.listarIntegrantes()]);
     if (!mounted) return;
     setState(() {
-      _retos = f;
+      _retos = results[0] as List<Reto>;
+      _integrantes = results[1] as List<User>;
       _cargando = false;
     });
   }
@@ -68,54 +75,67 @@ class _RetosScreenState extends State<RetosScreen> {
     final user = app.usuarioActual;
     if (user == null) return const SizedBox.shrink();
     if (_cargando) {
-      return Scaffold(
-        appBar: AppBar(title: const Text('Retos de la semana')),
-        body: const Center(child: CircularProgressIndicator()),
-      );
+      return const Center(child: CircularProgressIndicator());
     }
     final retos = _retos;
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Retos de la semana'),
-        actions: [
-          if (user.esAdmin)
-            IconButton(
-              icon: const Icon(Icons.add_circle_outline),
-              tooltip: 'Nuevo reto',
-              onPressed: () => _abrirRetoDialog(context),
-            ),
-        ],
-      ),
-      body: RefreshIndicator(
-        onRefresh: () async => _cargar(),
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 760),
-            child: ListView(
-              padding: const EdgeInsets.all(16),
-              children: [
-                if (retos.isEmpty)
-                  _SinRetoCard(esAdmin: user.esAdmin)
-                else ...[
-                  for (final reto in retos)
-                    _RetoCard(reto: reto, user: user),
-                  if (user.esAdmin) ...[
-                    const SizedBox(height: 8),
-                    DuoButton(
-                      label: 'Agregar otro reto',
-                      icon: Icons.add_circle_outline,
-                      onPressed: () => _abrirRetoDialog(context),
-                    ),
+    final esAdmin = user.esAdmin;
+    final total = _integrantes.length;
+
+    final contenido = Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 760),
+        child: RefreshIndicator(
+          onRefresh: () async => _cargar(),
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+            children: [
+              if (widget.mostrarTitulo)
+                PageTitle(
+                  esAdmin ? 'Retos' : 'Mis retos',
+                  subtitle: esAdmin
+                      ? 'Retos de la semana en familia'
+                      : 'Metas en equipo de esta semana',
+                  actions: [
+                    if (esAdmin)
+                      IconButton(
+                        icon: const Icon(Icons.add_circle_outline),
+                        tooltip: 'Nuevo reto',
+                        onPressed: () => _abrirRetoDialog(context),
+                      ),
                   ],
-                ],
+                ),
+              if (esAdmin) ...[
+                const _RetoDestacado(),
                 const SizedBox(height: 16),
-                _RetosPasados(esAdmin: user.esAdmin),
               ],
-            ),
+              if (retos.isEmpty)
+                _SinRetoCard(esAdmin: esAdmin)
+              else ...[
+                for (final reto in retos)
+                  esAdmin
+                      ? _RetoCardAdmin(reto: reto, total: total)
+                      : _RetoCardChild(reto: reto, total: total, user: user),
+                const SizedBox(height: 8),
+                if (esAdmin)
+                  DuoButton(
+                    label: 'Agregar otro reto',
+                    icon: Icons.add_circle_outline,
+                    onPressed: () => _abrirRetoDialog(context),
+                  ),
+              ],
+              if (!esAdmin && retos.isEmpty) ...[
+                const SizedBox(height: 12),
+                const _ComoFuncionan(),
+              ],
+              const SizedBox(height: 16),
+              _RetosPasados(esAdmin: esAdmin),
+            ],
           ),
         ),
       ),
     );
+
+    return contenido;
   }
 
   void _abrirRetoDialog(BuildContext context, {Reto? inicial}) {
@@ -329,49 +349,254 @@ class _FechaFinPicker extends StatelessWidget {
   }
 }
 
-class _SinRetoCard extends StatelessWidget {
-  final bool esAdmin;
-  const _SinRetoCard({required this.esAdmin});
+/// Tarjeta destacada verde estilo referencia (solo admin).
+class _RetoDestacado extends StatelessWidget {
+  const _RetoDestacado();
 
   @override
   Widget build(BuildContext context) {
-    return DuoCard(
-      padding: const EdgeInsets.all(20),
+    return CardBox(
+      color: AppColors.verdeFondo,
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(Icons.flag_circle, size: 48, color: AppColors.amarillo),
-          const SizedBox(height: 12),
-          const Text('Aún no hay reto esta semana',
-              style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
-          const SizedBox(height: 6),
-          Text(
-            esAdmin
-                ? 'Crea un reto familiar: todos lo cumplen y ganan puntos bonus.'
-                : 'Pídele al administrador que cree un reto familiar.',
-            textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 13, color: textoSuaveTema(context)),
-          ),
-          if (esAdmin) ...[
-            const SizedBox(height: 16),
-            DuoButton(
-              label: 'Crear reto',
-              icon: Icons.add_circle_outline,
-              onPressed: () => showDialog(
-                context: context,
-                builder: (_) => const _NuevoRetoDialog(),
-              ),
+          const Text(
+            'RETO FAMILIAR DESTACADO',
+            style: TextStyle(
+              color: AppColors.grisOscuro,
+              fontSize: 10,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0.8,
             ),
-          ],
+          ),
+          const SizedBox(height: 4),
+          const Text(
+            '¡Todos sumamos!',
+            style: TextStyle(
+              color: AppColors.grisOscuro,
+              fontSize: 20,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+          const SizedBox(height: 4),
+          const Text(
+            'Completen retos juntos y ganen XP extra.',
+            style: TextStyle(
+              color: AppColors.grisOscuro,
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
         ],
       ),
     );
   }
 }
 
-class _RetoCard extends StatelessWidget {
+class _SinRetoCard extends StatelessWidget {
+  final bool esAdmin;
+  const _SinRetoCard({required this.esAdmin});
+
+  @override
+  Widget build(BuildContext context) {
+    if (!esAdmin) {
+      // Texto exacto del zip ( ChildChallenges ).
+      return const CardBox(
+        color: AppColors.azulFondo,
+        child: Text(
+          'Aún no hay reto esta semana. Pídele al administrador que cree '
+          'un reto familiar.',
+          style: TextStyle(
+            fontWeight: FontWeight.w800,
+            color: AppColors.grisOscuro,
+          ),
+        ),
+      );
+    }
+    return CardBox(
+      color: AppColors.azulFondo,
+      child: Column(
+        children: [
+          const Text(
+            'Aún no hay reto esta semana',
+            style: TextStyle(
+                fontSize: 17,
+                fontWeight: FontWeight.w800,
+                color: AppColors.grisOscuro),
+          ),
+          const SizedBox(height: 6),
+          const Text(
+            'Crea un reto familiar: todos lo cumplen y ganan puntos bonus.',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                color: AppColors.grisOscuro),
+          ),
+          const SizedBox(height: 16),
+          DuoButton(
+            label: 'Crear reto',
+            icon: Icons.add_circle_outline,
+            onPressed: () => showDialog(
+              context: context,
+              builder: (_) => const _NuevoRetoDialog(),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Tarjeta de ayuda "¿Cómo funcionan?" con el texto exacto del zip.
+class _ComoFuncionan extends StatelessWidget {
+  const _ComoFuncionan();
+
+  @override
+  Widget build(BuildContext context) {
+    return const CardBox(
+      child: Text(
+        '¿Cómo funcionan? Los retos son metas en equipo: al cumplirlas, '
+        'toda la familia gana XP extra.',
+        style: TextStyle(
+          fontWeight: FontWeight.w700,
+          color: AppColors.grisOscuro,
+        ),
+      ),
+    );
+  }
+}
+
+/// Cabecera común de las tarjetas de reto: caja icono + título/descripción + pts.
+class _RetoCabecera extends StatelessWidget {
   final Reto reto;
-  final User user;
-  const _RetoCard({required this.reto, required this.user});
+  const _RetoCabecera({required this.reto});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: 48,
+          height: 48,
+          decoration: BoxDecoration(
+            color: AppColors.amarilloFondo,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: const Icon(
+            Icons.flag_rounded,
+            size: 26,
+            color: AppColors.amarilloOscuro,
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                reto.titulo,
+                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                reto.descripcion,
+                style: TextStyle(
+                  fontSize: 12.5,
+                  height: 1.35,
+                  color: textoSuaveTema(context),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(width: 8),
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Bolt3D(size: 16, animar: false),
+            const SizedBox(width: 3),
+            Text(
+              '+${reto.puntos} pts',
+              style: const TextStyle(
+                fontSize: 12.5,
+                fontWeight: FontWeight.w800,
+                color: AppColors.azul,
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+/// Barra de progreso familiar + contador y límite de la tarjeta de reto.
+class _ProgresoReto extends StatelessWidget {
+  final Reto reto;
+  final int total;
+
+  const _ProgresoReto({required this.reto, required this.total});
+
+  @override
+  Widget build(BuildContext context) {
+    final c = reto.cumplidos.length;
+    final max = total > 0 ? total : (c >= 1 ? c : 1);
+    final valor = max == 0 ? 0.0 : (c / max).clamp(0.0, 1.0);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(height: 14),
+        Row(
+          children: [
+            Text(
+              'Progreso familiar',
+              style: TextStyle(
+                fontSize: 12.5,
+                fontWeight: FontWeight.w700,
+                color: textoSuaveTema(context),
+              ),
+            ),
+            const Spacer(),
+            Text(
+              '$c/$max',
+              style: const TextStyle(
+                fontSize: 12.5,
+                fontWeight: FontWeight.w900,
+                color: AppColors.grisOscuro,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 6),
+        ProgressLine(valor, color: AppColors.verde),
+        if (reto.fechaFin != null) ...[
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Icon(Icons.schedule, size: 14, color: textoSuaveTema(context)),
+              const SizedBox(width: 4),
+              Text(
+                'Vence el ${_formatoFecha(reto.fechaFin!)}',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: textoSuaveTema(context),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _RetoCardAdmin extends StatelessWidget {
+  final Reto reto;
+  final int total;
+  const _RetoCardAdmin({required this.reto, required this.total});
 
   Future<void> _confirmarEliminar(BuildContext context, Reto reto) async {
     final ok = await showDialog<bool>(
@@ -404,115 +629,109 @@ class _RetoCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final app = context.read<AppProvider>();
-    final esAdmin = user.esAdmin;
-    final loCumpli = reto.cumplidos.contains(user.id);
-    final yaAprobado = reto.aprobados.contains(user.id);
-
     return DuoCard(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.fromLTRB(16, 16, 12, 12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Icon(Icons.emoji_events, color: AppColors.amarillo, size: 28),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(reto.titulo,
-                    style: const TextStyle(
-                        fontSize: 18, fontWeight: FontWeight.w800)),
-              ),
-              if (esAdmin) ...[
-                IconButton(
-                  icon: const Icon(Icons.edit, color: AppColors.azul, size: 20),
-                  tooltip: 'Editar reto',
-                  onPressed: () => showDialog(
-                    context: context,
-                    builder: (_) => _NuevoRetoDialog(inicial: reto),
+              Expanded(child: _RetoCabecera(reto: reto)),
+              Column(
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.edit, color: AppColors.azul, size: 20),
+                    tooltip: 'Editar reto',
+                    onPressed: () => showDialog(
+                      context: context,
+                      builder: (_) => _NuevoRetoDialog(inicial: reto),
+                    ),
                   ),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.delete_outline,
-                      color: AppColors.rojo, size: 20),
-                  tooltip: 'Eliminar reto',
-                  onPressed: () => _confirmarEliminar(context, reto),
-                ),
-              ],
-              Chip(
-                avatar: const Icon(Icons.stars, size: 16),
-                label: Text('+${reto.puntos} pts',
-                    style: const TextStyle(fontWeight: FontWeight.w700)),
-                backgroundColor: AppColors.amarillo.withValues(alpha: 0.15),
+                  IconButton(
+                    icon: const Icon(Icons.delete_outline,
+                        color: AppColors.rojo, size: 20),
+                    tooltip: 'Eliminar reto',
+                    onPressed: () => _confirmarEliminar(context, reto),
+                  ),
+                ],
               ),
             ],
           ),
-          const SizedBox(height: 8),
-          Text(reto.descripcion,
-              style: const TextStyle(fontSize: 14, height: 1.4)),
-          if (reto.fechaFin != null) ...[
-            const SizedBox(height: 6),
+          _ProgresoReto(reto: reto, total: total),
+          const SizedBox(height: 10),
+          if (reto.finalizado)
+            Center(
+              child: Text(
+                'Reto finalizado',
+                style: TextStyle(color: textoSuaveTema(context), fontSize: 12),
+              ),
+            )
+          else
+            Center(
+              child: TextButton.icon(
+                onPressed: () {
+                  lanzarConfeti(context);
+                  unawaited(CelebrationService.instance.success());
+                  app.aprobarReto(reto);
+                },
+                icon: const Icon(Icons.check_circle, color: AppColors.verde),
+                label: Text(
+                  reto.cumplidos.isEmpty
+                      ? 'Finalizar reto'
+                      : 'Finalizar y dar puntos',
+                  style: const TextStyle(color: AppColors.verde),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _RetoCardChild extends StatelessWidget {
+  final Reto reto;
+  final int total;
+  final User user;
+  const _RetoCardChild({required this.reto, required this.total, required this.user});
+
+  @override
+  Widget build(BuildContext context) {
+    final app = context.read<AppProvider>();
+    final loCumpli = reto.cumplidos.contains(user.id);
+    final yaAprobado = reto.aprobados.contains(user.id);
+
+    return DuoCard(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _RetoCabecera(reto: reto),
+          _ProgresoReto(reto: reto, total: total),
+          const SizedBox(height: 14),
+          if (yaAprobado)
             Row(
               children: [
-                Icon(Icons.schedule, size: 14, color: textoSuaveTema(context)),
-                const SizedBox(width: 4),
-                Text('Vence el ${_formatoFecha(reto.fechaFin!)}',
-                    style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: textoSuaveTema(context))),
-              ],
-            ),
-          ],
-          const SizedBox(height: 16),
-          Text(
-            'Cumplido por ${reto.cumplidos.length} integrante${reto.cumplidos.length == 1 ? '' : 's'}',
-            style: TextStyle(fontSize: 12, color: textoSuaveTema(context)),
-          ),
-          const SizedBox(height: 8),
-          if (!esAdmin)
-            loCumpli
-                ? const _MarcadoChip()
-                : DuoButton(
-                    label: '¡Lo cumplí!',
-                    icon: Icons.verified,
-                    onPressed: () => app.marcarRetoCumplido(reto),
-                  )
-          else ...[
-            if (!reto.finalizado)
-              Center(
-                child: TextButton.icon(
-                  onPressed: () {
-                    lanzarConfeti(context);
-                    unawaited(CelebrationService.instance.success());
-                    app.aprobarReto(reto);
-                  },
-                  icon: const Icon(Icons.check_circle, color: AppColors.verde),
-                  label: Text(
-                    reto.cumplidos.isEmpty
-                        ? 'Finalizar reto'
-                        : 'Finalizar y dar puntos',
-                    style: const TextStyle(color: AppColors.verde),
+                Trophy3D(size: 18, animar: false),
+                const SizedBox(width: 6),
+                Text(
+                  'Ganaste +${reto.puntos} pts por este reto',
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w700,
+                    color: textoTema(context),
                   ),
                 ),
-              )
-            else
-              Text('Reto finalizado',
-                  style: TextStyle(color: textoSuaveTema(context), fontSize: 12)),
-          ],
-          if (yaAprobado)
-            Padding(
-              padding: const EdgeInsets.only(top: 8),
-              child: Row(
-                children: [
-                  const Icon(Icons.emoji_events, color: AppColors.amarillo, size: 16),
-                  const SizedBox(width: 6),
-                  Text('Ganaste +${reto.puntos} pts por este reto',
-                      style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
-                          color: textoTema(context))),
-                ],
-              ),
+              ],
+            )
+          else if (loCumpli)
+            const _MarcadoChip()
+          else
+            DuoButton(
+              label: '¡Lo cumplí!',
+              icon: Icons.verified,
+              onPressed: () => app.marcarRetoCumplido(reto),
             ),
         ],
       ),
@@ -589,14 +808,37 @@ class _RetosPasadosState extends State<_RetosPasados> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const SectionHeader(title: 'Retos anteriores'),
+        const Padding(
+          padding: EdgeInsets.only(top: 16, bottom: 8),
+          child: Text(
+            'Retos anteriores',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
+          ),
+        ),
         for (final r in pasados)
-          ListTile(
-            dense: true,
-            leading: Icon(Icons.flag, color: textoSuaveTema(context)),
-            title: Text(r.titulo),
-            subtitle: Text(
-                '${r.cumplidos.length} cumplidos · +${r.puntos} pts'),
+          CardBox(
+            child: Row(
+              children: [
+                const Icon(Icons.flag, color: AppColors.grisOscuro, size: 20),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    r.titulo,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                        fontSize: 15, fontWeight: FontWeight.w900),
+                  ),
+                ),
+                Text(
+                  '${r.cumplidos.length} cumplidos · +${r.puntos} pts',
+                  style: TextStyle(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w700,
+                      color: textoSuaveTema(context)),
+                ),
+              ],
+            ),
           ),
       ],
     );

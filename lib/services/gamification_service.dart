@@ -52,17 +52,18 @@ class GamificationService {
   }
 
   /// Ligas ordenadas de menor a mayor (para el panel de trofeos).
-  static const List<String> ligas = ['Bronce', 'Plata', 'Oro', 'Obsidiana'];
+  static const List<String> ligas = ['Bronce', 'Plata', 'Oro', 'Platino', 'Zafiro'];
 
   /// Liga de un integrante según su posición (1-based) en el ranking de la
-  /// semana anterior. Percentiles: 0–24% Obsidiana, 25–49% Oro,
-  /// 50–74% Plata, 75–100% Bronce. Con un solo integrante: Obsidiana.
+  /// semana anterior. Percentiles: 0–12% Zafiro, 12–40% Platino, 40–65% Oro,
+  /// 65–85% Plata, 85–100% Bronce. Con un solo integrante: Zafiro.
   static String ligaDe(int posicion, int total) {
     if (total <= 0) return 'Bronce';
     final p = total <= 1 ? 0.0 : (posicion - 1) / total;
-    if (p < 0.25) return 'Obsidiana';
-    if (p < 0.50) return 'Oro';
-    if (p < 0.75) return 'Plata';
+    if (p < 0.12) return 'Zafiro';
+    if (p < 0.40) return 'Platino';
+    if (p < 0.65) return 'Oro';
+    if (p < 0.85) return 'Plata';
     return 'Bronce';
   }
 

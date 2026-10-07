@@ -58,3 +58,11 @@ server/node_modules/
 /build.log
 /android/build/reports/
 
+# Local build logs (machine-specific)
+bweb_out.txt
+bweb_pid.txt
+bapk_out.txt
+bapk_pid.txt
+build_apk_log.txt
+build_web_log.txt
+

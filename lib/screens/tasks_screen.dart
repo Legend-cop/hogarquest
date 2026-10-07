@@ -3,17 +3,19 @@ import 'package:provider/provider.dart';
 
 import '../providers/app_provider.dart';
 import '../services/haptics_service.dart';
-import '../widgets/weekly_planner.dart';
 import '../services/notification_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/confetti.dart';
 import '../widgets/duo_widgets.dart';
 import '../widgets/empty_state.dart';
+import '../widgets/hq_design.dart';
+import '../widgets/icons3d.dart';
 import '../widgets/user_avatar.dart';
 import '../models/tarea_catalogo.dart';
 import '../models/task.dart';
 import '../models/assignment.dart';
 import '../models/user.dart';
+import 'retos_screen.dart';
 
 class TasksScreen extends StatefulWidget {
   const TasksScreen({super.key});
@@ -22,10 +24,9 @@ class TasksScreen extends StatefulWidget {
   State<TasksScreen> createState() => _TasksScreenState();
 }
 
-class _TasksScreenState extends State<TasksScreen>
-    with SingleTickerProviderStateMixin {
-  late TabController _tabController;
+class _TasksScreenState extends State<TasksScreen> {
   bool _cargando = true;
+  int _pestana = 0;
   List<(Task, Assignment)> _misTareas = [];
   List<(Task, Assignment)> _historial = [];
   List<Task> _todasLasTareas = [];
@@ -35,7 +36,6 @@ class _TasksScreenState extends State<TasksScreen>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
     _provider = context.read<AppProvider>();
     _provider.addListener(_onChange);
     _cargarDatos();
@@ -44,7 +44,6 @@ class _TasksScreenState extends State<TasksScreen>
   @override
   void dispose() {
     _provider.removeListener(_onChange);
-    _tabController.dispose();
     super.dispose();
   }
 
@@ -93,34 +92,43 @@ class _TasksScreenState extends State<TasksScreen>
     if (esAdmin) {
       return _AdminTasksList(tareas: _todasLasTareas, onRefresh: _cargarDatos);
     }
-    return SafeArea(
-      bottom: false,
-      child: DefaultTabController(
-        length: 2,
-        child: Column(
+    // Sub-pestañas dentro de Tareas: Pendientes · Retos · Historial.
+    // En Retos la cabecera queda fija arriba para poder volver a las otras.
+    final cabeceraNino = [
+      const PageTitle('Mis tareas'),
+      SegmentTabs(
+        const ['Pendientes', 'Retos', 'Historial'],
+        _pestana,
+        (i) => setState(() => _pestana = i),
+      ),
+    ];
+    return IndexedStack(
+      index: _pestana,
+      children: [
+        _IntegranteTasksList(
+          misTareas: _misTareas,
+          pestana: _pestana,
+          onTab: (i) => setState(() => _pestana = i),
+        ),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Container(
-              color: Theme.of(context).colorScheme.surface,
-              child: TabBar(
-                controller: _tabController,
-                tabs: const [
-                  Tab(text: 'Pendientes', icon: Icon(Icons.hourglass_top)),
-                  Tab(text: 'Historial', icon: Icon(Icons.history_toggle_off)),
-                ],
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: cabeceraNino,
               ),
             ),
-            Expanded(
-              child: TabBarView(
-                controller: _tabController,
-                children: [
-                  _IntegranteTasksList(misTareas: _misTareas),
-                  _HistorialTasksList(historial: _historial),
-                ],
-              ),
-            ),
+            const Expanded(child: RetosScreen(mostrarTitulo: false)),
           ],
         ),
-      ),
+        _HistorialTasksList(
+          historial: _historial,
+          pestana: _pestana,
+          onTab: (i) => setState(() => _pestana = i),
+        ),
+      ],
     );
   }
 }
@@ -141,6 +149,9 @@ class _AdminTasksListState extends State<_AdminTasksList> {
   Set<int> _pendientes = {};
   List<User> _integrantes = [];
   int _semanaOffset = 0;
+  int _pestana = 0;
+  int? _diaSel;
+  int? _miembroId;
   bool _cargando = true;
 
   @override
@@ -193,20 +204,149 @@ class _AdminTasksListState extends State<_AdminTasksList> {
       ));
   }
 
-  /// Arrastra un avatar sobre una tarea: añade a esa persona como responsable
-  /// (sin quitar a quienes ya la tenían).
-  Future<void> _reasignar(Task tarea, User responsable) async {
+  static const _mesesLargos = [
+    'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
+    'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre',
+  ];
+  static const _letrasDia = ['D', 'L', 'M', 'X', 'J', 'V', 'S'];
+  static const _nombresDia = [
+    'Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado',
+  ];
+
+  /// Domingo de la semana visible según el offset.
+  DateTime get _inicioSemana {
+    final hoy = DateTime.now();
+    final domingoActual = DateTime(hoy.year, hoy.month, hoy.day)
+        .subtract(Duration(days: hoy.weekday % 7));
+    return domingoActual.add(Duration(days: _semanaOffset * 7));
+  }
+
+  List<DateTime> get _fechas =>
+      [for (var i = 0; i < 7; i++) _inicioSemana.add(Duration(days: i))];
+
+  int get _indiceHoy {
+    final hoy = DateTime.now();
+    final fechas = _fechas;
+    for (var i = 0; i < 7; i++) {
+      final f = fechas[i];
+      if (f.year == hoy.year && f.month == hoy.month && f.day == hoy.day) {
+        return i;
+      }
+    }
+    return 0;
+  }
+
+  int get _indiceSel => _diaSel ?? _indiceHoy;
+
+  /// Número de semana ISO (jueves de la semana visible) para el paginador.
+  int get _semanaIso {
+    final jueves = _inicioSemana.add(const Duration(days: 4));
+    final inicioAnio = DateTime(jueves.year, 1, 1);
+    final doy = jueves.difference(inicioAnio).inDays + 1;
+    final semana = (doy - jueves.weekday + 10) ~/ 7;
+    return semana < 1 ? 1 : semana;
+  }
+
+  String get _rangoFechas {
+    final a = _fechas.first;
+    final b = _fechas.last;
+    if (a.month == b.month && a.year == b.year) {
+      return '${a.day} – ${b.day} ${_mesesLargos[a.month - 1]}';
+    }
+    return '${a.day} ${_mesesLargos[a.month - 1]} –'
+        ' ${b.day} ${_mesesLargos[b.month - 1]}';
+  }
+
+  String _tituloDia(DateTime f) {
+    final nombre = _nombresDia[f.weekday % 7];
+    final hoy = DateTime.now();
+    final esHoy =
+        f.year == hoy.year && f.month == hoy.month && f.day == hoy.day;
+    return esHoy ? 'Hoy, ${nombre.toLowerCase()}' : nombre;
+  }
+
+  /// Tareas visibles para la fecha seleccionada.
+  List<Task> _tareasDelDia(DateTime fecha) {
+    final clave = _claveDeFecha(fecha);
+    return widget.tareas.where((t) {
+      if (!t.activa) return false;
+      if (t.dia.isNotEmpty) return t.dia == clave;
+      final fl = t.fechaLimite;
+      return fl != null &&
+          fl.year == fecha.year &&
+          fl.month == fecha.month &&
+          fl.day == fecha.day;
+    }).toList();
+  }
+
+  bool _vencida(Task t, DateTime fecha) {
+    if (!_pendientes.contains(t.id)) return false;
+    final fl = t.fechaLimite;
+    final limite = fl != null &&
+            fl.year == fecha.year &&
+            fl.month == fecha.month &&
+            fl.day == fecha.day
+        ? fl
+        : DateTime(fecha.year, fecha.month, fecha.day, 23, 59);
+    return DateTime.now().isAfter(limite);
+  }
+
+  /// Reasignación mediante diálogo de checkboxes (sustituye al drag).
+  Future<void> _asignarDialogo(Task tarea) async {
     final actuales =
         (_asignados[tarea.id] ?? const <User>[]).map((u) => u.id!).toSet();
-    if (actuales.contains(responsable.id)) {
-      HapticsService.seleccion();
-      _snack('${responsable.nombre} ya tiene "${tarea.titulo}"');
-      return;
-    }
-    final ids = [...actuales, responsable.id!];
-    await context.read<AppProvider>().editarTarea(tarea, integrantesIds: ids);
+    final elegidos = <int>{...actuales};
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setLocal) => AlertDialog(
+          title: Text('Asignar "${tarea.titulo}"'),
+          content: SizedBox(
+            width: 320,
+            child: _integrantes.isEmpty
+                ? const Text('No hay integrantes todavía.')
+                : SingleChildScrollView(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        for (final u in _integrantes)
+                          CheckboxListTile(
+                            dense: true,
+                            contentPadding: EdgeInsets.zero,
+                            title: Text(u.nombre),
+                            value: elegidos.contains(u.id),
+                            onChanged: (v) => setLocal(() {
+                              if (v == true) {
+                                elegidos.add(u.id!);
+                              } else {
+                                elegidos.remove(u.id);
+                              }
+                            }),
+                            controlAffinity: ListTileControlAffinity.leading,
+                          ),
+                      ],
+                    ),
+                  ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancelar'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Guardar'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (ok != true || !mounted) return;
+    await context
+        .read<AppProvider>()
+        .editarTarea(tarea, integrantesIds: elegidos.toList());
     HapticsService.seleccion();
-    _snack('Tarea asignada a ${responsable.nombre}');
+    _snack('Asignación actualizada');
     await _recargar();
   }
 
@@ -482,13 +622,13 @@ class _AdminTasksListState extends State<_AdminTasksList> {
   }
 
   Widget _seccion(String titulo) => Padding(
-        padding: const EdgeInsets.fromLTRB(4, 16, 4, 8),
+        padding: const EdgeInsets.fromLTRB(4, 18, 4, 10),
         child: Text(
           titulo,
           style: TextStyle(
-            fontWeight: FontWeight.w800,
-            fontSize: 16,
-            color: textoSuaveTema(context),
+            fontWeight: FontWeight.w900,
+            fontSize: 18,
+            color: textoTema(context),
           ),
         ),
       );
@@ -499,14 +639,30 @@ class _AdminTasksListState extends State<_AdminTasksList> {
     final sinDia = activas.where((t) => t.dia.isEmpty).toList();
     final inactivas = widget.tareas.where((t) => !t.activa).toList();
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Tareas del hogar'),
+    final fechas = _fechas;
+    final fechaSel = fechas[_indiceSel];
+    var delDia = _tareasDelDia(fechaSel);
+    if (_miembroId != null) {
+      delDia = delDia
+          .where((t) => (_asignados[t.id] ?? const <User>[])
+              .any((u) => u.id == _miembroId))
+          .toList();
+    }
+
+    // Cabecera compartida: título + selector Tareas / Retos.
+    final cabecera = [
+      PageTitle(
+        'Tareas',
         actions: [
           IconButton(
             icon: const Icon(Icons.add_task),
             tooltip: 'Nueva tarea',
             onPressed: _nuevaTarea,
+          ),
+          IconButton(
+            icon: const Icon(Icons.menu_book_outlined),
+            tooltip: 'Libro de Tareas',
+            onPressed: _abrirLibro,
           ),
           IconButton(
             icon: const Icon(Icons.settings_outlined),
@@ -515,49 +671,441 @@ class _AdminTasksListState extends State<_AdminTasksList> {
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        icon: const Icon(Icons.menu_book_outlined),
-        label: const Text('Libro de Tareas'),
-        onPressed: _abrirLibro,
+      // Retos vive dentro de Tareas (sub-pestaña), no en la barra inferior.
+      SegmentTabs(
+        const ['Tareas', 'Retos'],
+        _pestana,
+        (i) => setState(() => _pestana = i),
       ),
+    ];
+
+    // Sub-pestaña "Retos": su contenido ocupa el cuerpo completo.
+    if (_pestana == 1) {
+      return Scaffold(
+        body: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: cabecera,
+              ),
+            ),
+            const Expanded(child: RetosScreen(mostrarTitulo: false)),
+          ],
+        ),
+      );
+    }
+
+    return Scaffold(
       body: _cargando
           ? const Center(child: CircularProgressIndicator())
-          : WeeklyPlanner(
-              tareas: widget.tareas,
-              asignados: _asignados,
-              integrantes: _integrantes,
-              catalogo: _catalogo,
-              pendientes: _pendientes,
-              semanaOffset: _semanaOffset,
-              onSemanaChanged: (o) => setState(() => _semanaOffset = o),
+          : RefreshIndicator(
               onRefresh: _recargar,
-              onReasignar: _reasignar,
-              onEditar: _editarTarea,
-              onEliminar: _eliminarTarea,
-              onCrearRapida: _crearRapida,
-              onCrearLibre: _crearLibre,
-              extra: [
-                if (sinDia.isNotEmpty) ...[
-                  _seccion('Todos los días'),
-                  ...sinDia.map((t) => _AdminTaskCard(
+              child: ListView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.all(16),
+                children: [
+                  ...cabecera,
+                  // Paginador de semanas estilo referencia.
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.chevron_left),
+                        tooltip: 'Semana anterior',
+                        onPressed: () => setState(() => _semanaOffset -= 1),
+                      ),
+                      Flexible(
+                        child: Text(
+                          'Semana $_semanaIso · $_rangoFechas',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontWeight: FontWeight.w900),
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.chevron_right),
+                        tooltip: 'Semana siguiente',
+                        onPressed: () => setState(() => _semanaOffset += 1),
+                      ),
+                    ],
+                  ),
+                  // Filtro por integrante.
+                  if (_integrantes.isNotEmpty)
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 4,
+                      children: [
+                        ChoiceChip(
+                          label: const Text('Todos'),
+                          selected: _miembroId == null,
+                          onSelected: (_) => setState(() => _miembroId = null),
+                        ),
+                        for (final u in _integrantes)
+                          ChoiceChip(
+                            label: Text(u.nombre),
+                            selected: _miembroId == u.id,
+                            onSelected: (_) =>
+                                setState(() => _miembroId = u.id),
+                          ),
+                      ],
+                    ),
+                  const SizedBox(height: 8),
+                  // Rejilla de 7 días (letras) estilo referencia.
+                  Row(
+                    children: [
+                      for (var i = 0; i < 7; i++)
+                        Expanded(
+                          child: Padding(
+                            padding: const EdgeInsets.all(2),
+                            child: ChoiceChip(
+                              label: Text(_letrasDia[i]),
+                              selected: i == _indiceSel,
+                              onSelected: (_) => setState(() => _diaSel = i),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  // Sección del día seleccionado.
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          _tituloDia(fechaSel),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                      ),
+                      Text(
+                        '${delDia.length} ${delDia.length == 1 ? 'tarea' : 'tareas'}',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w900,
+                          color: textoSuaveTema(context),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  if (activas.isEmpty)
+                    const EmptyState(
+                      icon: Icons.calendar_view_week_outlined,
+                      message: 'Aún no hay tareas activas.',
+                      hint: 'Crea una tarea con su día para planificar la '
+                          'semana.',
+                    )
+                  else if (delDia.isEmpty)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      child: Text(
+                        'Sin tareas para este día.',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: textoSuaveTema(context),
+                        ),
+                      ),
+                    )
+                  else
+                    for (final t in delDia)
+                      _AdminTareaFila(
                         tarea: t,
                         asignados: _asignados[t.id] ?? const [],
-                        catalogo: _catalogo,
-                        onRefresh: _recargar,
-                      )),
+                        vencida: _vencida(t, fechaSel),
+                        pendiente: _pendientes.contains(t.id),
+                        onAsignar: () => _asignarDialogo(t),
+                        onEditar: () => _editarTarea(t),
+                        onEliminar: () => _eliminarTarea(t),
+                      ),
+                  const SizedBox(height: 6),
+                  // Creación rápida del día seleccionado.
+                  _QuickAddDia(
+                    fecha: fechaSel,
+                    catalogo: _catalogo,
+                    onCrear: _crearRapida,
+                    onCrearLibre: _crearLibre,
+                  ),
+                  if (sinDia.isNotEmpty) ...[
+                    _seccion('Todos los días'),
+                    ...sinDia.map((t) => _AdminTaskCard(
+                          tarea: t,
+                          asignados: _asignados[t.id] ?? const [],
+                          catalogo: _catalogo,
+                          onRefresh: _recargar,
+                        )),
+                  ],
+                  if (inactivas.isNotEmpty) ...[
+                    _seccion('Inactivas'),
+                    ...inactivas.map((t) => _AdminTaskCard(
+                          tarea: t,
+                          asignados: _asignados[t.id] ?? const [],
+                          catalogo: _catalogo,
+                          onRefresh: _recargar,
+                        )),
+                  ],
+                  const SizedBox(height: 72),
                 ],
-                if (inactivas.isNotEmpty) ...[
-                  _seccion('Inactivas'),
-                  ...inactivas.map((t) => _AdminTaskCard(
-                        tarea: t,
-                        asignados: _asignados[t.id] ?? const [],
-                        catalogo: _catalogo,
-                        onRefresh: _recargar,
-                      )),
+              ),
+            ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// PIEZAS DEL ADMIN ESTILO REFERENCIA (filas · quick add)
+// ---------------------------------------------------------------------------
+
+/// Fila de tarea del día seleccionado estilo referencia: título + chip de
+/// dificultad + XP + menú de acciones (asignar/editar/eliminar).
+class _AdminTareaFila extends StatelessWidget {
+  final Task tarea;
+  final List<User> asignados;
+  final bool vencida;
+  final bool pendiente;
+  final VoidCallback onAsignar;
+  final VoidCallback onEditar;
+  final VoidCallback onEliminar;
+
+  const _AdminTareaFila({
+    required this.tarea,
+    required this.asignados,
+    required this.vencida,
+    required this.pendiente,
+    required this.onAsignar,
+    required this.onEditar,
+    required this.onEliminar,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return CardBox(
+      padding: const EdgeInsets.all(12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  tarea.titulo,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w900,
+                    fontSize: 16,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 4,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    difChip(context, tarea.dificultad),
+                    Text(
+                      '${tarea.puntos} pts',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w800,
+                        color: textoTema(context),
+                      ),
+                    ),
+                    if (vencida)
+                      Chip(
+                        label: const Text('Vencida'),
+                        backgroundColor: AppColors.rojoFondo,
+                        labelStyle: const TextStyle(
+                          color: AppColors.rojo,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                  ],
+                ),
+                if (asignados.isNotEmpty) ...[
+                  const SizedBox(height: 6),
+                  Wrap(
+                    spacing: 4,
+                    runSpacing: 4,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      for (final u in asignados.take(4))
+                        UserAvatar(user: u, radius: 9),
+                      if (asignados.length > 4)
+                        Text(
+                          '+${asignados.length - 4}',
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w900,
+                            color: textoSuaveTema(context),
+                          ),
+                        ),
+                    ],
+                  ),
                 ],
-                const SizedBox(height: 72),
               ],
             ),
+          ),
+          if (pendiente) ...[
+            const SizedBox(width: 8),
+            Chip(
+              label: const Text('Pendiente de aprobación'),
+              backgroundColor: AppColors.amarilloFondo,
+              labelStyle: const TextStyle(
+                color: AppColors.grisOscuro,
+                fontSize: 14,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ],
+          PopupMenuButton<String>(
+            tooltip: 'Acciones',
+            icon: Icon(Icons.more_horiz, color: textoSuaveTema(context)),
+            onSelected: (v) {
+              switch (v) {
+                case 'asignar':
+                  onAsignar();
+                case 'editar':
+                  onEditar();
+                case 'eliminar':
+                  onEliminar();
+              }
+            },
+            itemBuilder: (_) => const [
+              PopupMenuItem(
+                value: 'asignar',
+                child: Row(
+                  children: [
+                    Icon(Icons.person_add_alt_1, size: 17),
+                    SizedBox(width: 10),
+                    Text('Asignar a…'),
+                  ],
+                ),
+              ),
+              PopupMenuItem(
+                value: 'editar',
+                child: Row(
+                  children: [
+                    Icon(Icons.edit_outlined, size: 17),
+                    SizedBox(width: 10),
+                    Text('Editar'),
+                  ],
+                ),
+              ),
+              PopupMenuItem(
+                value: 'eliminar',
+                child: Row(
+                  children: [
+                    Icon(Icons.delete_outline, size: 17),
+                    SizedBox(width: 10),
+                    Text('Eliminar'),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Campo de creación rápida para el día seleccionado.
+class _QuickAddDia extends StatefulWidget {
+  final DateTime fecha;
+  final List<TareaCatalogo> catalogo;
+  final Future<void> Function(String titulo, DateTime fecha,
+      {TareaCatalogo? plantilla}) onCrear;
+  final void Function(String titulo, DateTime fecha) onCrearLibre;
+
+  const _QuickAddDia({
+    required this.fecha,
+    required this.catalogo,
+    required this.onCrear,
+    required this.onCrearLibre,
+  });
+
+  @override
+  State<_QuickAddDia> createState() => _QuickAddDiaState();
+}
+
+class _QuickAddDiaState extends State<_QuickAddDia> {
+  final _focus = FocusNode();
+  late final TextEditingController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController();
+  }
+
+  @override
+  void dispose() {
+    _focus.dispose();
+    _controller.dispose();
+    super.dispose();
+  }
+
+  Future<void> _enviar(String texto) async {
+    final t = texto.trim();
+    if (t.isEmpty) return;
+    TareaCatalogo? match;
+    for (final c in widget.catalogo) {
+      final ct = c.titulo.trim().toLowerCase();
+      if (ct == t.toLowerCase() || ct.startsWith(t.toLowerCase())) {
+        match = c;
+        break;
+      }
+    }
+    _focus.unfocus();
+    if (match != null) {
+      await widget.onCrear(match.titulo, widget.fecha, plantilla: match);
+    } else {
+      widget.onCrearLibre(t, widget.fecha);
+    }
+    if (mounted) _controller.clear();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return TextField(
+      controller: _controller,
+      focusNode: _focus,
+      style: const TextStyle(fontSize: 13),
+      textInputAction: TextInputAction.done,
+      decoration: InputDecoration(
+        isDense: true,
+        hintText: '+ Añadir tarea este día…',
+        hintStyle: const TextStyle(fontSize: 13),
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        suffixIconConstraints:
+            const BoxConstraints(maxWidth: 34, maxHeight: 34),
+        suffixIcon: IconButton(
+          padding: EdgeInsets.zero,
+          iconSize: 20,
+          icon: const Icon(Icons.add_circle),
+          color: AppColors.verde,
+          tooltip: 'Crear tarea',
+          onPressed: () => _enviar(_controller.text),
+        ),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: BorderSide(
+            color: isDark ? Colors.white24 : AppColors.linea,
+          ),
+        ),
+      ),
+      onSubmitted: _enviar,
     );
   }
 }
@@ -905,20 +1453,58 @@ class _AdminTaskCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return DuoCard(
       padding: EdgeInsets.zero,
       margin: const EdgeInsets.only(bottom: 8),
       child: ExpansionTile(
-        leading: DuoIconBadge(icon: Icons.task_alt, color: AppColors.azul, size: 40),
+        leading: Container(
+          width: 48,
+          height: 48,
+          decoration: BoxDecoration(
+            color: isDark ? Colors.white10 : AppColors.linea,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Icon(
+            CategoriaTarea.iconoDe(tarea.categoria),
+            size: 24,
+            color: Color(CategoriaTarea.colorDe(tarea.categoria)),
+          ),
+        ),
         title: Text(tarea.titulo, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
         subtitle: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const SizedBox(height: 4),
-            Text(
-              '${tarea.puntos} pts • ${tarea.dificultad.toUpperCase()}'
-              '${tarea.dia.isNotEmpty ? ' • ${_nombreDia(tarea.dia)}' : ''}',
-              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+            const SizedBox(height: 6),
+            Row(
+              children: [
+                difChip(context, tarea.dificultad),
+                const Spacer(),
+                if (tarea.dia.isNotEmpty) ...[
+                  Icon(Icons.calendar_today_outlined,
+                      size: 13, color: textoSuaveTema(context)),
+                  const SizedBox(width: 4),
+                  Text(
+                    _nombreDia(tarea.dia),
+                    style: TextStyle(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w700,
+                      color: textoSuaveTema(context),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                ],
+                Bolt3D(size: 16, animar: false),
+                const SizedBox(width: 3),
+                Text(
+                  '+${tarea.puntos} pts',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w900,
+                    color: textoSuaveTema(context),
+                  ),
+                ),
+              ],
             ),
             const SizedBox(height: 4),
             if (tarea.fechaLimite != null)
@@ -1048,7 +1634,7 @@ class _AdminTaskCard extends StatelessWidget {
         ],
       ),
     );
-    if (ok != true) return;
+    if (ok != true || !context.mounted) return;
     final app = context.read<AppProvider>();
     await app.eliminarTarea(id);
     if (context.mounted) await onRefresh?.call();
@@ -1111,7 +1697,13 @@ class _AsignadosList extends StatelessWidget {
 
 class _IntegranteTasksList extends StatelessWidget {
   final List<(Task, Assignment)> misTareas;
-  const _IntegranteTasksList({required this.misTareas});
+  final int pestana;
+  final ValueChanged<int> onTab;
+  const _IntegranteTasksList({
+    required this.misTareas,
+    required this.pestana,
+    required this.onTab,
+  });
 
   static const _diasOrden = [
     'domingo',
@@ -1127,23 +1719,40 @@ class _IntegranteTasksList extends StatelessWidget {
   Widget build(BuildContext context) {
     final app = context.read<AppProvider>();
 
-    final pendientes = misTareas.where((t) => !t.$2.completada).toList();
-    final enRevision =
-        misTareas.where((t) => t.$2.completada && !t.$2.aprobada).toList();
+    // Solo lo que sigue sin aprobar Y es del día actual: día de hoy o
+    // con fecha límite que vence hoy.
+    final items = misTareas
+        .where((t) => !t.$2.aprobada && _esDeHoy(t.$1))
+        .toList();
 
-    if (pendientes.isEmpty && enRevision.isEmpty) {
-      return const EmptyState(
-        icon: Icons.task_alt,
-        message: 'No tienes tareas asignadas aún.',
-        hint: 'Contacta al administrador para recibir tareas.',
+    if (items.isEmpty) {
+      return RefreshIndicator(
+        onRefresh: () async {
+          final u = context.read<AppProvider>().usuarioActual;
+          if (u != null) {
+            await context.read<AppProvider>().tareasConAsignacionDe(u.id!);
+          }
+        },
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.all(16),
+          children: [
+            const PageTitle('Mis tareas'),
+            SegmentTabs(const ['Pendientes', 'Retos', 'Historial'], pestana, onTab),
+            const EmptyState(
+              icon: Icons.task_alt,
+              message: 'No tienes tareas para hoy.',
+              hint: 'Vuelve mañana o pídele al administrador nuevas tareas.',
+            ),
+          ],
+        ),
       );
     }
 
-    final conDia = pendientes.where((t) => t.$1.dia.isNotEmpty).toList();
-    final sinDia = pendientes.where((t) => t.$1.dia.isEmpty).toList();
-
-    conDia.sort((a, b) =>
-        _diasOrden.indexOf(a.$1.dia).compareTo(_diasOrden.indexOf(b.$1.dia)));
+    final conDia = items.where((t) => t.$1.dia.isNotEmpty).toList()
+      ..sort((a, b) =>
+          _diasOrden.indexOf(a.$1.dia).compareTo(_diasOrden.indexOf(b.$1.dia)));
+    final sinDia = items.where((t) => t.$1.dia.isEmpty).toList();
 
     return RefreshIndicator(
       onRefresh: () async {
@@ -1152,51 +1761,21 @@ class _IntegranteTasksList extends StatelessWidget {
         if (u != null) await app2.tareasConAsignacionDe(u.id!);
       },
       child: ListView(
-        padding: const EdgeInsets.all(12),
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.all(16),
         children: [
-          _ProgresoHoy(misTareas: misTareas),
-          if (enRevision.isNotEmpty) ...[
-            const _DiaHeader(nombre: 'En revisión', color: AppColors.amarillo),
-            ...enRevision.map((t) => _MiniTaskCard(
-                  task: t.$1,
-                  assignment: t.$2,
-                  onCompletada: null,
-                )),
-            const SizedBox(height: 8),
-          ],
-          for (final dia in _diasOrden)
-            if (conDia.any((t) => t.$1.dia == dia)) ...[
-              _DiaHeader(
-                nombre: _nombreDia(dia),
-                color: dia == _diaHoy ? AppColors.verde : AppColors.azul,
-                esHoy: dia == _diaHoy,
-                bloqueado: dia != _diaHoy,
-              ),
-              ...conDia
-                  .where((t) => t.$1.dia == dia)
-                  .map((t) => _MiniTaskCard(
-                        task: t.$1,
-                        assignment: t.$2,
-                        bloqueada: dia != _diaHoy,
-                        onCompletada: () {
-                          lanzarConfeti(context);
-                          app.completarTarea(t.$1.id!);
-                        },
-                      )),
-              const SizedBox(height: 8),
-            ],
-          if (sinDia.isNotEmpty) ...[
-            _DiaHeader(
-                nombre: 'Otros', color: textoSuaveTema(context).withValues(alpha: 0.45)),
-            ...sinDia.map((t) => _MiniTaskCard(
-                  task: t.$1,
-                  assignment: t.$2,
-                  onCompletada: () {
-                    lanzarConfeti(context);
-                    app.completarTarea(t.$1.id!);
-                  },
-                )),
-          ],
+          const PageTitle('Mis tareas'),
+          SegmentTabs(const ['Pendientes', 'Retos', 'Historial'], pestana, onTab),
+          for (final t in [...conDia, ...sinDia])
+            _MiniTaskCard(
+              task: t.$1,
+              assignment: t.$2,
+              bloqueada: t.$1.dia.isNotEmpty && t.$1.dia != _diaHoy,
+              onCompletada: () {
+                lanzarConfeti(context);
+                app.completarTarea(t.$1.id!);
+              },
+            ),
         ],
       ),
     );
@@ -1204,128 +1783,27 @@ class _IntegranteTasksList extends StatelessWidget {
 
   /// Día de hoy en minúsculas según la semana (mismo formato que `Task.dia`).
   static String get _diaHoy {
-    // Semana que empieza en domingo (índice 0).
     const nombres = [
-      'domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado',
+      'domingo',
+      'lunes',
+      'martes',
+      'miercoles',
+      'jueves',
+      'viernes',
+      'sabado',
     ];
     return nombres[DateTime.now().weekday % 7];
   }
-}
 
-class _ProgresoHoy extends StatelessWidget {
-  final List<(Task, Assignment)> misTareas;
-  const _ProgresoHoy({required this.misTareas});
-
-  @override
-  Widget build(BuildContext context) {
-    final completadas =
-        misTareas.where((t) => t.$2.completada && t.$2.aprobada).length;
-    final total = misTareas.length;
-    final progreso = total == 0 ? 0.0 : completadas / total;
-
-    return DuoCard(
-      padding: const EdgeInsets.all(16),
-      color: AppColors.verdeFondo,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Text('🏆',
-                  style: TextStyle(fontSize: 22)),
-              const SizedBox(width: 8),
-              Text(
-                'Mi progreso',
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w800,
-                  color: AppColors.verdeOscuro,
-                ),
-              ),
-              const Spacer(),
-              Text(
-                '$completadas/$total',
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w800,
-                  color: AppColors.verdeOscuro,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(6),
-            child: LinearProgressIndicator(
-              value: progreso,
-              minHeight: 10,
-              backgroundColor: Colors.white,
-              valueColor: const AlwaysStoppedAnimation(AppColors.verde),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _DiaHeader extends StatelessWidget {
-  final String nombre;
-  final Color color;
-  final bool esHoy;
-  final bool bloqueado;
-
-  const _DiaHeader({
-    required this.nombre,
-    required this.color,
-    this.esHoy = false,
-    this.bloqueado = false,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(4, 12, 4, 6),
-      child: Row(
-        children: [
-          Container(
-            width: 8,
-            height: 22,
-            decoration: BoxDecoration(
-              color: color,
-              borderRadius: BorderRadius.circular(4),
-            ),
-          ),
-          const SizedBox(width: 8),
-          Text(
-            nombre,
-            style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
-          ),
-          if (bloqueado) ...[
-            const SizedBox(width: 6),
-            Icon(Icons.lock_outline, size: 15, color: textoSuaveTema(context)),
-          ],
-          if (esHoy) ...[
-            const SizedBox(width: 8),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-              decoration: BoxDecoration(
-                color: AppColors.verde,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: const Text(
-                'HOY',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
+  /// ¿La tarea es del día actual? Día de la semana de hoy, o con fecha
+  /// límite que cae hoy (las vencidas o de otros días no se muestran).
+  static bool _esDeHoy(Task task) {
+    if (task.dia.isNotEmpty) return task.dia == _diaHoy;
+    final fl = task.fechaLimite;
+    if (fl == null) return false;
+    final f = fl.toLocal();
+    final now = DateTime.now();
+    return f.year == now.year && f.month == now.month && f.day == now.day;
   }
 }
 
@@ -1344,93 +1822,103 @@ class _MiniTaskCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final opacidad = bloqueada ? 0.45 : 1.0;
-    return DuoCard(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      child: Opacity(
-        opacity: opacidad,
-        child: Row(
-          children: [
-            DuoIconBadge(
-                icon: Icons.checklist, color: _colorPorDificultad(task.dificultad), size: 42),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(task.titulo,
-                      style: const TextStyle(
-                          fontWeight: FontWeight.w700, fontSize: 15)),
-                  const SizedBox(height: 2),
-                  Text(
-                    '${task.dificultad.toUpperCase()}'
-                    '${task.fechaLimite != null ? " · ${_fmtLimite(task.fechaLimite!)}" : ""}',
-                    style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w800,
-                        color: textoSuaveTema(context)),
-                  ),
-                  const SizedBox(height: 4),
-                  Chip(
-                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    visualDensity: VisualDensity.compact,
-                    avatar: Icon(CategoriaTarea.iconoDe(task.categoria),
-                        size: 13, color: Colors.white),
-                    label: Text(task.categoria),
-                    labelStyle: const TextStyle(
-                        fontSize: 10, color: Colors.white, fontWeight: FontWeight.w700),
-                    backgroundColor: Color(CategoriaTarea.colorDe(task.categoria)),
-                    padding: EdgeInsets.zero,
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 8),
-            SizedBox(
-              width: 120,
-              child: bloqueada
-                  ? Container(
-                      height: 44,
-                      alignment: Alignment.center,
-                      decoration: BoxDecoration(
-                        color: textoSuaveTema(context).withValues(alpha: 0.15),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: textoSuaveTema(context)),
-                      ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(Icons.lock_outline,
-                              size: 15, color: textoSuaveTema(context)),
-                          SizedBox(width: 4),
-                          Text(
-                            'Bloqueada',
-                            style: TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w800,
-                                color: textoSuaveTema(context)),
-                          ),
-                        ],
-                      ),
-                    )
-                  : DuoButton(
-                      label: assignment.completada
-                          ? (assignment.aprobada ? 'Completada' : 'En revisión')
-                          : 'Completar',
-                      color: assignment.completada
-                          ? (assignment.aprobada ? AppColors.grisMedio : AppColors.amarillo)
-                          : AppColors.verde,
-                      borderColor: assignment.completada
-                          ? (assignment.aprobada ? AppColors.grisOscuro : AppColors.verdeOscuro)
-                          : AppColors.verdeOscuro,
-                      onPressed: assignment.completada ? null : onCompletada,
-                    ),
-            ),
-          ],
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    final Widget trailing;
+    if (assignment.completada) {
+      trailing = Chip(
+        label: const Text('EN REVISIÓN'),
+        backgroundColor: AppColors.amarilloFondo,
+        labelStyle: const TextStyle(
+          color: AppColors.grisOscuro,
+          fontSize: 14,
+          fontWeight: FontWeight.w800,
         ),
+      );
+    } else if (bloqueada) {
+      trailing = Chip(
+        label: const Text('BLOQUEADA'),
+        backgroundColor: isDark ? Colors.white10 : AppColors.linea,
+        labelStyle: TextStyle(
+          color: textoSuaveTema(context),
+          fontSize: 14,
+          fontWeight: FontWeight.w800,
+        ),
+      );
+    } else {
+      trailing = FilledButton(
+        style: FilledButton.styleFrom(minimumSize: const Size(0, 40)),
+        onPressed: onCompletada,
+        child: const Text('HECHA'),
+      );
+    }
+
+    return CardBox(
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  task.titulo,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 15,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  _lineaVencimiento(task),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w800,
+                    color: textoTema(context),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          trailing,
+        ],
       ),
     );
   }
+}
+
+/// Segunda línea de la tarjeta de tareas: "8 pts · vence hoy · 17:00".
+String _lineaVencimiento(Task task) {
+  final fl = task.fechaLimite;
+  if (fl != null) {
+    final f = fl.toLocal();
+    final hoy = DateTime.now();
+    final diff = DateTime(f.year, f.month, f.day)
+        .difference(DateTime(hoy.year, hoy.month, hoy.day))
+        .inDays;
+    final hora = (f.hour == 0 && f.minute == 0)
+        ? ''
+        : ' · ${f.hour.toString().padLeft(2, '0')}'
+            ':${f.minute.toString().padLeft(2, '0')}';
+    if (diff < 0) {
+      return '${task.puntos} pts · vencida el ${f.day} ${_mesesCortos[f.month - 1]}';
+    }
+    if (diff == 0) {
+      return '${task.puntos} pts · vence hoy$hora';
+    }
+    if (diff == 1) {
+      return '${task.puntos} pts · vence mañana';
+    }
+    return '${task.puntos} pts · vence el ${f.day} ${_mesesCortos[f.month - 1]}';
+  }
+  if (task.dia.isNotEmpty) {
+    return '${task.puntos} pts · vence ${_nombreDia(task.dia).toLowerCase()}';
+  }
+  return '${task.puntos} pts';
 }
 
 Color _colorPorDificultad(String d) {
@@ -1449,6 +1937,11 @@ Color _colorPorDificultad(String d) {
 String _capitalizar(String s) =>
     s.isEmpty ? s : s[0].toUpperCase() + s.substring(1);
 
+const _mesesCortos = [
+  'ene', 'feb', 'mar', 'abr', 'may', 'jun',
+  'jul', 'ago', 'sep', 'oct', 'nov', 'dic',
+];
+
 class _HistorialCard extends StatelessWidget {
   final Task task;
   final Assignment assignment;
@@ -1457,39 +1950,54 @@ class _HistorialCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return DuoCard(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+    final fecha = assignment.fechaCompletada ?? assignment.fechaAsignada;
+    final fechaTxt = fecha == null
+        ? ''
+        : '${fecha.day} ${_mesesCortos[fecha.month - 1]}';
+    final etiqueta = assignment.fechaCompletada != null
+        ? 'Completada · $fechaTxt'
+        : 'Asignada · $fechaTxt';
+
+    // Fondo pastel (claro) en ambos modos: texto siempre oscuro.
+    return CardBox(
+      color: AppColors.verdeFondo,
       child: Row(
         children: [
-          const DuoIconBadge(icon: Icons.check_circle, color: AppColors.verde, size: 40),
-          const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(task.titulo,
-                    style: const TextStyle(
-                        fontWeight: FontWeight.w700, fontSize: 14)),
                 Text(
-                  assignment.fechaCompletada != null
-                      ? 'Completada el: ${assignment.fechaCompletada!.toLocal().toString().split(" ").first}'
-                      : 'Asignada el: ${assignment.fechaAsignada!.toLocal().toString().split(" ").first}',
-                  style: TextStyle(
-                      fontSize: 11, color: textoSuaveTema(context)),
+                  task.titulo,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 15,
+                    color: AppColors.grisOscuro,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  etiqueta,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.grisOscuro,
+                  ),
                 ),
               ],
             ),
           ),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-            decoration: BoxDecoration(
-              color: AppColors.amarillo.withValues(alpha: 0.2),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Text(
-              '+${task.puntos} pts',
-              style: TextStyle(
-                  color: textoTema(context), fontWeight: FontWeight.w800),
+          const SizedBox(width: 12),
+          Text(
+            '+${task.puntos} XP',
+            style: const TextStyle(
+              fontWeight: FontWeight.w900,
+              fontSize: 15,
+              color: AppColors.grisOscuro,
             ),
           ),
         ],
@@ -1631,7 +2139,7 @@ class _TaskFormDialogState extends State<_TaskFormDialog> {
                   const SizedBox(width: 12),
                   Expanded(
                     child: DropdownButtonFormField<String>(
-                      value: _dificultad,
+                      initialValue: _dificultad,
                       decoration:
                           const InputDecoration(labelText: 'Dificultad'),
                       items: const [
@@ -1648,7 +2156,7 @@ class _TaskFormDialogState extends State<_TaskFormDialog> {
               ),
               const SizedBox(height: 12),
               DropdownButtonFormField<String>(
-                value: _categoria,
+                initialValue: _categoria,
                 decoration: const InputDecoration(labelText: 'Categoría'),
                 items: [
                   for (final c in CategoriaTarea.nombres)
@@ -1671,6 +2179,7 @@ class _TaskFormDialogState extends State<_TaskFormDialog> {
                     lastDate: DateTime.now().add(const Duration(days: 365)),
                   );
                   if (picked == null) return;
+                  if (!context.mounted) return;
                   final prev = _fechaLimite;
                   final hora = await showTimePicker(
                     context: context,
@@ -1686,7 +2195,7 @@ class _TaskFormDialogState extends State<_TaskFormDialog> {
               ),
               const SizedBox(height: 12),
               DropdownButtonFormField<String>(
-                value: _frecuencia,
+                initialValue: _frecuencia,
                 decoration: const InputDecoration(labelText: 'Frecuencia'),
                 items: const [
                   DropdownMenuItem(value: 'unica', child: Text('Única')),
@@ -1700,7 +2209,7 @@ class _TaskFormDialogState extends State<_TaskFormDialog> {
               ),
               const SizedBox(height: 12),
               DropdownButtonFormField<String>(
-                value: _dia.isEmpty ? null : _dia,
+                initialValue: _dia.isEmpty ? null : _dia,
                 hint: const Text('Día de la semana'),
                 decoration: const InputDecoration(labelText: 'Día'),
                 items: const [
@@ -1775,25 +2284,32 @@ class _TaskFormDialogState extends State<_TaskFormDialog> {
 
 class _HistorialTasksList extends StatelessWidget {
   final List<(Task, Assignment)> historial;
-  const _HistorialTasksList({required this.historial});
+  final int pestana;
+  final ValueChanged<int> onTab;
+  const _HistorialTasksList({
+    required this.historial,
+    required this.pestana,
+    required this.onTab,
+  });
 
   @override
   Widget build(BuildContext context) {
-    if (historial.isEmpty) {
-      return const EmptyState(
-        icon: Icons.history_toggle_off,
-        message: 'Sin historial de tareas completadas.',
-        hint: 'Completa tareas para ver tu historial aquí.',
-      );
-    }
-
-    return ListView.builder(
-      padding: const EdgeInsets.all(12),
-      itemCount: historial.length,
-      itemBuilder: (context, i) {
-        final (t, a) = historial[i];
-        return _HistorialCard(task: t, assignment: a);
-      },
+    return ListView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      padding: const EdgeInsets.all(16),
+      children: [
+        const PageTitle('Mis tareas'),
+        SegmentTabs(const ['Pendientes', 'Retos', 'Historial'], pestana, onTab),
+        if (historial.isEmpty)
+          const EmptyState(
+            icon: Icons.history_toggle_off,
+            message: 'Sin historial de tareas completadas.',
+            hint: 'Completa tareas para ver tu historial aquí.',
+          )
+        else
+          for (final (t, a) in historial)
+            _HistorialCard(task: t, assignment: a),
+      ],
     );
   }
 }

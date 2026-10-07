@@ -8,7 +8,9 @@ import '../providers/app_provider.dart';
 import 'settings_screen.dart';
 import '../theme/app_theme.dart';
 import '../widgets/duo_widgets.dart';
-import '../widgets/section_header.dart';
+import '../widgets/hq_design.dart';
+import '../widgets/icons3d.dart';
+import '../widgets/mascots.dart';
 import '../widgets/user_avatar.dart';
 import '../models/user.dart';
 import '../models/badge.dart' as badge_model;
@@ -32,6 +34,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   bool _editando = false;
   User? _ultimoUsuario;
   AppProvider? _provider;
+  String _liga = 'Bronce';
 
   @override
   void initState() {
@@ -46,6 +49,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
         _colorTemaController.text = user.colorTema;
         _ultimoUsuario = user;
       }
+      _cargarLiga();
+    });
+  }
+
+  Future<void> _cargarLiga() async {
+    final app = context.read<AppProvider>();
+    final user = app.usuarioActual;
+    if (user == null) return;
+    final ranking = await app.rankingSemanaAnterior();
+    if (!mounted) return;
+    final idx = ranking.indexWhere((e) => e.$1.id == user.id);
+    setState(() {
+      _liga = idx >= 0
+          ? GamificationService.ligaDe(idx + 1, ranking.length)
+          : 'Bronce';
     });
   }
 
@@ -67,6 +85,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           m.fotoLocal == u.fotoLocal &&
           m.puntos == u.puntos &&
           m.nivel == u.nivel &&
+          m.mascota == u.mascota &&
           m.racha == u.racha) {
         return;
       }
@@ -77,6 +96,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
     });
   }
 
+  /// Abre la galería de mascotas y, si el niño elige una, la guarda en su
+  /// perfil (se sincroniza al instante con la mascota flotante y la cabecera).
+  Future<void> _elegirMascota() async {
+    final app = context.read<AppProvider>();
+    final user = app.usuarioActual;
+    if (user == null) return;
+    final actual = mascotaDeUser(user);
+    final nueva = await elegirMascotaSheet(context, actual);
+    if (nueva == null || nueva == actual || !mounted) return;
+    await app.editarUsuario(user.copyWith(mascota: nueva.name));
+  }
+
   @override
   Widget build(BuildContext context) {
     final app = context.read<AppProvider>();
@@ -84,82 +115,63 @@ class _ProfileScreenState extends State<ProfileScreen> {
     if (user == null) return const SizedBox.shrink();
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Perfil del integrante'),
-        actions: [
-          IconButton(
-            tooltip: 'Ajustes',
-            icon: const Icon(Icons.settings),
-            onPressed: () => Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const SettingsScreen()),
-            ),
-          ),
-          IconButton(
-            tooltip: 'Cerrar sesión',
-            icon: const Icon(Icons.logout, color: AppColors.rojo),
-            onPressed: () => _cerrarSesion(context),
-          ),
-          IconButton(
-            icon: Icon(_editando ? Icons.done : Icons.edit),
-            onPressed: () => setState(() => _editando = !_editando),
-          ),
-        ],
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(vertical: 26, horizontal: 16),
-              decoration: BoxDecoration(
-                color: const Color(0xFF2A3B1D),
-                borderRadius: BorderRadius.circular(20),
-                boxShadow: const [
-                  BoxShadow(
-                    color: Color(0x33000000),
-                    offset: Offset(0, 4),
-                    blurRadius: 0,
-                  ),
-                ],
-              ),
-              child: _AvatarCard(user: user, onCambiarFoto: _cambiarFoto),
-            ),
-            const SizedBox(height: 20),
-            if (_editando)
-              _InfoCard(
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _AvatarCard(
                 user: user,
+                onCambiarFoto: user.esAdmin ? _cambiarFoto : null,
                 editando: _editando,
-                nombreController: _nombreController,
-                colorTemaController: _colorTemaController,
-                onGuardado: () => setState(() => _editando = false),
-              )
-            else
-              _StatsGrid(user: user),
-            const SizedBox(height: 20),
-            const Divider(),
-            SectionHeader(title: 'Medallero de insignias'),
-            _InsigniasSection(user: user),
-            const SizedBox(height: 20),
-            SectionHeader(title: 'Canjes recientes'),
-            _RedemptionsSection(user: user),
-            const SizedBox(height: 20),
-            _CastigosSection(userId: user.id!),
-            const SizedBox(height: 32),
-            DuoButton(
-              label: 'Cerrar sesión',
-              icon: Icons.logout,
-              color: AppColors.rojo,
-              borderColor: const Color(0xFFC62828),
-              fullWidth: false,
-              onPressed: () => _cerrarSesion(context),
-            ),
-            const SizedBox(height: 16),
-          ],
+                onEditar: () => setState(() => _editando = true),
+                onAjustes: _irAjustes,
+                onCerrarSesion: () => _cerrarSesion(context),
+                onMascota: user.esAdmin ? null : _elegirMascota,
+              ),
+              const SizedBox(height: 16),
+              if (_editando)
+                _InfoCard(
+                  user: user,
+                  editando: _editando,
+                  nombreController: _nombreController,
+                  colorTemaController: _colorTemaController,
+                  onGuardado: () => setState(() => _editando = false),
+                )
+              else
+                _MetricasRow(user: user, liga: _liga),
+              const SizedBox(height: 16),
+              _MedalleroSection(user: user),
+              if (user.esAdmin) ...[
+                const SizedBox(height: 16),
+                const Text(
+                  'Canjes recientes',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
+                ),
+                const SizedBox(height: 8),
+                _RedemptionsSection(user: user),
+              ],
+              if (!_editando) ...[
+                const SizedBox(height: 16),
+                const Text(
+                  'Castigos',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
+                ),
+                const SizedBox(height: 8),
+                _CastigosSection(userId: user.id!),
+              ],
+            ],
+          ),
         ),
       ),
+    );
+  }
+
+  void _irAjustes() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const SettingsScreen()),
     );
   }
 
@@ -172,32 +184,34 @@ class _ProfileScreenState extends State<ProfileScreen> {
       final app = context.read<AppProvider>();
       final user = app.usuarioActual;
       if (user == null) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Subiendo foto…')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Subiendo foto…')));
       final local = await PhotoStore.guardarBytes(bytes);
       final url = await UploadClient().subirFoto(bytes, mime: mime);
       if (!mounted) return;
       if (url == null) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Foto guardada en este dispositivo. Se subirá al tener internet.'),
+            content: Text(
+              'Foto guardada en este dispositivo. Se subirá al tener internet.',
+            ),
           ),
         );
       }
-      await app.editarUsuario(user.copyWith(foto: url ?? user.foto, fotoLocal: local));
+      await app.editarUsuario(
+        user.copyWith(foto: url ?? user.foto, fotoLocal: local),
+      );
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('¡Foto actualizada!')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('¡Foto actualizada!')));
       }
     } catch (e) {
       debugPrint('Error al elegir foto: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('No se pudo elegir la foto: ${e.toString()}'),
-          ),
+          SnackBar(content: Text('No se pudo elegir la foto: ${e.toString()}')),
         );
       }
     }
@@ -229,206 +243,251 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 }
 
+/// Cabecera de perfil: acciones solo con icono arriba a la derecha, y foto
+/// centrada con el nombre y su título debajo.
 class _AvatarCard extends StatelessWidget {
   final User user;
   final VoidCallback? onCambiarFoto;
-  const _AvatarCard({required this.user, this.onCambiarFoto});
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Stack(
-          clipBehavior: Clip.none,
-          children: [
-            UserAvatar(user: user, radius: 56),
-            if (onCambiarFoto != null)
-              Positioned(
-                bottom: -2,
-                right: -2,
-                child: GestureDetector(
-                  onTap: onCambiarFoto,
-                  child: Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: const BoxDecoration(
-                      color: AppColors.verde,
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(Icons.photo_camera,
-                        color: Colors.white, size: 20),
-                  ),
-                ),
-              ),
-          ],
-        ),
-        const SizedBox(height: 12),
-        Text(
-          user.nombre,
-          style: const TextStyle(
-              fontSize: 22, fontWeight: FontWeight.w800, color: Colors.white),
-        ),
-        const SizedBox(height: 8),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            _Pill(icon: Icons.military_tech, text: 'Nivel ${user.nivel}', color: AppColors.amarillo),
-            const SizedBox(width: 8),
-            _Pill(icon: Icons.local_fire_department, text: '${user.racha} días', color: AppColors.rojo),
-          ],
-        ),
-        const SizedBox(height: 8),
-        Text(
-          '${user.puntos} pts XP acumulados',
-          style: const TextStyle(
-              color: Colors.white70, fontWeight: FontWeight.w700),
-        ),
-      ],
-    );
-  }
-}
-
-class _Pill extends StatelessWidget {
-  final IconData icon;
-  final String text;
-  final Color color;
-
-  const _Pill({required this.icon, required this.text, required this.color});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.15),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 16, color: color),
-          const SizedBox(width: 4),
-          Text(text,
-              style: TextStyle(
-                  fontWeight: FontWeight.w800, color: color, fontSize: 13)),
-        ],
-      ),
-    );
-  }
-}
-
-
-/// Rejilla 2×2 de estadísticas del integrante (Nivel, Racha, XP, Edad).
-class _StatsGrid extends StatelessWidget {
-  final User user;
-  const _StatsGrid({required this.user});
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Row(
-          children: [
-            Expanded(
-              child: _StatTile(
-                icon: Icons.military_tech,
-                label: 'Nivel',
-                valor: '${user.nivel}',
-                color: AppColors.amarillo,
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: _StatTile(
-                icon: Icons.local_fire_department,
-                label: 'Racha',
-                valor: '${user.racha} días',
-                color: AppColors.rojo,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 10),
-        Row(
-          children: [
-            Expanded(
-              child: _StatTile(
-                icon: Icons.star,
-                label: 'Puntos XP',
-                valor: '${user.puntos}',
-                color: AppColors.azul,
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: _StatTile(
-                icon: Icons.cake,
-                label: 'Edad',
-                valor: '${user.edad} años',
-                color: AppColors.morado,
-              ),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-}
-
-class _StatTile extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final String valor;
-  final Color color;
-
-  const _StatTile({
-    required this.icon,
-    required this.label,
-    required this.valor,
-    required this.color,
+  final bool editando;
+  final VoidCallback onEditar;
+  final VoidCallback onAjustes;
+  final VoidCallback onCerrarSesion;
+  final VoidCallback? onMascota;
+  const _AvatarCard({
+    required this.user,
+    this.onCambiarFoto,
+    required this.editando,
+    required this.onEditar,
+    required this.onAjustes,
+    required this.onCerrarSesion,
+    this.onMascota,
   });
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
-      decoration: BoxDecoration(
-        color: isDark ? AppColors.superficieOscura : Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          color: isDark
-              ? AppColors.grisMedio.withValues(alpha: 0.3)
-              : AppColors.linea,
-          width: 2,
+    final subtitulo = user.esAdmin
+        ? 'Guardián del hogar'
+        : '${GamificationService.nombreNivel(user.nivel)} · ${user.edad} años';
+    // Los niños llevan su mascota como avatar de perfil: es interactiva
+    // (salta y habla al tocarla) y da más protagonismo a su compañero.
+    final mascota = mascotaDeUser(user);
+    final mascotaOnTap = onMascota;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Acciones superiores: solo icono, al lado derecho de la pantalla.
+        Row(
+          mainAxisAlignment: MainAxisAlignment.end,
+          children: [
+            if (!editando) ...[
+              _BotonIcono(icon: Icons.edit_outlined, onTap: onEditar),
+              const SizedBox(width: 8),
+            ],
+            if (mascotaOnTap != null) ...[
+              _BotonIcono(icon: Icons.pets, onTap: mascotaOnTap),
+              const SizedBox(width: 8),
+            ],
+            _BotonIcono(icon: Icons.settings, onTap: onAjustes),
+            const SizedBox(width: 8),
+            _BotonIcono(
+              icon: Icons.logout,
+              color: AppColors.rojo,
+              onTap: onCerrarSesion,
+            ),
+          ],
         ),
-        boxShadow: const [
-          BoxShadow(
-              color: Color(0x14000000), offset: Offset(0, 4), blurRadius: 0),
+        const SizedBox(height: 8),
+        // Foto centrada (admin) o mascota centrada (niño).
+        Center(
+          child: GestureDetector(
+            onTap: onCambiarFoto,
+            child: user.esAdmin
+                ? Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      UserAvatar(user: user, radius: 48),
+                      if (onCambiarFoto != null)
+                        Positioned(
+                          bottom: 0,
+                          right: -4,
+                          child: Container(
+                            padding: const EdgeInsets.all(6),
+                            decoration: const BoxDecoration(
+                              color: Colors.white,
+                              shape: BoxShape.circle,
+                              border: Border.fromBorderSide(
+                                BorderSide(color: AppColors.linea, width: 2),
+                              ),
+                            ),
+                            child: const Icon(
+                              Icons.photo_camera,
+                              color: AppColors.azul,
+                              size: 16,
+                            ),
+                          ),
+                        ),
+                    ],
+                  )
+                : MascotWidget(mascota: mascota, size: 112),
+          ),
+        ),
+        if (!user.esAdmin) ...[
+          const SizedBox(height: 4),
+          Center(
+            child: Text(
+              'NIVEL ${user.nivel}',
+              style: const TextStyle(
+                color: AppColors.verde,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+          ),
         ],
-      ),
-      child: Column(
-        children: [
-          Icon(icon, color: color, size: 24),
-          const SizedBox(height: 6),
-          Text(
-            valor,
+        const SizedBox(height: 8),
+        Center(
+          child: Text(
+            user.nombre,
+            textAlign: TextAlign.center,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             style: TextStyle(
-              fontWeight: FontWeight.w800,
-              fontSize: 17,
+              fontSize: user.esAdmin ? 22 : 24,
+              fontWeight: FontWeight.w900,
               color: textoTema(context),
             ),
           ),
-          const SizedBox(height: 2),
-          Text(
-            label,
+        ),
+        Center(
+          child: Text(
+            subtitulo,
+            textAlign: TextAlign.center,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             style: TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w700,
               color: textoSuaveTema(context),
+              fontWeight: FontWeight.w700,
+              fontSize: 13,
+            ),
+          ),
+        ),
+        if (!user.esAdmin) ...[
+          const SizedBox(height: 4),
+          Center(
+            child: Text(
+              'Toca a ${mascota.nombre} para saludar 👆',
+              style: const TextStyle(
+                color: AppColors.grisMedio,
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+              ),
             ),
           ),
         ],
+      ],
+    );
+  }
+}
+
+/// Botón de icono (sin texto) de la cabecera de perfil, con estilo
+/// outlined redondeado; "Cerrar sesión" en rojo.
+class _BotonIcono extends StatelessWidget {
+  final IconData icon;
+  final VoidCallback onTap;
+  final Color? color;
+  const _BotonIcono({
+    required this.icon,
+    required this.onTap,
+    this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final c = color ?? AppColors.grisOscuro;
+    return IconButton(
+      onPressed: onTap,
+      icon: Icon(icon, size: 20),
+      visualDensity: VisualDensity.compact,
+      style: IconButton.styleFrom(
+        foregroundColor: c,
+        backgroundColor: Colors.white,
+        side: BorderSide(color: color ?? AppColors.linea, width: 1.5),
+        padding: EdgeInsets.zero,
+        minimumSize: const Size(42, 42),
+        maximumSize: const Size(42, 42),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
+    );
+  }
+}
+
+/// Fila de métricas estilo referencia: 3 MetricCard con fondo pastel
+/// (XP, Racha y Liga para el niño; XP, Liga y Racha para el admin).
+class _MetricasRow extends StatelessWidget {
+  final User user;
+  final String liga;
+
+  const _MetricasRow({required this.user, required this.liga});
+
+  @override
+  Widget build(BuildContext context) {
+    final items = user.esAdmin
+        ? <(String, String, IconData, Color, Widget)>[
+            (
+              'XP',
+              '${user.puntos}',
+              Icons.bolt,
+              AppColors.verdeFondo,
+              Bolt3D(size: 34)
+            ),
+            (
+              'Liga',
+              liga,
+              Icons.military_tech,
+              AppColors.amarilloFondo,
+              Medal3D(size: 34, tono: medalTonoDe(liga))
+            ),
+            (
+              'Racha',
+              '${user.racha}',
+              Icons.local_fire_department,
+              AppColors.rojoFondo,
+              Flame3D(size: 34)
+            ),
+          ]
+        : <(String, String, IconData, Color, Widget)>[
+            (
+              'XP',
+              '${user.puntos}',
+              Icons.bolt,
+              AppColors.verdeFondo,
+              Bolt3D(size: 34)
+            ),
+            (
+              'Racha',
+              '${user.racha}',
+              Icons.local_fire_department,
+              AppColors.rojoFondo,
+              Flame3D(size: 34)
+            ),
+            (
+              'Liga',
+              liga,
+              Icons.military_tech,
+              AppColors.amarilloFondo,
+              Medal3D(size: 34, tono: medalTonoDe(liga))
+            ),
+          ];
+    return Row(
+      children: [
+        for (var i = 0; i < items.length; i++) ...[
+          if (i > 0) const SizedBox(width: 8),
+          Expanded(
+            child: MetricCard(items[i].$1, items[i].$2, items[i].$3,
+                items[i].$4,
+                iconoWidget: items[i].$5),
+          ),
+        ],
+      ],
     );
   }
 }
@@ -470,7 +529,8 @@ class _InfoCardState extends State<_InfoCard> {
   Future<void> _elegirFecha() async {
     final picked = await showDatePicker(
       context: context,
-      initialDate: _fechaNacimiento ??
+      initialDate:
+          _fechaNacimiento ??
           DateTime.now().subtract(const Duration(days: 365 * 10)),
       firstDate: DateTime(1900),
       lastDate: DateTime.now(),
@@ -494,13 +554,16 @@ class _InfoCardState extends State<_InfoCard> {
             ListTile(
               contentPadding: EdgeInsets.zero,
               leading: const Icon(Icons.cake, color: AppColors.azul),
-              title: Text(_fechaNacimiento == null
-                  ? 'Fecha de nacimiento'
-                  : 'Edad: ${_edadDe(_fechaNacimiento)} años'),
+              title: Text(
+                _fechaNacimiento == null
+                    ? 'Fecha de nacimiento'
+                    : 'Edad: ${_edadDe(_fechaNacimiento)} años',
+              ),
               subtitle: _fechaNacimiento == null
                   ? const Text('Toca para seleccionar')
                   : Text(
-                      '${_fechaNacimiento!.day}/${_fechaNacimiento!.month}/${_fechaNacimiento!.year}'),
+                      '${_fechaNacimiento!.day}/${_fechaNacimiento!.month}/${_fechaNacimiento!.year}',
+                    ),
               trailing: const Icon(Icons.calendar_today),
               onTap: _elegirFecha,
             ),
@@ -537,15 +600,17 @@ class _InfoCardState extends State<_InfoCard> {
   }
 }
 
-class _InsigniasSection extends StatefulWidget {
+/// Medallero estilo referencia: título + "X de Y insignias" + rejilla de
+/// tarjetas (las no logradas quedan atenuadas con candado).
+class _MedalleroSection extends StatefulWidget {
   final User user;
-  const _InsigniasSection({required this.user});
+  const _MedalleroSection({required this.user});
 
   @override
-  State<_InsigniasSection> createState() => _InsigniasSectionState();
+  State<_MedalleroSection> createState() => _MedalleroSectionState();
 }
 
-class _InsigniasSectionState extends State<_InsigniasSection> {
+class _MedalleroSectionState extends State<_MedalleroSection> {
   List<(badge_model.Badge, int, int, bool)> _detalle = [];
   bool _cargando = true;
 
@@ -578,18 +643,10 @@ class _InsigniasSectionState extends State<_InsigniasSection> {
     }
   }
 
-  IconData _icono(String nombre) {
-    const mapa = {
-      'cleaning_services': Icons.cleaning_services,
-      'restaurant': Icons.restaurant,
-      'inventory_2': Icons.inventory_2,
-      'schedule': Icons.schedule,
-      'local_fire_department': Icons.local_fire_department,
-      'emoji_events': Icons.emoji_events,
-      'flash_on': Icons.flash_on,
-    };
-    return mapa[nombre] ?? Icons.emoji_events;
-  }
+  /// Icono 3D de la insignia por su nombre de icono (sin animación en el
+  /// grid para no saturar).
+  Widget _iconoInsignia(String nombre, {double size = 28}) =>
+      insignia3D(nombre, size: size, animar: false);
 
   @override
   Widget build(BuildContext context) {
@@ -597,138 +654,66 @@ class _InsigniasSectionState extends State<_InsigniasSection> {
       return const Center(child: CircularProgressIndicator());
     }
     if (_detalle.isEmpty) {
-      return Text('Completa tareas para ganar insignias.',
-          style: TextStyle(color: textoSuaveTema(context)));
+      return Text(
+        'Completa tareas para ganar insignias.',
+        style: TextStyle(color: textoSuaveTema(context)),
+      );
     }
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     final logradas = _detalle.where((d) => d.$4).length;
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Padding(
-          padding: const EdgeInsets.only(bottom: 12),
-          child: Text(
-            '$logradas de ${_detalle.length} logradas',
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w800,
-              color: textoSuaveTema(context),
-            ),
-          ),
-        ),
-        Wrap(
-          spacing: 12,
-          runSpacing: 12,
-          alignment: WrapAlignment.center,
+        Row(
           children: [
-            for (final d in _detalle)
-              Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    width: 54,
-                    height: 54,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: d.$4
-                          ? AppColors.amarillo
-                          : (isDark ? Colors.white10 : AppColors.linea),
-                      boxShadow: d.$4
-                          ? [
-                              BoxShadow(
-                                color:
-                                    AppColors.amarillo.withValues(alpha: 0.45),
-                                blurRadius: 8,
-                              ),
-                            ]
-                          : null,
-                    ),
-                    child: Icon(
-                      _icono(d.$1.icono),
-                      size: 26,
-                      color: d.$4 ? Colors.white : textoSuaveTema(context),
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  SizedBox(
-                    width: 68,
-                    child: Text(
-                      d.$1.nombre,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                          fontSize: 10, fontWeight: FontWeight.w700),
-                    ),
-                  ),
-                ],
+            Expanded(
+              child: Text(
+                'Insignias ($logradas de ${_detalle.length})',
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w900,
+                ),
               ),
+            ),
+            Medal3D(size: 26, tono: MedalTono.oro),
+            const SizedBox(width: 4),
           ],
         ),
-        const SizedBox(height: 16),
-        for (final d in _detalle)
-          DuoCard(
-            margin: const EdgeInsets.only(bottom: 10),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Icon(
-                  _icono(d.$1.icono),
-                  size: 30,
-                  color: d.$4 ? AppColors.amarillo : AppColors.grisMedio,
-                ),
-                const SizedBox(width: 12),
-                Expanded(
+        const SizedBox(height: 8),
+        GridView.count(
+          crossAxisCount: 3,
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          mainAxisSpacing: 8,
+          crossAxisSpacing: 8,
+          children: [
+            for (final d in _detalle)
+              Opacity(
+                opacity: d.$4 ? 1 : 0.4,
+                child: CardBox(
+                  margin: EdgeInsets.zero,
+                  color: d.$4 ? AppColors.amarilloFondo : AppColors.fondo,
+                  padding: const EdgeInsets.all(8),
                   child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(d.$1.nombre,
-                                style: const TextStyle(
-                                    fontWeight: FontWeight.w800, fontSize: 15)),
-                          ),
-                          if (d.$4)
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 8, vertical: 2),
-                              decoration: BoxDecoration(
-                                color: AppColors.verdeFondo,
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: const Text('¡Lograda!',
-                                  style: TextStyle(
-                                      color: AppColors.verdeOscuro,
-                                      fontWeight: FontWeight.w800,
-                                      fontSize: 11)),
-                            ),
-                        ],
-                      ),
-                      const SizedBox(height: 2),
-                      Text(d.$1.descripcion,
-                          style: TextStyle(
-                              color: textoSuaveTema(context), fontSize: 12)),
-                      const SizedBox(height: 8),
-                      LinearProgressIndicator(
-                        value: d.$3 == 0 ? 0 : d.$2 / d.$3,
-                        backgroundColor: AppColors.linea,
-                        valueColor: AlwaysStoppedAnimation<Color>(
-                            d.$4 ? AppColors.verde : AppColors.azul),
-                        minHeight: 8,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
+                      _iconoInsignia(d.$1.icono, size: 28),
                       const SizedBox(height: 4),
                       Text(
-                        d.$4 ? 'Completada' : '${d.$2}/${d.$3}',
-                        style: TextStyle(
-                            color: textoSuaveTema(context), fontSize: 12),
+                        d.$1.nombre,
+                        textAlign: TextAlign.center,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w800,
+                        ),
                       ),
                     ],
                   ),
                 ),
-              ],
-            ),
-          ),
+              ),
+          ],
+        ),
       ],
     );
   }
@@ -754,7 +739,9 @@ class _RedemptionsSectionState extends State<_RedemptionsSection> {
 
   Future<void> _cargarDatos() async {
     final app = context.read<AppProvider>();
-    final canjes = widget.user.id != null ? await app.canjesDe(widget.user.id!) : <(Redemption, Reward)>[];
+    final canjes = widget.user.id != null
+        ? await app.canjesDe(widget.user.id!)
+        : <(Redemption, Reward)>[];
     if (mounted) {
       setState(() {
         _canjes = canjes;
@@ -770,30 +757,70 @@ class _RedemptionsSectionState extends State<_RedemptionsSection> {
     }
 
     if (_canjes.isEmpty) {
-      return Text('Aún no se ha canjeado ninguna recompensa.',
-          style: TextStyle(color: textoSuaveTema(context)));
+      return Text(
+        'Aún no se ha canjeado ninguna recompensa.',
+        style: TextStyle(color: textoSuaveTema(context)),
+      );
     }
 
-    return ListView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      itemCount: _canjes.length,
-      itemBuilder: (context, i) {
-        final (canje, recompensa) = _canjes[i];
-        return ListTile(
-          leading: CircleAvatar(
-            backgroundColor: AppColors.verde.withValues(alpha: 0.15),
-            child: const Icon(Icons.card_giftcard, color: AppColors.verde),
+    return Column(
+      children: [
+        for (final (canje, recompensa) in _canjes)
+          CardBox(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            child: Row(
+              children: [
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: AppColors.verdeFondo,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(
+                    Icons.card_giftcard,
+                    color: AppColors.verdeOscuro,
+                    size: 20,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        recompensa.nombre,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        '${canje.fecha.day}/${canje.fecha.month}/${canje.fecha.year}',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: textoSuaveTema(context),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Text(
+                  '-${recompensa.costoPuntos} pts',
+                  style: const TextStyle(
+                    color: AppColors.rojo,
+                    fontWeight: FontWeight.w900,
+                    fontSize: 13,
+                  ),
+                ),
+              ],
+            ),
           ),
-          title: Text(recompensa.nombre),
-          subtitle: Text(canje.fecha.toString()),
-          trailing: Chip(
-            label: Text('-${recompensa.costoPuntos} pts'),
-            backgroundColor: Colors.red.withValues(alpha: 0.15),
-            labelStyle: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
-          ),
-        );
-      },
+      ],
     );
   }
 }
@@ -836,70 +863,53 @@ class _CastigosSectionState extends State<_CastigosSection> {
       return const Center(child: CircularProgressIndicator());
     }
 
+    if (_castigos.isEmpty) {
+      return const CardBox(
+        color: AppColors.rojoFondo,
+        child: Text(
+          'Sin castigos activos. ¡Sigue así, lo estás haciendo genial!',
+          style: TextStyle(
+            fontWeight: FontWeight.w900,
+            color: AppColors.grisOscuro,
+          ),
+        ),
+      );
+    }
+
     final disciplina = _castigos.where((c) => c.esDisciplina).take(5).toList();
     final tareas = _castigos.where((c) => c.esTarea).take(5).toList();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          children: [
-            const Icon(Icons.gavel, color: AppColors.rojo, size: 20),
-            const SizedBox(width: 6),
-            Text('Castigos y quitas',
-                style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w800,
-                    color: textoTema(context))),
-            const Spacer(),
-            if (_puntosSemana > 0)
-              Chip(
-                label: Text('-$_puntosSemana pts esta semana'),
-                backgroundColor: Colors.red.withValues(alpha: 0.15),
-                labelStyle: const TextStyle(
-                    color: Colors.red, fontWeight: FontWeight.w700, fontSize: 11),
+        if (_puntosSemana > 0)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Chip(
+              label: Text('-$_puntosSemana pts esta semana'),
+              backgroundColor: AppColors.rojoFondo,
+              labelStyle: const TextStyle(
+                color: AppColors.rojo,
+                fontWeight: FontWeight.w800,
+                fontSize: 12,
               ),
-          ],
-        ),
-        const SizedBox(height: 8),
-        if (_castigos.isEmpty)
-          Text('Sin castigos ni quitas. ¡Sigue así! 🎉',
-              style: TextStyle(color: textoSuaveTema(context), fontSize: 13))
-        else ...[
-          if (tareas.isNotEmpty) ...[
-            Text('Por tareas sin cumplir',
-                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: textoSuaveTema(context))),
-            ...tareas.map((c) => _fila(c, Icons.event_busy, Colors.orange)),
-            const SizedBox(height: 8),
-          ],
-          if (disciplina.isNotEmpty) ...[
-            Text('Castigos (disciplina)',
-                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: textoSuaveTema(context))),
-            ...disciplina.map((c) => _fila(c, Icons.error_outline, AppColors.rojo)),
-          ],
-        ],
+              visualDensity: VisualDensity.compact,
+              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
+          ),
+        for (final c in [...tareas, ...disciplina])
+          CardBox(
+            color: AppColors.rojoFondo,
+            child: Text(
+              '${c.motivo} · ${c.fecha.day}/${c.fecha.month} · '
+              '−${c.puntos} pts',
+              style: const TextStyle(
+                fontWeight: FontWeight.w900,
+                color: AppColors.grisOscuro,
+              ),
+            ),
+          ),
       ],
     );
   }
-
-  Widget _fila(Castigo c, IconData icono, Color color) {
-    return ListTile(
-      dense: true,
-      contentPadding: EdgeInsets.zero,
-      leading: CircleAvatar(
-        radius: 18,
-        backgroundColor: color.withValues(alpha: 0.15),
-        child: Icon(icono, color: color, size: 20),
-      ),
-      title: Text(c.motivo,
-          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
-      subtitle: Text(
-          '${c.fecha.day}/${c.fecha.month} · ${c.esTarea ? 'Tarea sin cumplir' : 'Disciplina'}',
-          style: const TextStyle(fontSize: 11)),
-      trailing: Text('-${c.puntos} pts',
-          style: const TextStyle(
-              color: AppColors.rojo,
-              fontWeight: FontWeight.w800,
-              fontSize: 13)),
-    );
-  }
 }
+

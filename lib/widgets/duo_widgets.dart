@@ -28,9 +28,14 @@ class DuoButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final enabled = onPressed != null && !loading;
-    final bg = enabled ? color : AppColors.linea;
-    final bd = enabled ? borderColor : AppColors.grisMedio;
+    final bg = enabled
+        ? color
+        : (isDark
+            ? Colors.white10
+            : AppColors.linea);
+    final fg = enabled || loading ? Colors.white : textoSuaveTema(context);
 
     final mainAxisSize =
         (fullWidth && expanded) ? MainAxisSize.max : MainAxisSize.min;
@@ -40,63 +45,50 @@ class DuoButton extends StatelessWidget {
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
         if (loading)
-          const SizedBox(
+          SizedBox(
             height: 20,
             width: 20,
             child: CircularProgressIndicator(
               strokeWidth: 3,
-              color: Colors.white,
+              color: fg,
             ),
           )
         else ...[
           if (icon != null) ...[
-            Icon(icon, color: Colors.white, size: 22),
+            Icon(icon, color: fg, size: 22),
             const SizedBox(width: 8),
           ],
           Text(
             label.toUpperCase(),
-            style: const TextStyle(
-              color: Colors.white,
+            style: TextStyle(
+              color: fg,
               fontSize: 15,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 0.5,
+              fontWeight: FontWeight.w900,
+              letterSpacing: 0.3,
             ),
           ),
         ],
       ],
     );
 
-    final radius = BorderRadius.circular(16);
+    final radius = BorderRadius.circular(14);
 
     if (fullWidth) {
       return SizedBox(
-        height: 54,
+        height: 48,
         child: Material(
           color: Colors.transparent,
           child: InkWell(
             onTap: enabled ? onPressed : null,
             borderRadius: radius,
-            child: Stack(
+            child: Container(
+              height: 48,
               alignment: Alignment.center,
-              children: [
-                Container(
-                  height: 54,
-                  margin: const EdgeInsets.only(top: 5),
-                  decoration: BoxDecoration(
-                    color: bd,
-                    borderRadius: radius,
-                  ),
-                ),
-                Container(
-                  height: 49,
-                  width: double.infinity,
-                  decoration: BoxDecoration(
-                    color: bg,
-                    borderRadius: radius,
-                  ),
-                  child: content,
-                ),
-              ],
+              decoration: BoxDecoration(
+                color: bg,
+                borderRadius: radius,
+              ),
+              child: content,
             ),
           ),
         ),
@@ -104,19 +96,19 @@ class DuoButton extends StatelessWidget {
     }
 
     return SizedBox(
-      height: 54,
+      height: 44,
       child: Material(
         color: Colors.transparent,
         child: InkWell(
           onTap: enabled ? onPressed : null,
           borderRadius: radius,
           child: Container(
-            height: 49,
+            height: 44,
             padding: const EdgeInsets.symmetric(horizontal: 24),
+            alignment: Alignment.center,
             decoration: BoxDecoration(
               color: bg,
               borderRadius: radius,
-              border: Border(bottom: BorderSide(color: bd, width: 5)),
             ),
             child: content,
           ),
@@ -149,18 +141,13 @@ class DuoCard extends StatelessWidget {
       child: Container(
         decoration: BoxDecoration(
           color: color ?? (isDark ? AppColors.superficieOscura : Colors.white),
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(18),
           border: Border.all(
-            color: isDark ? AppColors.grisMedio.withValues(alpha: 0.3) : AppColors.linea,
+            color: isDark
+                ? AppColors.grisMedio.withValues(alpha: 0.3)
+                : const Color(0xFFE5E5E5),
             width: 2,
           ),
-          boxShadow: const [
-            BoxShadow(
-              color: Color(0x14000000),
-              offset: Offset(0, 4),
-              blurRadius: 0,
-            ),
-          ],
         ),
         child: Padding(padding: padding, child: child),
       ),

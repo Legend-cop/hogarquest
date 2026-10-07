@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../services/gamification_service.dart';
 import '../theme/app_theme.dart';
+import 'icons3d.dart';
 
 /// Muestra el nivel del integrante y la barra de progreso al siguiente nivel.
 class LevelProgress extends StatelessWidget {
@@ -19,7 +20,7 @@ class LevelProgress extends StatelessWidget {
       children: [
         Row(
           children: [
-            const Icon(Icons.military_tech, size: 20, color: AppColors.amarillo),
+            Medal3D(size: 22, tono: MedalTono.oro),
             const SizedBox(width: 6),
             Text(
               'Nivel $nivel · ${GamificationService.nombreNivel(nivel)}',
