@@ -8,6 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../models/assignment.dart';
 import '../models/badge.dart';
 import '../models/castigo.dart';
+import '../models/logro.dart';
 import '../models/redemption.dart';
 import '../models/reto.dart';
 import '../models/reward.dart';
@@ -29,6 +30,7 @@ class DatabaseHelper {
   static const _boxRecompensas = 'recompensas';
   static const _boxCanjes = 'canjes';
   static const _boxInsignias = 'insignias';
+  static const _boxLogros = 'logros';
   static const _boxCastigos = 'castigos';
   static const _boxRetos = 'retos';
   static const _boxCatalogos = 'catalogos';
@@ -77,8 +79,9 @@ class DatabaseHelper {
 
   /// Registra la marca de borrado de un registro que se va a eliminar.
   void _tombstone(String boxName, Map m) {
-    _tombstones.removeWhere((t) =>
-        t['box'] == boxName && t['k'] == _idKey(m, boxName));
+    _tombstones.removeWhere(
+      (t) => t['box'] == boxName && t['k'] == _idKey(m, boxName),
+    );
     _tombstones.add({
       'box': boxName,
       'k': _idKey(m, boxName),
@@ -103,19 +106,23 @@ class DatabaseHelper {
     await _seedIfEmpty();
     await _seedPerfilesSemana();
     await _seedCatalogo();
+    _migrarCatalogoCategorias();
     _migrarContrasenas();
     _migrarCategoriasTareas();
     _persistir();
-    _client.listen(() async {
-      await _cargarDesdeServidor();
-      onRemoteChange?.call();
-    }, onReconnect: () async {
-      // Primero recargamos del servidor (tombstones, datos nuevos) y luego
-      // subimos cambios locales, para no sobrescribir datos remotos.
-      await _cargarDesdeServidor();
-      await _subirLocal();
-      onRemoteChange?.call();
-    });
+    _client.listen(
+      () async {
+        await _cargarDesdeServidor();
+        onRemoteChange?.call();
+      },
+      onReconnect: () async {
+        // Primero recargamos del servidor (tombstones, datos nuevos) y luego
+        // subimos cambios locales, para no sobrescribir datos remotos.
+        await _cargarDesdeServidor();
+        await _subirLocal();
+        onRemoteChange?.call();
+      },
+    );
 
     // Poll de respaldo aunque haya conexión (ver nota en _pollTimer).
     _pollTimer?.cancel();
@@ -143,9 +150,12 @@ class DatabaseHelper {
       _client.borrarFcmToken(userId, token);
 
   /// Pide al servidor que envíe un push real al dispositivo del usuario.
-  Future<void> enviarPush(int userId, String titulo, String cuerpo,
-      [Map<String, String>? data]) =>
-      _client.enviarPushFcm(userId, titulo, cuerpo, data);
+  Future<void> enviarPush(
+    int userId,
+    String titulo,
+    String cuerpo, [
+    Map<String, String>? data,
+  ]) => _client.enviarPushFcm(userId, titulo, cuerpo, data);
 
   Future<void> enviarRecordatorioConfig(int userId, int minutos, int offset) =>
       _client.enviarRecordatorioConfig(userId, minutos, offset);
@@ -244,7 +254,9 @@ class DatabaseHelper {
           final tsLocal = (metaLocal?['ts'] as int?) ?? 0;
           if (tsRemoto > tsLocal) {
             resetDetectado = true;
-            debugPrint('[sync] RESET remoto detectado (tsRemoto=$tsRemoto > tsLocal=$tsLocal). Descartando datos locales viejos.');
+            debugPrint(
+              '[sync] RESET remoto detectado (tsRemoto=$tsRemoto > tsLocal=$tsLocal). Descartando datos locales viejos.',
+            );
           }
           break;
         }
@@ -311,23 +323,50 @@ class DatabaseHelper {
           // (es una ruta de archivo local). Si el registro remoto gana,
           // preservamos la foto_local local para que la imagen no desaparezca
           // ni parpadee al sincronizar.
-    final ganador = Map<String, dynamic>.from(remoto);
-    if (boxName == _boxUsuarios) {
-      final flLocal = local?['foto_local'];
-      if (flLocal != null && '$flLocal'.isNotEmpty) {
-        ganador['foto_local'] = flLocal;
-      }
-    }
-    if (boxName == _boxTareas) {
-      final estado = ganador['estado'];
-      if (estado == null || '$estado'.trim().isEmpty) {
-        ganador['estado'] = 'activa';
-      }
-      if (ganador['created_at'] == null && local?['created_at'] != null) {
-        ganador['created_at'] = local!['created_at'];
-      }
-    }
-    resueltos.add(ganador);
+          final ganador = Map<String, dynamic>.from(remoto);
+          if (boxName == _boxUsuarios) {
+            final flLocal = local?['foto_local'];
+            if (flLocal != null && '$flLocal'.isNotEmpty) {
+              ganador['foto_local'] = flLocal;
+            }
+            // /api/db-public no envía password/salt (por seguridad). El par
+            // password+salt es atómico: si el remoto no trae un par completo
+            // (o trae solo una mitad), conservamos el par local completo.
+            // Nunca se mezcla un password con el salt del otro lado: eso
+            // producía hashes inválidos y bloqueaba el login de la cuenta.
+            final pwRemoto = ganador['password'];
+            final saltRemoto = ganador['salt'];
+            final remotoCompleto = pwRemoto != null &&
+                '$pwRemoto'.isNotEmpty &&
+                saltRemoto != null &&
+                '$saltRemoto'.isNotEmpty;
+            if (!remotoCompleto) {
+              final pwLocal = local?['password'];
+              final saltLocal = local?['salt'];
+              if (pwLocal != null &&
+                  '$pwLocal'.isNotEmpty &&
+                  saltLocal != null &&
+                  '$saltLocal'.isNotEmpty) {
+                ganador['password'] = pwLocal;
+                ganador['salt'] = saltLocal;
+                // El marcador de reset viaja junto con su par.
+                final markLocal = local?['password_updated_at'];
+                if (markLocal != null) {
+                  ganador['password_updated_at'] = markLocal;
+                }
+              }
+            }
+          }
+          if (boxName == _boxTareas) {
+            final estado = ganador['estado'];
+            if (estado == null || '$estado'.trim().isEmpty) {
+              ganador['estado'] = 'activa';
+            }
+            if (ganador['created_at'] == null && local?['created_at'] != null) {
+              ganador['created_at'] = local!['created_at'];
+            }
+          }
+          resueltos.add(ganador);
         }
       }
       // Los registros locales que el servidor no tiene se conservan.
@@ -335,6 +374,26 @@ class DatabaseHelper {
         if (!remotos.containsKey(_idKey(loc, boxName))) {
           resueltos.add(loc);
           victoriaLocal = true;
+        }
+      }
+
+      // Retos: además del LWW por registro, se UNEN las listas de
+      // cumplidos/aprobados/marcas/robados de ambos lados. Sin esto, dos
+      // niños que marcan casi a la vez en modo lluvia/frenesí se borran
+      // entre sí (la carrera real la gana el que llega primero al servidor).
+      if (boxName == _boxRetos) {
+        for (var i = 0; i < resueltos.length; i++) {
+          final victoria = resueltos[i];
+          final key = _idKey(victoria, boxName);
+          final local = locales[key];
+          final remoto = remotos[key];
+          if (local == null || remoto == null) continue;
+          final otro = identical(victoria, local) ? remoto : local;
+          final unido = _unirReto(victoria, otro);
+          if (!identical(unido, victoria)) {
+            resueltos[i] = unido;
+            victoriaLocal = true;
+          }
         }
       }
 
@@ -351,7 +410,8 @@ class DatabaseHelper {
         final tsTomb = d['updated_at'] as int? ?? 0;
         // created_at es estable para tareas (el servidor no lo re-firma).
         // Para registros sin created_at (usuarios, etc.) usamos updated_at.
-        final tsRegistro = r['created_at'] as int? ?? r['updated_at'] as int? ?? 0;
+        final tsRegistro =
+            r['created_at'] as int? ?? r['updated_at'] as int? ?? 0;
         return tsRegistro > tsTomb;
       }).toList();
 
@@ -360,6 +420,90 @@ class DatabaseHelper {
         ..addAll(vivos);
     }
     return victoriaLocal;
+  }
+
+  /// Combina un reto ganador con el registro del otro lado (mismo id)
+  /// uniendo sus colecciones, para no perder marcas ni robos que aún no se
+  /// habían sincronizado. Devuelve `victoria` si no había nada nuevo, o un
+  /// mapa unido si se agregó contenido.
+  Map _unirReto(Map victoria, Map otro) {
+    final v = Map<String, dynamic>.from(victoria);
+    var cambio = false;
+
+    List<int> leerInts(Map m, String campo) {
+      final raw = m[campo];
+      if (raw is! List) return const <int>[];
+      return [
+        for (final e in raw)
+          if (int.tryParse(e.toString()) != null) int.tryParse(e.toString())!,
+      ];
+    }
+
+    for (final campo in const ['cumplidos', 'aprobados']) {
+      final a = leerInts(v, campo);
+      final b = leerInts(otro, campo);
+      if (b.any((x) => !a.contains(x))) {
+        v[campo] = [...a, ...b.where((x) => !a.contains(x))];
+        cambio = true;
+      }
+    }
+
+    Map<String, Object?> leerMap(Map m, String campo) {
+      final raw = m[campo];
+      if (raw is! Map) return {};
+      return {
+        for (final e in raw.entries) e.key.toString(): e.value,
+      };
+    }
+
+    for (final campo in const ['marcas', 'robados']) {
+      final a = leerMap(v, campo);
+      final b = leerMap(otro, campo);
+      var crecio = false;
+      for (final e in b.entries) {
+        if (!a.containsKey(e.key)) {
+          a[e.key] = e.value;
+          crecio = true;
+        } else if (campo == 'marcas') {
+          // Misma marca en dos dispositivos: queda la más antigua (el
+          // registro real de quién fue el primero).
+          final ta = int.tryParse('${a[e.key]}');
+          final tb = int.tryParse('${e.value}');
+          if (ta != null && tb != null && tb < ta) {
+            a[e.key] = e.value;
+            crecio = true;
+          }
+        }
+      }
+      if (crecio) {
+        v[campo] = a;
+        cambio = true;
+      }
+    }
+
+    // Reto finalizado con carreras unidas: el ganador es la marca más
+    // antigua (el pago ya ocurrió en cada dispositivo; aquí solo se afina
+    // quién se muestra como ganador).
+    if ((v['finalizado'] as int? ?? 0) == 1) {
+      final marcas = leerMap(v, 'marcas');
+      int? mejor;
+      int? mejorTs;
+      for (final e in marcas.entries) {
+        final uid = int.tryParse(e.key);
+        final ts = int.tryParse('${e.value}');
+        if (uid == null || ts == null) continue;
+        if (mejorTs == null || ts < mejorTs) {
+          mejorTs = ts;
+          mejor = uid;
+        }
+      }
+      if (mejor != null && v['ganador'] != mejor) {
+        v['ganador'] = mejor;
+        cambio = true;
+      }
+    }
+
+    return cambio ? v : victoria;
   }
 
   /// Guarda la copia actual completa de la base en el dispositivo.
@@ -421,10 +565,14 @@ class DatabaseHelper {
     final box = _box(_boxUsuarios);
     var cambio = false;
     for (final m in box.items) {
-      if (m != null && SecurityService.requiereMigracion(m)) {
+      if (SecurityService.requiereMigracion(m)) {
         final salt = SecurityService.generarSalt();
         m['salt'] = salt;
-        m['password'] = SecurityService.hashPassword(m['password'] as String, salt);
+        m['password'] = SecurityService.hashPassword(
+          m['password'] as String,
+          salt,
+        );
+        m['password_updated_at'] = DateTime.now().millisecondsSinceEpoch;
         _sellar(m);
         cambio = true;
       }
@@ -437,47 +585,119 @@ class DatabaseHelper {
   /// coincidencia gana).
   static const Map<String, List<String>> _reglasCategoria =
       <String, List<String>>{
-    'Escuela': <String>[
-      'escuela', 'colegio', 'estudiar', 'estudio', 'leer', 'libro', 'examen',
-      'clase', 'mate', 'matem', 'español', 'espanol', 'inglés', 'ingles',
-      'lengua', 'ciencia', 'historia', 'cuaderno', 'deberes', 'lectura',
-      'repasar', 'investigar', 'tarea escolar',
-    ],
-    'Limpieza': <String>[
-      'limpiar', 'limpieza', 'barrer', 'trapear', 'lavar', 'ordenar',
-      'recoger', 'aspirar', 'planchar', 'tender', 'platos', 'baño', 'aseo',
-      'basura', 'sacudir', 'pulir', 'organizar',
-    ],
-    'Ejercicio': <String>[
-      'ejercicio', 'correr', 'trotar', 'deporte', 'gimnas', 'caminar',
-      'yoga', 'bicicleta', 'saltar', 'entrenar', 'flexion', 'sentadilla',
-      'estiramiento', 'calentar',
-    ],
-    'Hogar': <String>[
-      'hogar', 'mercado', 'super', 'cocinar', 'preparar comida', 'cuidar',
-      'mascota', 'perro', 'jardín', 'jardin', 'regar', 'planta', 'recado',
-      'mandado', 'auto',
-    ],
-    'Salud': <String>[
-      'salud', 'dormir', 'cepillar', 'diente', 'bañar', 'bañarse', 'medicina',
-      'pastilla', 'tomar agua', 'beber agua', 'fruta', 'verdura', 'vegetal',
-      'despertar', 'levantarse', 'higiene', 'ducha', 'descansar', 'sano',
-    ],
-  };
+        'Escuela': <String>[
+          'escuela',
+          'colegio',
+          'estudiar',
+          'estudio',
+          'leer',
+          'libro',
+          'examen',
+          'clase',
+          'mate',
+          'matem',
+          'español',
+          'espanol',
+          'inglés',
+          'ingles',
+          'lengua',
+          'ciencia',
+          'historia',
+          'cuaderno',
+          'deberes',
+          'lectura',
+          'repasar',
+          'investigar',
+          'tarea escolar',
+        ],
+        'Limpieza': <String>[
+          'limpiar',
+          'limpieza',
+          'barrer',
+          'trapear',
+          'lavar',
+          'ordenar',
+          'recoger',
+          'aspirar',
+          'planchar',
+          'tender',
+          'platos',
+          'baño',
+          'aseo',
+          'basura',
+          'sacudir',
+          'pulir',
+          'organizar',
+        ],
+        'Ejercicio': <String>[
+          'ejercicio',
+          'correr',
+          'trotar',
+          'deporte',
+          'gimnas',
+          'caminar',
+          'yoga',
+          'bicicleta',
+          'saltar',
+          'entrenar',
+          'flexion',
+          'sentadilla',
+          'estiramiento',
+          'calentar',
+        ],
+        'Hogar': <String>[
+          'hogar',
+          'mercado',
+          'super',
+          'cocinar',
+          'preparar comida',
+          'cuidar',
+          'mascota',
+          'perro',
+          'jardín',
+          'jardin',
+          'regar',
+          'planta',
+          'recado',
+          'mandado',
+          'auto',
+        ],
+        'Salud': <String>[
+          'salud',
+          'dormir',
+          'cepillar',
+          'diente',
+          'bañar',
+          'bañarse',
+          'medicina',
+          'pastilla',
+          'tomar agua',
+          'beber agua',
+          'fruta',
+          'verdura',
+          'vegetal',
+          'despertar',
+          'levantarse',
+          'higiene',
+          'ducha',
+          'descansar',
+          'sano',
+        ],
+      };
 
   /// Reasigna la categoría de las tareas que se guardaron como 'General' por un
   /// bug anterior (la categoría no se persistía). Usa [_categoriaPorTitulo].
   /// Se ejecuta una sola vez por dispositivo (bandera en la caja 'meta').
   void _migrarCategoriasTareas() {
     final meta = _box(_boxMeta);
-    final yaMigrado =
-        meta.items.any((m) => m != null && m['k'] == 'migracion_categorias_v1');
+    final yaMigrado = meta.items.any(
+      (m) => m['k'] == 'migracion_categorias_v1',
+    );
     if (yaMigrado) return;
 
     final box = _box(_boxTareas);
     var cambio = false;
     for (final m in box.items) {
-      if (m == null) continue;
       final cat = m['categoria'] as String? ?? 'General';
       if (cat != 'General') continue;
       final titulo = (m['titulo'] as String?) ?? '';
@@ -507,6 +727,52 @@ class DatabaseHelper {
     return 'General';
   }
 
+  /// Backfill: asigna categorías e iconos distintivos a las entradas del
+  /// catálogo que quedaron sin icono. Se ejecuta una sola vez (v2).
+  void _migrarCatalogoCategorias() {
+    final meta = _box(_boxMeta);
+    final yaMigrado = meta.items.any(
+      (m) => m['k'] == 'migracion_catalogo_iconos_v2',
+    );
+    if (yaMigrado) return;
+
+    const cats = <String, (String, String)>{
+      'orar': ('Fe', 'corazon'),
+      'leer la biblia': ('Fe', 'libro'),
+      'ir a la iglesia': ('Fe', 'casita'),
+      'cocinar': ('Responsabilidad', 'olla'),
+      'lavar baño': ('Limpieza', 'esponja'),
+      'lavar ropa': ('Orden', 'lavadora'),
+      'trapear': ('Limpieza', 'trapeo'),
+      'organizar patio': ('Orden', 'planta'),
+      'organizar nevera': ('Orden', 'etiqueta'),
+      'lavar loza': ('Limpieza', 'platos'),
+      'arreglar multimueble': ('Responsabilidad', 'llave'),
+      'arreglar peinadora': ('Responsabilidad', 'peinadora'),
+      'barrer': ('Limpieza', 'escoba'),
+      'doblar ropa': ('Orden', 'checklist'),
+      'ordenar cuarto': ('Orden', 'basura'),
+    };
+
+    final box = _box(_boxCatalogos);
+    for (final m in box.items) {
+      if ((m['icono'] as String? ?? '').isNotEmpty) continue;
+      final titulo = ((m['titulo'] as String?) ?? '').trim().toLowerCase();
+      final dato = cats[titulo];
+      if (dato == null) continue;
+      m['categoria'] = dato.$1;
+      m['icono'] = dato.$2;
+      _sellar(m);
+    }
+
+    meta.items.add(<String, Object?>{
+      'k': 'migracion_catalogo_iconos_v2',
+      'version': 2,
+      'aplicado': DateTime.now().toIso8601String(),
+    });
+    _marcar();
+  }
+
   void _marcar() {
     _debounce?.cancel();
     _debounce = Timer(const Duration(milliseconds: 150), _persistir);
@@ -522,18 +788,23 @@ class DatabaseHelper {
   Future<void> _seedIfEmpty() async {
     final usuarios = _box(_boxUsuarios);
     if (usuarios.isEmpty) {
-      await _addConId(usuarios, _userToMap(User(
-        id: 0,
-        nombre: 'Admin',
-        avatar: '👑',
-        edad: 0,
-        colorTema: 'azul',
-        nivel: 1,
-        puntos: 0,
-        racha: 0,
-        password: 'admin123',
-        rol: 'admin',
-      )));
+      await _addConId(
+        usuarios,
+        _userToMap(
+          User(
+            id: 0,
+            nombre: 'Admin',
+            avatar: '👑',
+            edad: 0,
+            colorTema: 'azul',
+            nivel: 1,
+            puntos: 0,
+            racha: 0,
+            password: 'admin123',
+            rol: 'admin',
+          ),
+        ),
+      );
     }
 
     // Nota: no se siembran recompensas de demostración; los datos inician
@@ -541,19 +812,140 @@ class DatabaseHelper {
 
     final insignias = _box(_boxInsignias);
     final catalogoInsignias = [
-      Badge(id: 1, nombre: 'Maestro de limpieza', descripcion: 'Completaste 10 tareas de limpieza.', icono: 'cleaning_services'),
-      Badge(id: 2, nombre: 'Rey de la cocina', descripcion: 'Completaste 10 tareas de cocina.', icono: 'restaurant'),
-      Badge(id: 3, nombre: 'Orden perfecto', descripcion: 'Completaste 10 tareas de orden.', icono: 'inventory_2'),
-      Badge(id: 4, nombre: 'Puntual', descripcion: 'Completaste 5 tareas antes de la fecha límite.', icono: 'schedule'),
-      Badge(id: 5, nombre: 'Racha de 7 días', descripcion: 'Mantuviste una racha de 7 días.', icono: 'local_fire_department'),
-      Badge(id: 6, nombre: 'Experto del hogar', descripcion: 'Alcanzaste el nivel 5.', icono: 'emoji_events'),
-      Badge(id: 7, nombre: '5 tareas en un día', descripcion: 'Completaste 5 tareas en un solo día.', icono: 'flash_on'),
+      Badge(
+        id: 1,
+        nombre: 'Maestro de limpieza',
+        descripcion: 'Completaste 10 tareas de limpieza.',
+        icono: 'cleaning_services',
+        meta: 10,
+        metrica: 'limpieza',
+      ),
+      Badge(
+        id: 2,
+        nombre: 'Rey de la cocina',
+        descripcion: 'Completaste 10 tareas de cocina.',
+        icono: 'restaurant',
+        meta: 10,
+        metrica: 'cocina',
+      ),
+      Badge(
+        id: 3,
+        nombre: 'Orden perfecto',
+        descripcion: 'Completaste 10 tareas de orden.',
+        icono: 'inventory_2',
+        meta: 10,
+        metrica: 'orden',
+      ),
+      Badge(
+        id: 4,
+        nombre: 'Puntual',
+        descripcion: 'Completaste 5 tareas antes de la fecha límite.',
+        icono: 'schedule',
+        meta: 5,
+        metrica: 'puntual',
+      ),
+      Badge(
+        id: 5,
+        nombre: 'Racha de 7 días',
+        descripcion: 'Mantuviste una racha de 7 días.',
+        icono: 'local_fire_department',
+        meta: 7,
+        metrica: 'racha',
+      ),
+      Badge(
+        id: 6,
+        nombre: 'Experto del hogar',
+        descripcion: 'Alcanzaste el nivel 5.',
+        icono: 'emoji_events',
+        meta: 5,
+        metrica: 'nivel',
+      ),
+      Badge(
+        id: 7,
+        nombre: '5 tareas en un día',
+        descripcion: 'Completaste 5 tareas en un solo día.',
+        icono: 'flash_on',
+        meta: 5,
+        metrica: 'diarias',
+      ),
     ];
     for (final b in catalogoInsignias) {
-      final existe =
-          insignias.items.where((m) => m['id'] == b.id).isNotEmpty;
+      final existe = insignias.items.where((m) => m['id'] == b.id).isNotEmpty;
       if (!existe) await _addConId(insignias, _badgeToMap(b));
     }
+    await _migrarInsigniasMeta();
+
+    // Logros en camino: metas de progreso que el admin puede editar.
+    final logros = _box(_boxLogros);
+    final catalogoLogros = [
+      Logro(
+        id: 1,
+        nombre: 'Semana perfecta',
+        icono: 'checklist',
+        tipo: 'semana_perfecta',
+        meta: 7,
+      ),
+      Logro(
+        id: 2,
+        nombre: 'Maestro de retos',
+        icono: 'flag',
+        tipo: 'retos',
+        meta: 5,
+      ),
+      Logro(
+        id: 3,
+        nombre: 'Racha legendaria',
+        icono: 'local_fire_department',
+        tipo: 'racha',
+        meta: 30,
+      ),
+      Logro(
+        id: 4,
+        nombre: 'Coleccionista',
+        icono: 'emoji_events',
+        tipo: 'insignias',
+        meta: 7,
+      ),
+    ];
+    for (final l in catalogoLogros) {
+      final existe = logros.items.where((m) => m['id'] == l.id).isNotEmpty;
+      if (!existe) await _addConId(logros, _logroToMap(l));
+    }
+  }
+
+  /// Insignias creadas antes de editarlas no traen `meta`/`metrica`. Les
+  /// asignamos los valores que tenían en el catálogo fijo original para que la
+  /// lógica de otorgado no cambie. One-shot.
+  Future<void> _migrarInsigniasMeta() async {
+    final meta = _box(_boxMeta);
+    if (meta.items.any((m) => m['k'] == 'migracion_insignias_meta_v1')) {
+      return;
+    }
+    const metas = <int, (int, String)>{
+      1: (10, 'limpieza'),
+      2: (10, 'cocina'),
+      3: (10, 'orden'),
+      4: (5, 'puntual'),
+      5: (7, 'racha'),
+      6: (5, 'nivel'),
+      7: (5, 'diarias'),
+    };
+    final insignias = _box(_boxInsignias);
+    for (final m in insignias.items) {
+      final id = m['id'];
+      final def = metas[id];
+      if (def == null) continue;
+      if (m['meta'] == null) m['meta'] = def.$1;
+      if (m['metrica'] == null) m['metrica'] = def.$2;
+      _sellar(m);
+    }
+
+    meta.items.add(<String, Object?>{
+      'k': 'migracion_insignias_meta_v1',
+      'version': 1,
+      'aplicado': DateTime.now().toIso8601String(),
+    });
+    _marcar();
   }
 
   /// Catálogo por defecto de tareas con sus puntos. Solo se siembra si la caja
@@ -561,26 +953,35 @@ class DatabaseHelper {
   Future<void> _seedCatalogo() async {
     final box = _box(_boxCatalogos);
     if (box.items.isNotEmpty) return;
-    const defs = <(String, int)>[
-      ('Orar', 10),
-      ('Leer la Biblia', 10),
-      ('Ir a la iglesia', 15),
-      ('Cocinar', 8),
-      ('Lavar baño', 7),
-      ('Lavar ropa', 6),
-      ('Trapear', 5),
-      ('Organizar patio', 5),
-      ('Organizar nevera', 5),
-      ('Lavar loza', 4),
-      ('Arreglar multimueble', 3),
-      ('Arreglar peinadora', 3),
-      ('Barrer', 2),
-      ('Doblar ropa', 2),
-      ('Ordenar cuarto', 1),
+    const defs = <(String, int, String, String)>[
+      ('Orar', 10, 'Fe', 'corazon'),
+      ('Leer la Biblia', 10, 'Fe', 'libro'),
+      ('Ir a la iglesia', 15, 'Fe', 'casita'),
+      ('Cocinar', 8, 'Responsabilidad', 'olla'),
+      ('Lavar baño', 7, 'Limpieza', 'esponja'),
+      ('Lavar ropa', 6, 'Orden', 'lavadora'),
+      ('Trapear', 5, 'Limpieza', 'trapeo'),
+      ('Organizar patio', 5, 'Orden', 'planta'),
+      ('Organizar nevera', 5, 'Orden', 'etiqueta'),
+      ('Lavar loza', 4, 'Limpieza', 'platos'),
+      ('Arreglar multimueble', 3, 'Responsabilidad', 'llave'),
+      ('Arreglar peinadora', 3, 'Responsabilidad', 'peinadora'),
+      ('Barrer', 2, 'Limpieza', 'escoba'),
+      ('Doblar ropa', 2, 'Orden', 'checklist'),
+      ('Ordenar cuarto', 1, 'Orden', 'basura'),
     ];
-    for (final (titulo, puntos) in defs) {
+    for (final (titulo, puntos, categoria, icono) in defs) {
       await _addConId(
-          box, _catalogoToMap(TareaCatalogo(titulo: titulo, puntos: puntos)));
+        box,
+        _catalogoToMap(
+          TareaCatalogo(
+            titulo: titulo,
+            puntos: puntos,
+            categoria: categoria,
+            icono: icono,
+          ),
+        ),
+      );
     }
     _marcar();
   }
@@ -595,7 +996,9 @@ class DatabaseHelper {
     // Sarais y ~42 tareas) solo se regenera si ya existía un seed previo.
     // Instalaciones nuevas y reinicios empiezan con datos en 0.
     if (meta.get('seed_horario') == null) {
-      debugPrint('[seed] Saltando: sin seed_horario (los datos inician desde 0)');
+      debugPrint(
+        '[seed] Saltando: sin seed_horario (los datos inician desde 0)',
+      );
       return;
     }
 
@@ -603,7 +1006,9 @@ class DatabaseHelper {
     // NO sembramos: el seed crearía tareas duplicadas que el usuario no pidió.
     final scheduleMode = meta.get('schedule_mode');
     if (scheduleMode is Map && scheduleMode['mode'] == 'manual') {
-      debugPrint('[seed] Saltando: schedule_mode=manual (usuario gestiona su propio horario)');
+      debugPrint(
+        '[seed] Saltando: schedule_mode=manual (usuario gestiona su propio horario)',
+      );
       return;
     }
 
@@ -612,7 +1017,13 @@ class DatabaseHelper {
     // el usuario ya tiene su propio horario (aunque schedule_mode no esté
     // seteado, por ejemplo en el primer celular después de crear tareas).
     const diasSemana = [
-      'domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado',
+      'domingo',
+      'lunes',
+      'martes',
+      'miercoles',
+      'jueves',
+      'viernes',
+      'sabado',
     ];
     var tareasExistentes = 0;
     for (final m in tareas.items) {
@@ -624,7 +1035,9 @@ class DatabaseHelper {
     // Si hay 10+ tareas para la semana, el usuario claramente tiene su
     // propio horario: no interferir. (El seed crearía ~42 tareas.)
     if (tareasExistentes >= 10) {
-      debugPrint('[seed] Saltando: $tareasExistentes tareas existentes para la semana (usuario gestiona horario)');
+      debugPrint(
+        '[seed] Saltando: $tareasExistentes tareas existentes para la semana (usuario gestiona horario)',
+      );
       return;
     }
 
@@ -638,7 +1051,9 @@ class DatabaseHelper {
       final tsReset = (lr['ts'] as int?) ?? 0;
       final tsSeed = sh is Map ? ((sh['updated_at'] as int?) ?? 0) : 0;
       if (tsReset > tsSeed) {
-        debugPrint('[seed] Saltando: last_reset ($tsReset) > seed_horario ($tsSeed)');
+        debugPrint(
+          '[seed] Saltando: last_reset ($tsReset) > seed_horario ($tsSeed)',
+        );
         return;
       }
     }
@@ -666,8 +1081,11 @@ class DatabaseHelper {
     //  * Si el marcador falta o la versión cambió pero es la misma semana,
     //    solo se actualiza el marcador y se crea lo que falte (crear es
     //    idempotente: no duplica).
-    final inicio =
-        DateTime(inicioSemana.year, inicioSemana.month, inicioSemana.day);
+    final inicio = DateTime(
+      inicioSemana.year,
+      inicioSemana.month,
+      inicioSemana.day,
+    );
 
     bool esSemanaAnterior(String? s) {
       if (s is! String) return false;
@@ -700,7 +1118,13 @@ class DatabaseHelper {
     meta.put('seed_horario', registro);
 
     const dias = [
-      'domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado',
+      'domingo',
+      'lunes',
+      'martes',
+      'miercoles',
+      'jueves',
+      'viernes',
+      'sabado',
     ];
     // 0 = domingo … 6 = sábado. Los días anteriores a hoy no se crean.
     final desdeHoy = hoy.weekday % 7;
@@ -751,13 +1175,18 @@ class DatabaseHelper {
         return User.nombresPaleta.first;
       }
 
-      return _addConId(usuarios, _userToMap(User(
-        nombre: nombre,
-        avatar: avatar,
-        colorTema: colorLibre(),
-        password: '1234',
-        rol: 'integrante',
-      )));
+      return _addConId(
+        usuarios,
+        _userToMap(
+          User(
+            nombre: nombre,
+            avatar: avatar,
+            colorTema: colorLibre(),
+            password: '1234',
+            rol: 'integrante',
+          ),
+        ),
+      );
     }
 
     bool tareaNueva = false;
@@ -779,24 +1208,34 @@ class DatabaseHelper {
         return null;
       }
       tareaNueva = true;
-      return _addConId(tareas, _taskToMap(Task(
-        titulo: titulo,
-        descripcion: descripcion,
-        puntos: puntos,
-        dificultad: dificultad,
-        frecuencia: 'semanal',
-        dia: dia,
-      )));
+      return _addConId(
+        tareas,
+        _taskToMap(
+          Task(
+            titulo: titulo,
+            descripcion: descripcion,
+            puntos: puntos,
+            dificultad: dificultad,
+            frecuencia: 'semanal',
+            dia: dia,
+          ),
+        ),
+      );
     }
 
     Future<void> asignar(int usuarioId, int tareaId) async {
       if (tieneAsignacion(usuarioId, tareaId)) return;
       debugPrint('[seed:asignar] usuarioId=$usuarioId tareaId=$tareaId');
-      await _addConId(asignaciones, _assignmentToMap(Assignment(
-        usuarioId: usuarioId,
-        tareaId: tareaId,
-        fechaAsignada: DateTime.now(),
-      )));
+      await _addConId(
+        asignaciones,
+        _assignmentToMap(
+          Assignment(
+            usuarioId: usuarioId,
+            tareaId: tareaId,
+            fechaAsignada: DateTime.now(),
+          ),
+        ),
+      );
     }
 
     final nataliaId = await crearUsuario('Natalia', '👩');
@@ -847,12 +1286,8 @@ class DatabaseHelper {
           ('Ordenar cuarto', 'Organizar y ordenar el cuarto.', 1),
           ('Organizar patio', 'Organizar el patio.', 5),
         ],
-        'Emanuel': [
-          ('Cocinar', 'Preparar la comida del día.', 8),
-        ],
-        'Sarais': [
-          ('Lavar loza', 'Lavar los platos de las 3 comidas.', 4),
-        ],
+        'Emanuel': [('Cocinar', 'Preparar la comida del día.', 8)],
+        'Sarais': [('Lavar loza', 'Lavar los platos de las 3 comidas.', 4)],
       },
       'martes': {
         'Natalia': [
@@ -901,9 +1336,7 @@ class DatabaseHelper {
         ],
       },
       'viernes': {
-        'Emanuel': [
-          ('Barrer', 'Barrer el piso de la casa.', 2),
-        ],
+        'Emanuel': [('Barrer', 'Barrer el piso de la casa.', 2)],
         'Sarais': [
           ('Ordenar cuarto', 'Organizar y ordenar el cuarto.', 1),
           ('Cocinar', 'Preparar la comida del día.', 8),
@@ -924,7 +1357,12 @@ class DatabaseHelper {
         if (usuarioId == null) continue;
         for (final (titulo, descripcion, puntos) in entry.value) {
           final tareaId = await crearTarea(
-              titulo, descripcion, puntos, dificultad(puntos), dia);
+            titulo,
+            descripcion,
+            puntos,
+            dificultad(puntos),
+            dia,
+          );
           if (tareaId != null && tareaNueva) await asignar(usuarioId, tareaId);
         }
       }
@@ -934,15 +1372,30 @@ class DatabaseHelper {
     // --- Sábado (DÍA DEL SEÑOR): además, ir a la iglesia. ---
     for (var i = desdeHoy; i < dias.length; i++) {
       final dia = dias[i];
-      final oracion =
-          await crearTarea('Orar', 'Hacer oración en familia.', 10, 'facil', dia);
+      final oracion = await crearTarea(
+        'Orar',
+        'Hacer oración en familia.',
+        10,
+        'facil',
+        dia,
+      );
       if (oracion != null && tareaNueva) await conjunta(oracion);
       final biblia = await crearTarea(
-          'Leer la Biblia', 'Leer la Biblia en familia.', 10, 'facil', dia);
+        'Leer la Biblia',
+        'Leer la Biblia en familia.',
+        10,
+        'facil',
+        dia,
+      );
       if (biblia != null && tareaNueva) await conjunta(biblia);
       if (dia == 'sabado') {
         final iglesia = await crearTarea(
-            'Ir a la iglesia', 'Asistir al servicio en familia.', 10, 'facil', dia);
+          'Ir a la iglesia',
+          'Asistir al servicio en familia.',
+          10,
+          'facil',
+          dia,
+        );
         if (iglesia != null && tareaNueva) await conjunta(iglesia);
       }
     }
@@ -967,8 +1420,12 @@ class DatabaseHelper {
       'nivel': u.nivel,
       'puntos': u.puntos,
       'racha': u.racha,
-      'password': u.password,
-      'salt': u.salt,
+      // Nunca enviar password/salt vacíos: el servidor solo preserva sus
+      // hashes cuando el campo viene ausente (null). Si viajan como '' un
+      // dispositivo sin contraseñas locales (p. ej. recién instalado) borra
+      // los hashes reales del servidor y nadie puede iniciar sesión.
+      if (u.password.isNotEmpty) 'password': u.password,
+      if (u.salt.isNotEmpty) 'salt': u.salt,
       'rol': u.rol,
       'activo': u.activo ? 1 : 0,
       'pin': u.pin,
@@ -1035,7 +1492,9 @@ class DatabaseHelper {
       descripcion: (map['descripcion'] as String?) ?? '',
       puntos: (map['puntos'] as int?) ?? 0,
       dificultad: (map['dificultad'] as String?) ?? 'media',
-      fechaLimite: map['fecha_limite'] != null ? DateTime.tryParse(map['fecha_limite'] as String) : null,
+      fechaLimite: map['fecha_limite'] != null
+          ? DateTime.tryParse(map['fecha_limite'] as String)
+          : null,
       frecuencia: (map['frecuencia'] as String?) ?? 'unica',
       estado: (map['estado'] as String?) ?? 'activa',
       dia: (map['dia'] as String?) ?? '',
@@ -1065,9 +1524,15 @@ class DatabaseHelper {
       completada: (map['completada'] as int? ?? 0) == 1,
       aprobada: (map['aprobada'] as int? ?? 0) == 1,
       castigada: (map['castigada'] as int? ?? 0) == 1,
-      fechaCompletada: map['fecha_completada'] != null ? DateTime.tryParse(map['fecha_completada'] as String) : null,
-      fechaAsignada: map['fecha_asignada'] != null ? DateTime.tryParse(map['fecha_asignada'] as String) : null,
-      fechaAprobada: map['fecha_aprobada'] != null ? DateTime.tryParse(map['fecha_aprobada'] as String) : null,
+      fechaCompletada: map['fecha_completada'] != null
+          ? DateTime.tryParse(map['fecha_completada'] as String)
+          : null,
+      fechaAsignada: map['fecha_asignada'] != null
+          ? DateTime.tryParse(map['fecha_asignada'] as String)
+          : null,
+      fechaAprobada: map['fecha_aprobada'] != null
+          ? DateTime.tryParse(map['fecha_aprobada'] as String)
+          : null,
     );
   }
 
@@ -1117,6 +1582,8 @@ class DatabaseHelper {
       'nombre': b.nombre,
       'descripcion': b.descripcion,
       'icono': b.icono,
+      'meta': b.meta,
+      'metrica': b.metrica,
     };
   }
 
@@ -1126,6 +1593,8 @@ class DatabaseHelper {
       nombre: map['nombre'] as String,
       descripcion: (map['descripcion'] as String?) ?? '',
       icono: (map['icono'] as String?) ?? 'emoji_events',
+      meta: (map['meta'] as int?) ?? 1,
+      metrica: (map['metrica'] as String?) ?? 'tareas',
     );
   }
 
@@ -1179,7 +1648,7 @@ class DatabaseHelper {
     final box = _box(_boxUsuarios);
     for (var i = 0; i < box.items.length; i++) {
       final m = box.items[i];
-      if (m != null && m['id'] == id) return _mapToUser(m);
+      if (m['id'] == id) return _mapToUser(m);
     }
     return null;
   }
@@ -1195,7 +1664,7 @@ class DatabaseHelper {
     final box = _box(_boxUsuarios);
     for (var i = 0; i < box.items.length; i++) {
       final m = box.items[i];
-      if (m != null && m['nombre'] == nombre) {
+      if (m['nombre'] == nombre) {
         // Un usuario sin el campo 'activo' se considera activo.
         final activo = m['activo'] as int?;
         if (activo != null && activo != 1) return null;
@@ -1203,7 +1672,11 @@ class DatabaseHelper {
         if (SecurityService.requiereMigracion(m)) {
           final salt = SecurityService.generarSalt();
           m['salt'] = salt;
-          m['password'] = SecurityService.hashPassword(m['password'] as String, salt);
+          m['password'] = SecurityService.hashPassword(
+            m['password'] as String,
+            salt,
+          );
+          m['password_updated_at'] = DateTime.now().millisecondsSinceEpoch;
           _sellar(m);
           _marcar();
         }
@@ -1221,7 +1694,7 @@ class DatabaseHelper {
     final box = _box(_boxUsuarios);
     for (var i = 0; i < box.items.length; i++) {
       final m = box.items[i];
-      if (m != null && m['id'] == id) {
+      if (m['id'] == id) {
         m['activo'] = activo ? 1 : 0;
         _sellar(m);
         _marcar();
@@ -1235,10 +1708,11 @@ class DatabaseHelper {
     final box = _box(_boxUsuarios);
     for (var i = 0; i < box.items.length; i++) {
       final m = box.items[i];
-      if (m != null && m['id'] == id) {
+      if (m['id'] == id) {
         final salt = SecurityService.generarSalt();
         m['salt'] = salt;
         m['password'] = SecurityService.hashPassword(nueva, salt);
+        m['password_updated_at'] = DateTime.now().millisecondsSinceEpoch;
         _sellar(m);
         _marcar();
         return;
@@ -1250,8 +1724,31 @@ class DatabaseHelper {
     final box = _box(_boxUsuarios);
     for (var i = 0; i < box.items.length; i++) {
       final m = box.items[i];
-      if (m != null && m['id'] == u.id) {
-        final nuevo = _userToMap(_asegurarHash(u));
+      if (m['id'] == u.id) {
+        var asegurado = _asegurarHash(u);
+        final pwViejo = (m['password'] as String?) ?? '';
+        // El formulario de edición manda la contraseña como texto: si cambió,
+        // se guarda SIEMPRE como hash con salt nuevo. Nunca se deja texto
+        // plano con el salt viejo (rompería el login en todos los
+        // dispositivos). Si no cambió, no se toca nada (si _asegurarHash ya
+        // re-hasheó un registro viejo sin salt, ese hash es el definitivo).
+        if (u.password.isNotEmpty && u.password != pwViejo) {
+          final salt = SecurityService.generarSalt();
+          asegurado = asegurado.copyWith(
+            password: SecurityService.hashPassword(u.password, salt),
+            salt: salt,
+          );
+        }
+        final credCambio =
+            asegurado.password != pwViejo ||
+            asegurado.salt != ((m['salt'] as String?) ?? '');
+        final nuevo = _userToMap(asegurado);
+        // El servidor solo acepta cambios de credencial con este marcador.
+        if (credCambio) {
+          nuevo['password_updated_at'] = DateTime.now().millisecondsSinceEpoch;
+        } else if (m['password_updated_at'] != null) {
+          nuevo['password_updated_at'] = m['password_updated_at'];
+        }
         _sellar(nuevo);
         box.items[i] = nuevo;
         _marcar();
@@ -1264,20 +1761,27 @@ class DatabaseHelper {
   /// Aplica hash a la contraseña si aún no tiene salt (nuevo/cambiado).
   User _asegurarHash(User u) {
     if (u.salt.isNotEmpty) return u;
+    if (u.password.isEmpty) return u;
+    // Nunca re-hashear un valor que ya es un SHA-256 (produciría un
+    // hash-del-hash y la cuenta quedaría sin poder iniciar sesión).
+    if (SecurityService.esHashSha256(u.password)) return u;
     final salt = SecurityService.generarSalt();
-    return u.copyWith(password: SecurityService.hashPassword(u.password, salt), salt: salt);
+    return u.copyWith(
+      password: SecurityService.hashPassword(u.password, salt),
+      salt: salt,
+    );
   }
 
   Future<void> deleteUsuario(int id) async {
     final box = _box(_boxUsuarios);
     for (var i = box.items.length - 1; i >= 0; i--) {
       final m = box.items[i];
-      if (m != null && m['id'] == id) {
+      if (m['id'] == id) {
         // Delete related assignments
         final asignaciones = _box(_boxAsignaciones);
         for (var j = asignaciones.items.length - 1; j >= 0; j--) {
           final a = asignaciones.items[j];
-          if (a != null && a['usuario_id'] == id) {
+          if (a['usuario_id'] == id) {
             _tombstone(_boxAsignaciones, a);
             asignaciones.items.removeAt(j);
           }
@@ -1286,7 +1790,7 @@ class DatabaseHelper {
         final canjes = _box(_boxCanjes);
         for (var j = canjes.items.length - 1; j >= 0; j--) {
           final c = canjes.items[j];
-          if (c != null && c['usuario_id'] == id) {
+          if (c['usuario_id'] == id) {
             _tombstone(_boxCanjes, c);
             canjes.items.removeAt(j);
           }
@@ -1294,7 +1798,9 @@ class DatabaseHelper {
         _tombstone(_boxUsuarios, m);
         box.items.removeAt(i);
         await _guardarCache();
-        try { await _client.pushDb(_exportar()); } catch (_) {}
+        try {
+          await _client.pushDb(_exportar());
+        } catch (_) {}
         return;
       }
     }
@@ -1318,6 +1824,7 @@ class DatabaseHelper {
       _boxRecompensas,
       _boxCanjes,
       _boxInsignias,
+      _boxLogros,
       _boxCastigos,
       _boxRetos,
       _boxCatalogos,
@@ -1384,25 +1891,32 @@ class DatabaseHelper {
       'updated_at': tsReset,
     });
     // Crear solo el usuario Admin para que pueda entrar de nuevo.
-    await _addConId(_box(_boxUsuarios), _userToMap(User(
-      id: 0,
-      nombre: 'Admin',
-      avatar: '👑',
-      edad: 0,
-      colorTema: 'azul',
-      nivel: 1,
-      puntos: 0,
-      racha: 0,
-      password: 'admin123',
-      rol: 'admin',
-    )));
+    await _addConId(
+      _box(_boxUsuarios),
+      _userToMap(
+        User(
+          id: 0,
+          nombre: 'Admin',
+          avatar: '👑',
+          edad: 0,
+          colorTema: 'azul',
+          nivel: 1,
+          puntos: 0,
+          racha: 0,
+          password: 'admin123',
+          rol: 'admin',
+        ),
+      ),
+    );
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_cacheKey);
     _cargado = false;
     // Guardar caché y empujar al servidor de inmediato para que no
     // queden datos viejos que el sync vuelva a mezclar.
     await _guardarCache();
-    try { await _client.pushDb(_exportar()); } catch (_) {}
+    try {
+      await _client.pushDb(_exportar());
+    } catch (_) {}
     _reiniciando = false;
   }
 
@@ -1417,7 +1931,7 @@ class DatabaseHelper {
 
   /// Fusiona el estado recibido de otro dispositivo (LWW + tombstones).
   Future<void> mezclarDesdePar(Map<String, dynamic> data) async {
-    if (data is! Map || data.isEmpty) return;
+    if (data.isEmpty) return;
     _mezclar(data);
     await _guardarCache();
     onRemoteChange?.call();
@@ -1483,7 +1997,7 @@ class DatabaseHelper {
     final box = _box(_boxTareas);
     for (var i = 0; i < box.items.length; i++) {
       final m = box.items[i];
-      if (m != null && m['id'] == id) return _mapToTask(m);
+      if (m['id'] == id) return _mapToTask(m);
     }
     return null;
   }
@@ -1492,7 +2006,7 @@ class DatabaseHelper {
     final box = _box(_boxTareas);
     for (var i = 0; i < box.items.length; i++) {
       final m = box.items[i];
-      if (m != null && m['id'] == t.id) {
+      if (m['id'] == t.id) {
         final nuevo = _taskToMap(t);
         nuevo['created_at'] = m['created_at'];
         _sellar(nuevo);
@@ -1508,11 +2022,11 @@ class DatabaseHelper {
     final box = _box(_boxTareas);
     for (var i = box.items.length - 1; i >= 0; i--) {
       final m = box.items[i];
-      if (m != null && m['id'] == id) {
+      if (m['id'] == id) {
         final asignaciones = _box(_boxAsignaciones);
         for (var j = asignaciones.items.length - 1; j >= 0; j--) {
           final a = asignaciones.items[j];
-          if (a != null && a['tarea_id'] == id) {
+          if (a['tarea_id'] == id) {
             _tombstone(_boxAsignaciones, a);
             asignaciones.items.removeAt(j);
           }
@@ -1525,13 +2039,18 @@ class DatabaseHelper {
         // tombstone no la bloquea porque referencia el ID viejo.
         final dia = m['dia'] as String?;
         final titulo = m['titulo'] as String?;
-        if (dia != null && dia.isNotEmpty && titulo != null && titulo.isNotEmpty) {
+        if (dia != null &&
+            dia.isNotEmpty &&
+            titulo != null &&
+            titulo.isNotEmpty) {
           _box(_boxMeta).put('blocked_seed:$titulo:$dia', <String, dynamic>{
             'ts': DateTime.now().millisecondsSinceEpoch,
           });
         }
         await _guardarCache();
-        try { await _client.pushDb(_exportar()); } catch (_) {}
+        try {
+          await _client.pushDb(_exportar());
+        } catch (_) {}
         return;
       }
     }
@@ -1543,12 +2062,16 @@ class DatabaseHelper {
   Future<int> insertAsignacion(Assignment a) async {
     final existing = await getAsignacion(a.usuarioId, a.tareaId);
     if (existing != null) {
-      debugPrint('[insertAsignacion] DUPLICADO omitido usuarioId=${a.usuarioId} tareaId=${a.tareaId} existingId=${existing.id}');
+      debugPrint(
+        '[insertAsignacion] DUPLICADO omitido usuarioId=${a.usuarioId} tareaId=${a.tareaId} existingId=${existing.id}',
+      );
       return existing.id!;
     }
     final box = _box(_boxAsignaciones);
     final id = _addConId(box, _assignmentToMap(a));
-    debugPrint('[insertAsignacion] NUEVA usuarioId=${a.usuarioId} tareaId=${a.tareaId} newId=$id');
+    debugPrint(
+      '[insertAsignacion] NUEVA usuarioId=${a.usuarioId} tareaId=${a.tareaId} newId=$id',
+    );
     return id;
   }
 
@@ -1556,7 +2079,7 @@ class DatabaseHelper {
     final box = _box(_boxAsignaciones);
     for (var i = box.items.length - 1; i >= 0; i--) {
       final m = box.items[i];
-      if (m != null && m['id'] == id) {
+      if (m['id'] == id) {
         _tombstone(_boxAsignaciones, m);
         box.items.removeAt(i);
         _marcar();
@@ -1569,7 +2092,8 @@ class DatabaseHelper {
     final box = _box(_boxAsignaciones);
     for (var i = 0; i < box.items.length; i++) {
       final m = box.items[i];
-      if (m != null && m['usuario_id'] == a.usuarioId && m['tarea_id'] == a.tareaId) {
+      if (m['usuario_id'] == a.usuarioId &&
+          m['tarea_id'] == a.tareaId) {
         final nuevo = _assignmentToMap(a);
         _sellar(nuevo);
         box.items[i] = nuevo;
@@ -1582,24 +2106,34 @@ class DatabaseHelper {
 
   Future<List<Assignment>> getAsignacionesDeUsuario(int usuarioId) async {
     final box = _box(_boxAsignaciones);
-    return box.items.where((m) => m['usuario_id'] == usuarioId).map(_mapToAssignment).toList();
+    return box.items
+        .where((m) => m['usuario_id'] == usuarioId)
+        .map(_mapToAssignment)
+        .toList();
   }
 
   Future<List<Assignment>> getAsignacionesPorTarea(int tareaId) async {
     final box = _box(_boxAsignaciones);
-    return box.items.where((m) => m['tarea_id'] == tareaId).map(_mapToAssignment).toList();
+    return box.items
+        .where((m) => m['tarea_id'] == tareaId)
+        .map(_mapToAssignment)
+        .toList();
   }
 
   Future<List<Assignment>> getAsignacionesPorAprobar() async {
     final box = _box(_boxAsignaciones);
-    return box.items.where((m) => m['completada'] == 1 && m['aprobada'] == 0).map(_mapToAssignment).toList();
+    return box.items
+        .where((m) => m['completada'] == 1 && m['aprobada'] == 0)
+        .map(_mapToAssignment)
+        .toList();
   }
 
   Future<Assignment?> getAsignacion(int usuarioId, int tareaId) async {
     final box = _box(_boxAsignaciones);
     for (var i = 0; i < box.items.length; i++) {
       final m = box.items[i];
-      if (m != null && m['usuario_id'] == usuarioId && m['tarea_id'] == tareaId) {
+      if (m['usuario_id'] == usuarioId &&
+          m['tarea_id'] == tareaId) {
         return _mapToAssignment(m);
       }
     }
@@ -1637,15 +2171,19 @@ class DatabaseHelper {
   ) async {
     final box = _box(_boxAsignaciones);
     return box.items
-        .where((m) =>
-            m['usuario_id'] == usuarioId &&
-            m['aprobada'] == 1 &&
-            m['fecha_aprobada'] != null)
+        .where(
+          (m) =>
+              m['usuario_id'] == usuarioId &&
+              m['aprobada'] == 1 &&
+              m['fecha_aprobada'] != null,
+        )
         .map(_mapToAssignment)
-        .where((a) =>
-            a.fechaAprobada != null &&
-            a.fechaAprobada!.isAfter(inicio) &&
-            a.fechaAprobada!.isBefore(fin))
+        .where(
+          (a) =>
+              a.fechaAprobada != null &&
+              a.fechaAprobada!.isAfter(inicio) &&
+              a.fechaAprobada!.isBefore(fin),
+        )
         .toList();
   }
 
@@ -1658,10 +2196,12 @@ class DatabaseHelper {
     return box.items
         .where((m) => m['aprobada'] == 1 && m['fecha_aprobada'] != null)
         .map(_mapToAssignment)
-        .where((a) =>
-            a.fechaAprobada != null &&
-            a.fechaAprobada!.isAfter(inicio) &&
-            a.fechaAprobada!.isBefore(fin))
+        .where(
+          (a) =>
+              a.fechaAprobada != null &&
+              a.fechaAprobada!.isAfter(inicio) &&
+              a.fechaAprobada!.isBefore(fin),
+        )
         .toList();
   }
 
@@ -1682,7 +2222,7 @@ class DatabaseHelper {
     final box = _box(_boxRecompensas);
     for (var i = 0; i < box.items.length; i++) {
       final m = box.items[i];
-      if (m != null && m['id'] == r.id) {
+      if (m['id'] == r.id) {
         final nuevo = _rewardToMap(r);
         _sellar(nuevo);
         box.items[i] = nuevo;
@@ -1697,11 +2237,11 @@ class DatabaseHelper {
     final box = _box(_boxRecompensas);
     for (var i = box.items.length - 1; i >= 0; i--) {
       final m = box.items[i];
-      if (m != null && m['id'] == id) {
+      if (m['id'] == id) {
         final canjes = _box(_boxCanjes);
         for (var j = canjes.items.length - 1; j >= 0; j--) {
           final c = canjes.items[j];
-          if (c != null && c['recompensa_id'] == id) {
+          if (c['recompensa_id'] == id) {
             _tombstone(_boxCanjes, c);
             canjes.items.removeAt(j);
           }
@@ -1709,7 +2249,9 @@ class DatabaseHelper {
         _tombstone(_boxRecompensas, m);
         box.items.removeAt(i);
         await _guardarCache();
-        try { await _client.pushDb(_exportar()); } catch (_) {}
+        try {
+          await _client.pushDb(_exportar());
+        } catch (_) {}
         return;
       }
     }
@@ -1725,7 +2267,10 @@ class DatabaseHelper {
 
   Future<List<Redemption>> getCanjesDeUsuario(int usuarioId) async {
     final box = _box(_boxCanjes);
-    return box.items.where((m) => m['usuario_id'] == usuarioId).map(_mapToRedemption).toList();
+    return box.items
+        .where((m) => m['usuario_id'] == usuarioId)
+        .map(_mapToRedemption)
+        .toList();
   }
 
   Future<List<Redemption>> getCanjes() async {
@@ -1737,7 +2282,7 @@ class DatabaseHelper {
     final box = _box(_boxCanjes);
     for (var i = 0; i < box.items.length; i++) {
       final m = box.items[i];
-      if (m != null && m['id'] == r.id) {
+      if (m['id'] == r.id) {
         box.items[i] = _redemptionToMap(r);
         _sellar(box.items[i]);
         _marcar();
@@ -1758,7 +2303,7 @@ class DatabaseHelper {
     final box = _box(_boxUsuarios);
     for (var i = 0; i < box.items.length; i++) {
       final m = box.items[i];
-      if (m != null && m['id'] == usuarioId) {
+      if (m['id'] == usuarioId) {
         final lista = m['insignias_obtenidas'];
         if (lista is List) return lista.cast<int>();
       }
@@ -1770,7 +2315,7 @@ class DatabaseHelper {
     final box = _box(_boxUsuarios);
     for (var i = 0; i < box.items.length; i++) {
       final m = box.items[i];
-      if (m != null && m['id'] == usuarioId) {
+      if (m['id'] == usuarioId) {
         final lista = List<int>.from(m['insignias_obtenidas'] ?? <int>[]);
         if (!lista.contains(insigniaId)) {
           lista.add(insigniaId);
@@ -1781,6 +2326,107 @@ class DatabaseHelper {
         return;
       }
     }
+  }
+
+  Future<int> insertInsignia(Badge b) async {
+    final box = _box(_boxInsignias);
+    return _addConId(box, _badgeToMap(b));
+  }
+
+  Future<int> updateInsignia(Badge b) async {
+    final box = _box(_boxInsignias);
+    for (var i = 0; i < box.items.length; i++) {
+      final m = box.items[i];
+      if (m['id'] == b.id) {
+        final nuevo = _badgeToMap(b);
+        _sellar(nuevo);
+        box.items[i] = nuevo;
+        _marcar();
+        return i;
+      }
+    }
+    return _addConId(box, _badgeToMap(b));
+  }
+
+  Future<void> deleteInsignia(int id) async {
+    final box = _box(_boxInsignias);
+    for (var i = box.items.length - 1; i >= 0; i--) {
+      final m = box.items[i];
+      if (m['id'] == id) {
+        _tombstone(_boxInsignias, m);
+        box.items.removeAt(i);
+        await _guardarCache();
+        try {
+          await _client.pushDb(_exportar());
+        } catch (_) {}
+        return;
+      }
+    }
+  }
+
+  // ---------------------------------------------------------------
+  // LOGROS EN CAMINO (metas de progreso editables por el admin)
+  // ---------------------------------------------------------------
+
+  Future<List<Logro>> getLogros() async {
+    final box = _box(_boxLogros);
+    return box.items.map(_mapToLogro).toList();
+  }
+
+  Future<int> insertLogro(Logro l) async {
+    final box = _box(_boxLogros);
+    return _addConId(box, _logroToMap(l));
+  }
+
+  Future<int> updateLogro(Logro l) async {
+    final box = _box(_boxLogros);
+    for (var i = 0; i < box.items.length; i++) {
+      final m = box.items[i];
+      if (m['id'] == l.id) {
+        final nuevo = _logroToMap(l);
+        _sellar(nuevo);
+        box.items[i] = nuevo;
+        _marcar();
+        return i;
+      }
+    }
+    return _addConId(box, _logroToMap(l));
+  }
+
+  Future<void> deleteLogro(int id) async {
+    final box = _box(_boxLogros);
+    for (var i = box.items.length - 1; i >= 0; i--) {
+      final m = box.items[i];
+      if (m['id'] == id) {
+        _tombstone(_boxLogros, m);
+        box.items.removeAt(i);
+        await _guardarCache();
+        try {
+          await _client.pushDb(_exportar());
+        } catch (_) {}
+        return;
+      }
+    }
+  }
+
+  Map<String, Object?> _logroToMap(Logro l) {
+    return {
+      'id': l.id,
+      'nombre': l.nombre,
+      'icono': l.icono,
+      'tipo': l.tipo,
+      'meta': l.meta,
+    };
+  }
+
+  Logro _mapToLogro(Map map) {
+    return Logro(
+      id: map['id'] as int?,
+      nombre: (map['nombre'] as String?) ?? 'Logro',
+      icono: (map['icono'] as String?) ?? 'emoji_events',
+      tipo: (map['tipo'] as String?) ?? 'tareas',
+      meta: (map['meta'] as int?) ?? 1,
+    );
   }
 
   // ---------------------------------------------------------------
@@ -1808,7 +2454,7 @@ class DatabaseHelper {
     final box = _box(_boxCastigos);
     for (var i = box.items.length - 1; i >= 0; i--) {
       final m = box.items[i];
-      if (m != null && m['id'] == id) {
+      if (m['id'] == id) {
         _tombstone(_boxCastigos, m);
         box.items.removeAt(i);
         _marcar();
@@ -1874,7 +2520,7 @@ class DatabaseHelper {
     final box = _box(_boxRetos);
     for (var i = 0; i < box.items.length; i++) {
       final m = box.items[i];
-      if (m != null && m['id'] == r.id) {
+      if (m['id'] == r.id) {
         box.items[i] = _retoToMap(r);
         _sellar(box.items[i]);
         _marcar();
@@ -1887,7 +2533,7 @@ class DatabaseHelper {
     final box = _box(_boxRetos);
     for (var i = box.items.length - 1; i >= 0; i--) {
       final m = box.items[i];
-      if (m != null && m['id'] == id) {
+      if (m['id'] == id) {
         _tombstone(_boxRetos, m);
         box.items.removeAt(i);
         _marcar();
@@ -1906,6 +2552,7 @@ class DatabaseHelper {
       'puntos': c.puntos,
       'categoria': c.categoria,
       'dificultad': c.dificultad,
+      'icono': c.icono,
     };
   }
 
@@ -1916,6 +2563,7 @@ class DatabaseHelper {
       puntos: (map['puntos'] as int?) ?? 0,
       categoria: (map['categoria'] as String?) ?? 'General',
       dificultad: (map['dificultad'] as String?) ?? 'media',
+      icono: (map['icono'] as String?) ?? '',
     );
   }
 
@@ -1933,7 +2581,7 @@ class DatabaseHelper {
     final box = _box(_boxCatalogos);
     for (var i = 0; i < box.items.length; i++) {
       final m = box.items[i];
-      if (m != null && m['id'] == c.id) {
+      if (m['id'] == c.id) {
         final nuevo = _catalogoToMap(c);
         _sellar(nuevo);
         box.items[i] = nuevo;
@@ -1948,11 +2596,13 @@ class DatabaseHelper {
     final box = _box(_boxCatalogos);
     for (var i = box.items.length - 1; i >= 0; i--) {
       final m = box.items[i];
-      if (m != null && m['id'] == id) {
+      if (m['id'] == id) {
         _tombstone(_boxCatalogos, m);
         box.items.removeAt(i);
         await _guardarCache();
-        try { await _client.pushDb(_exportar()); } catch (_) {}
+        try {
+          await _client.pushDb(_exportar());
+        } catch (_) {}
         return;
       }
     }
@@ -1967,16 +2617,22 @@ class DatabaseHelper {
     final asignaciones = _box(_boxAsignaciones);
     final canjes = _box(_boxCanjes);
 
-    final integrantes = usuarios.items
-        .where((m) => m['rol'] != 'admin')
-        .where((m) {
-          final activo = m['activo'] as int?;
-          return activo == null || activo == 1;
-        })
+    final integrantes = usuarios.items.where((m) => m['rol'] != 'admin').where((
+      m,
+    ) {
+      final activo = m['activo'] as int?;
+      return activo == null || activo == 1;
+    }).length;
+    final tareasActivas = tareas.items
+        .where((m) => m['estado'] == 'activa')
         .length;
-    final tareasActivas = tareas.items.where((m) => m['estado'] == 'activa').length;
-    final aprobadas = asignaciones.items.where((m) => m['aprobada'] == 1).length;
-    final totalPuntos = usuarios.items.fold<int>(0, (sum, m) => sum + (m['puntos'] as int? ?? 0));
+    final aprobadas = asignaciones.items
+        .where((m) => m['aprobada'] == 1)
+        .length;
+    final totalPuntos = usuarios.items.fold<int>(
+      0,
+      (sum, m) => sum + (m['puntos'] as int? ?? 0),
+    );
 
     return {
       'usuarios': integrantes,

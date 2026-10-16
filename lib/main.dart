@@ -11,15 +11,18 @@ import 'package:provider/provider.dart';
 import 'firebase_options.dart';
 import 'providers/app_provider.dart';
 import 'providers/theme_controller.dart';
-import 'screens/admin_usuarios_screen.dart';
-import 'screens/home_shell.dart';
+import 'screens/integrantes_screen.dart';
+import 'screens/navegacion_principal.dart';
 import 'screens/login_screen.dart';
 import 'screens/pin_gate_screen.dart';
 import 'screens/splash_screen.dart';
+import 'services/biometria_service.dart';
 import 'services/celebration_service.dart';
 import 'services/haptics_service.dart';
+import 'services/mascota_service.dart';
 import 'services/push_service.dart';
 import 'theme/app_theme.dart';
+import 'widgets/duo_widgets.dart';
 
 /// Llave global para poder mostrar diálogos de error sin un BuildContext a mano.
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
@@ -47,9 +50,11 @@ void main() async {
   }
   await CelebrationService.instance.cargar();
   await HapticsService.cargar();
+  await MascotaService.cargar();
+  await BiometriaService.cargar();
   // Precarga Nunito para evitar el flash con la fuente fallback al arrancar.
   try {
-    await GoogleFonts.getFont('Nunito');
+    GoogleFonts.getFont('Nunito');
   } catch (_) {
     // Sin conexión: la app arranca igual con la fuente por defecto.
   }
@@ -117,9 +122,7 @@ class _AppRoot extends StatelessWidget {
       darkTheme: AppTheme.dark(),
       themeMode: themeController.mode,
       home: const _Root(),
-      routes: {
-        '/admin/usuarios': (_) => const AdminUsuariosScreen(),
-      },
+      routes: {'/admin/usuarios': (_) => const IntegrantesScreen()},
     );
   }
 }
@@ -145,9 +148,10 @@ class _Root extends StatelessWidget {
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 16),
-                FilledButton(
+                DuoButton(
+                  label: 'Reintentar',
+                  fullWidth: false,
                   onPressed: () => app.init(),
-                  child: const Text('Reintentar'),
                 ),
               ],
             ),
@@ -161,6 +165,6 @@ class _Root extends StatelessWidget {
     if (u.esAdmin && u.pin.isNotEmpty && !app.adminDesbloqueado) {
       return const PinGateScreen();
     }
-    return HomeShell();
+    return NavegacionPrincipal();
   }
 }

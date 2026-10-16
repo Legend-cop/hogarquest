@@ -28,12 +28,7 @@ class FotoWidget extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (!kIsWeb && PhotoStore.existe(local)) {
-      return Image.file(
-        File(local),
-        width: size,
-        height: size,
-        fit: fit,
-      );
+      return Image.file(File(local), width: size, height: size, fit: fit);
     }
     if (url.isNotEmpty) {
       return CachedNetworkImage(

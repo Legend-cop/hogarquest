@@ -26,10 +26,7 @@ class AnimatedNumber extends StatelessWidget {
       duration: const Duration(milliseconds: 800),
       curve: Curves.easeOutCubic,
       builder: (context, v, _) {
-        return Text(
-          '${prefix ?? ''}${v.round()}${suffix ?? ''}',
-          style: style,
-        );
+        return Text('${prefix ?? ''}${v.round()}${suffix ?? ''}', style: style);
       },
     );
   }
@@ -98,89 +95,87 @@ class _BarChartState extends State<BarChart> {
     final total = widget.data.length * slot;
 
     Widget barra(int i) => SizedBox(
-          width: slot,
-          child: GestureDetector(
-            onTap: () =>
-                setState(() => _seleccionado = _seleccionado == i ? null : i),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                // tooltip
-                SizedBox(
-                  height: 24,
-                  child: _seleccionado == i
-                      ? AnimatedContainer(
-                          duration: const Duration(milliseconds: 200),
-                          padding: const EdgeInsets.symmetric(horizontal: 6),
-                          child: Text(
-                            widget.valueLabel?.call(widget.data[i].$2) ??
-                                '${widget.data[i].$2} pts',
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w800,
-                              color: Theme.of(context)
-                                      .textTheme
-                                      .titleLarge
-                                      ?.color ??
-                                  AppColors.grisOscuro,
-                            ),
-                          ),
-                        )
-                      : null,
-                ),
-                // barra
-                Expanded(
-                  child: Align(
-                    alignment: Alignment.bottomCenter,
-                    child: TweenAnimationBuilder<double>(
-                      tween: Tween(begin: 0, end: widget.data[i].$2 / maxVal),
-                      duration: Duration(milliseconds: 600 + i * 60),
-                      curve: Curves.easeOutBack,
-                      builder: (context, v, _) {
-                        return AnimatedContainer(
-                          duration: const Duration(milliseconds: 150),
-                          width: _barWidth(slot),
-                          height: max(4, v * widget.barHeight),
-                          decoration: BoxDecoration(
-                            color: _seleccionado == i
-                                ? widget.color
-                                : (i == widget.highlightIndex
-                                    ? widget.color.withValues(alpha: 0.9)
-                                    : widget.color.withValues(alpha: 0.5)),
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-                ),
-              ],
+      width: slot,
+      child: GestureDetector(
+        onTap: () =>
+            setState(() => _seleccionado = _seleccionado == i ? null : i),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.end,
+          children: [
+            // tooltip
+            SizedBox(
+              height: 24,
+              child: _seleccionado == i
+                  ? AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
+                      padding: const EdgeInsets.symmetric(horizontal: 6),
+                      child: Text(
+                        widget.valueLabel?.call(widget.data[i].$2) ??
+                            '${widget.data[i].$2} pts',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w800,
+                          color:
+                              Theme.of(context).textTheme.titleLarge?.color ??
+                              AppColors.grisOscuro,
+                        ),
+                      ),
+                    )
+                  : null,
             ),
-          ),
-        );
+            // barra
+            Expanded(
+              child: Align(
+                alignment: Alignment.bottomCenter,
+                child: TweenAnimationBuilder<double>(
+                  tween: Tween(begin: 0, end: widget.data[i].$2 / maxVal),
+                  duration: Duration(milliseconds: 600 + i * 60),
+                  curve: Curves.easeOutBack,
+                  builder: (context, v, _) {
+                    return AnimatedContainer(
+                      duration: const Duration(milliseconds: 150),
+                      width: _barWidth(slot),
+                      height: max(4, v * widget.barHeight),
+                      decoration: BoxDecoration(
+                        color: _seleccionado == i
+                            ? widget.color
+                            : (i == widget.highlightIndex
+                                  ? widget.color.withValues(alpha: 0.9)
+                                  : widget.color.withValues(alpha: 0.5)),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
 
     Widget etiqueta(int i) => SizedBox(
-          width: slot,
-          child: Text(
-            i == widget.highlightIndex
-                ? 'Hoy'
-                : (widget.labelFor?.call(widget.data[i].$1) ??
-                    widget.data[i].$1.day.toString()),
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 11,
-              fontWeight: i == widget.highlightIndex
-                  ? FontWeight.w900
-                  : (_seleccionado == i ? FontWeight.w800 : FontWeight.w600),
-              color: i == widget.highlightIndex
-                  ? AppColors.verde
-                  : (_seleccionado == i
-                      ? (Theme.of(context).textTheme.titleLarge?.color ??
+      width: slot,
+      child: Text(
+        i == widget.highlightIndex
+            ? 'Hoy'
+            : (widget.labelFor?.call(widget.data[i].$1) ??
+                  widget.data[i].$1.day.toString()),
+        textAlign: TextAlign.center,
+        style: TextStyle(
+          fontSize: 11,
+          fontWeight: i == widget.highlightIndex
+              ? FontWeight.w900
+              : (_seleccionado == i ? FontWeight.w800 : FontWeight.w600),
+          color: i == widget.highlightIndex
+              ? AppColors.verde
+              : (_seleccionado == i
+                    ? (Theme.of(context).textTheme.titleLarge?.color ??
                           AppColors.grisOscuro)
-                      : AppColors.grisMedio),
-            ),
-          ),
-        );
+                    : AppColors.grisMedio),
+        ),
+      ),
+    );
 
     return SingleChildScrollView(
       controller: _scroll,
@@ -193,12 +188,16 @@ class _BarChartState extends State<BarChart> {
               height: widget.barHeight + 28,
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.end,
-                children: [for (var i = 0; i < widget.data.length; i++) barra(i)],
+                children: [
+                  for (var i = 0; i < widget.data.length; i++) barra(i),
+                ],
               ),
             ),
             const SizedBox(height: 6),
             Row(
-              children: [for (var i = 0; i < widget.data.length; i++) etiqueta(i)],
+              children: [
+                for (var i = 0; i < widget.data.length; i++) etiqueta(i),
+              ],
             ),
           ],
         ),
@@ -216,7 +215,9 @@ class _BarChartState extends State<BarChart> {
 class DonutChart extends StatelessWidget {
   final double progress; // 0..1
   final Color color;
-  final Color trackColor;
+
+  /// Pista del anillo; si es null se usa el verde pastel del tema activo.
+  final Color? trackColor;
   final double size;
   final double strokeWidth;
   final String? centerText;
@@ -226,7 +227,7 @@ class DonutChart extends StatelessWidget {
     super.key,
     required this.progress,
     this.color = AppColors.verde,
-    this.trackColor = AppColors.verdeFondo,
+    this.trackColor,
     this.size = 96,
     this.strokeWidth = 12,
     this.centerText,
@@ -235,6 +236,7 @@ class DonutChart extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final track = trackColor ?? verdeFondoTema(context);
     return SizedBox(
       width: size,
       height: size,
@@ -253,7 +255,7 @@ class DonutChart extends StatelessWidget {
                   value: v,
                   strokeWidth: strokeWidth,
                   strokeCap: StrokeCap.round,
-                  backgroundColor: trackColor,
+                  backgroundColor: track,
                   color: color,
                 ),
               ),
@@ -266,7 +268,8 @@ class DonutChart extends StatelessWidget {
                       style: TextStyle(
                         fontSize: 20,
                         fontWeight: FontWeight.w800,
-                        color: Theme.of(context).textTheme.titleLarge?.color ??
+                        color:
+                            Theme.of(context).textTheme.titleLarge?.color ??
                             AppColors.grisOscuro,
                       ),
                     ),

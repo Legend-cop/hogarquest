@@ -11,6 +11,7 @@ import '../theme/app_theme.dart';
 import '../widgets/confetti.dart';
 import '../widgets/duo_widgets.dart';
 import '../widgets/hq_design.dart';
+import '../widgets/icono3d.dart';
 import '../widgets/icons3d.dart';
 
 String _formatoFecha(DateTime f) {
@@ -21,11 +22,28 @@ String _formatoFecha(DateTime f) {
   return '$d/$m/${f.year} $h:$min';
 }
 
-class RetosScreen extends StatefulWidget {
-  /// `false` al incrustarse dentro de Tareas (ya su propia cabecera).
-  final bool mostrarTitulo;
+const _diasSemana = [
+  'lunes',
+  'martes',
+  'miércoles',
+  'jueves',
+  'viernes',
+  'sábado',
+  'domingo',
+];
 
-  const RetosScreen({super.key, this.mostrarTitulo = true});
+String _nombreDia(DateTime d) => _diasSemana[(d.weekday - 1) % 7];
+
+/// Nombre de un integrante por id (para mostrar ganadores y robos).
+String _nombreDe(BuildContext context, int uid) {
+  for (final u in context.read<AppProvider>().listaUsuarios) {
+    if (u.id == uid) return u.nombre;
+  }
+  return 'Alguien';
+}
+
+class RetosScreen extends StatefulWidget {
+  const RetosScreen({super.key});
 
   @override
   State<RetosScreen> createState() => _RetosScreenState();
@@ -59,8 +77,10 @@ class _RetosScreenState extends State<RetosScreen> {
 
   Future<void> _cargar() async {
     final app = context.read<AppProvider>();
-    final results =
-        await Future.wait([app.retosDeLaSemana(), app.listarIntegrantes()]);
+    final results = await Future.wait([
+      app.retosDeLaSemana(),
+      app.listarIntegrantes(),
+    ]);
     if (!mounted) return;
     setState(() {
       _retos = results[0] as List<Reto>;
@@ -75,7 +95,7 @@ class _RetosScreenState extends State<RetosScreen> {
     final user = app.usuarioActual;
     if (user == null) return const SizedBox.shrink();
     if (_cargando) {
-      return const Center(child: CircularProgressIndicator());
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
     final retos = _retos;
     final esAdmin = user.esAdmin;
@@ -89,21 +109,13 @@ class _RetosScreenState extends State<RetosScreen> {
           child: ListView(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
             children: [
-              if (widget.mostrarTitulo)
-                PageTitle(
-                  esAdmin ? 'Retos' : 'Mis retos',
-                  subtitle: esAdmin
-                      ? 'Retos de la semana en familia'
-                      : 'Metas en equipo de esta semana',
-                  actions: [
-                    if (esAdmin)
-                      IconButton(
-                        icon: const Icon(Icons.add_circle_outline),
-                        tooltip: 'Nuevo reto',
-                        onPressed: () => _abrirRetoDialog(context),
-                      ),
-                  ],
-                ),
+              if (esAdmin)
+                const PageTitle(
+                  'Retos',
+                  subtitle: 'Retos de la semana en familia',
+                )
+              else
+                const ReferenciaTitulo('RETOS FAMILIARES', 'Mis retos', icono: Icono3DTipo.bandera),
               if (esAdmin) ...[
                 const _RetoDestacado(),
                 const SizedBox(height: 16),
@@ -122,10 +134,6 @@ class _RetosScreenState extends State<RetosScreen> {
                     icon: Icons.add_circle_outline,
                     onPressed: () => _abrirRetoDialog(context),
                   ),
-              ],
-              if (!esAdmin && retos.isEmpty) ...[
-                const SizedBox(height: 12),
-                const _ComoFuncionan(),
               ],
               const SizedBox(height: 16),
               _RetosPasados(esAdmin: esAdmin),
@@ -146,6 +154,95 @@ class _RetosScreenState extends State<RetosScreen> {
   }
 }
 
+/// Contenido de la pestaña Retos para el admin, incrustado como segmento
+/// dentro de la pantalla Tareas (navegación de referencia: 5 pestañas).
+class RetosAdminInline extends StatefulWidget {
+  const RetosAdminInline({super.key});
+
+  @override
+  State<RetosAdminInline> createState() => _RetosAdminInlineState();
+}
+
+class _RetosAdminInlineState extends State<RetosAdminInline> {
+  List<Reto> _retos = const [];
+  List<User> _integrantes = const [];
+  bool _cargando = true;
+  late AppProvider _provider;
+
+  @override
+  void initState() {
+    super.initState();
+    _provider = context.read<AppProvider>();
+    _provider.addListener(_onChange);
+    _cargar();
+  }
+
+  @override
+  void dispose() {
+    _provider.removeListener(_onChange);
+    super.dispose();
+  }
+
+  void _onChange() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _cargar();
+    });
+  }
+
+  Future<void> _cargar() async {
+    final app = context.read<AppProvider>();
+    final results = await Future.wait([
+      app.retosDeLaSemana(),
+      app.listarIntegrantes(),
+    ]);
+    if (!mounted) return;
+    setState(() {
+      _retos = results[0] as List<Reto>;
+      _integrantes = results[1] as List<User>;
+      _cargando = false;
+    });
+  }
+
+  void _nuevoReto() {
+    showDialog(context: context, builder: (_) => const _NuevoRetoDialog());
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_cargando) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    final retos = _retos;
+    final total = _integrantes.length;
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 760),
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
+          children: [
+            const _RetoDestacado(),
+            if (retos.isEmpty)
+              _SinRetoCard(esAdmin: true)
+            else ...[
+              for (final reto in retos)
+                _RetoCardAdmin(reto: reto, total: total),
+              const SizedBox(height: 8),
+              DuoButton(
+                label: 'Agregar otro reto',
+                icon: Icons.add_circle_outline,
+                onPressed: _nuevoReto,
+              ),
+            ],
+            const SizedBox(height: 16),
+            _RetosPasados(esAdmin: true),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 /// Crea o edita un reto semanal (solo admin).
 class _NuevoRetoDialog extends StatefulWidget {
   final Reto? inicial;
@@ -156,19 +253,39 @@ class _NuevoRetoDialog extends StatefulWidget {
 }
 
 class _NuevoRetoDialogState extends State<_NuevoRetoDialog> {
-  late final TextEditingController _titulo =
-      TextEditingController(text: widget.inicial?.titulo ?? '');
-  late final TextEditingController _descripcion =
-      TextEditingController(text: widget.inicial?.descripcion ?? '');
+  late final TextEditingController _titulo = TextEditingController(
+    text: widget.inicial?.titulo ?? '',
+  );
+  late final TextEditingController _descripcion = TextEditingController(
+    text: widget.inicial?.descripcion ?? '',
+  );
   late final TextEditingController _puntos = TextEditingController(
-      text: (widget.inicial?.puntos ?? 30).toString());
+    text: (widget.inicial?.puntos ?? 30).toString(),
+  );
   String _categoria = 'limpieza';
   DateTime? _fechaFin;
+  String _modo = Reto.modoNormal;
+  DateTime? _diaLluvia;
+  DateTime? _plazoIndividual;
 
   @override
   void initState() {
     super.initState();
     _fechaFin = widget.inicial?.fechaFin;
+    _modo = widget.inicial?.modo ?? Reto.modoNormal;
+    _diaLluvia = widget.inicial?.fechaLluvia;
+    _plazoIndividual = widget.inicial?.plazoIndividual;
+  }
+
+  /// El modo/día solo se pueden cambiar si el reto aún no tiene marcas,
+  /// robos ni ganador (para no pisar una carrera en curso).
+  bool get _editableModo {
+    final inicial = widget.inicial;
+    if (inicial == null) return true;
+    return inicial.cumplidos.isEmpty &&
+        inicial.robados.isEmpty &&
+        inicial.marcas.isEmpty &&
+        inicial.ganador == null;
   }
 
   static const _categorias = {
@@ -191,7 +308,8 @@ class _NuevoRetoDialogState extends State<_NuevoRetoDialog> {
     final editando = widget.inicial != null;
     return AlertDialog(
       title: Text(
-          editando ? 'Editar reto de la semana' : 'Nuevo reto de la semana'),
+        editando ? 'Editar reto de la semana' : 'Nuevo reto de la semana',
+      ),
       content: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -209,7 +327,8 @@ class _NuevoRetoDialogState extends State<_NuevoRetoDialog> {
               maxLines: 2,
               decoration: const InputDecoration(
                 labelText: 'Descripción',
-                hintText: 'Ej: cada integrante ordena su cuarto 3 veces en la semana',
+                hintText:
+                    'Ej: cada integrante ordena su cuarto 3 veces en la semana',
               ),
             ),
             const SizedBox(height: 12),
@@ -217,8 +336,9 @@ class _NuevoRetoDialogState extends State<_NuevoRetoDialog> {
               initialValue: _categoria,
               decoration: const InputDecoration(labelText: 'Categoría'),
               items: _categorias.entries
-                  .map((e) => DropdownMenuItem(
-                      value: e.key, child: Text(e.value)))
+                  .map(
+                    (e) => DropdownMenuItem(value: e.key, child: Text(e.value)),
+                  )
                   .toList(),
               onChanged: (v) => setState(() => _categoria = v ?? 'otro'),
             ),
@@ -231,53 +351,198 @@ class _NuevoRetoDialogState extends State<_NuevoRetoDialog> {
               ),
             ),
             const SizedBox(height: 12),
-            Text('Vencimiento (opcional)',
-                style: const TextStyle(
-                    fontSize: 13, fontWeight: FontWeight.w700)),
-            const SizedBox(height: 6),
-            _FechaFinPicker(
-              fechaFin: _fechaFin,
-              onChanged: (v) => setState(() => _fechaFin = v),
+            Text(
+              'Modo del reto',
+              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
             ),
+            const SizedBox(height: 6),
+            if (editando && !_editableModo)
+              Text(
+                _modo == Reto.modoLluvia
+                    ? '🌪 Lluvia (ya hay actividad: no se puede cambiar)'
+                    : _modo == Reto.modoFrenesi
+                        ? '🔥 Frenesí (ya hay actividad: no se puede cambiar)'
+                        : 'Normal (clásico: aprueba el admin)',
+                style: TextStyle(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w700,
+                  color: textoSuaveTema(context),
+                ),
+              )
+            else ...[
+              Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: [
+                  ChoiceChip(
+                    label: const Text('Normal'),
+                    selected: _modo == Reto.modoNormal,
+                    onSelected: (_) =>
+                        setState(() => _modo = Reto.modoNormal),
+                  ),
+                  ChoiceChip(
+                    label: const Text('🌪 Lluvia'),
+                    selected: _modo == Reto.modoLluvia,
+                    onSelected: (_) {
+                      setState(() {
+                        _modo = Reto.modoLluvia;
+                        _diaLluvia ??= AppProvider.sortearDiaLluvia();
+                      });
+                    },
+                  ),
+                  ChoiceChip(
+                    label: const Text('🔥 Frenesí'),
+                    selected: _modo == Reto.modoFrenesi,
+                    onSelected: (_) => setState(() => _modo = Reto.modoFrenesi),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 6),
+              Text(
+                _modo == Reto.modoLluvia
+                    ? 'Día aleatorio de la semana: el primero en cumplirlo ese día gana al instante.'
+                    : _modo == Reto.modoFrenesi
+                        ? 'Todos tienen un "su tiempo"; el que lo pierda pierde su slot y otro hijo se lo puede robar.'
+                        : 'Todos lo cumplen y el admin aprueba y da los puntos.',
+                style: TextStyle(
+                  fontSize: 11.5,
+                  height: 1.35,
+                  color: textoSuaveTema(context),
+                ),
+              ),
+            ],
+            if (_modo == Reto.modoLluvia) ...[
+              const SizedBox(height: 10),
+              DuoCard(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
+                color: azulFondoTema(context),
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons.casino_rounded,
+                      size: 20,
+                      color: AppColors.azul,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Lluvia el ${_nombreDia(_diaLluvia ?? DateTime.now())}',
+                        style: const TextStyle(
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                    if (_editableModo)
+                      TextButton(
+                        onPressed: () => setState(
+                          () => _diaLluvia = AppProvider.sortearDiaLluvia(),
+                        ),
+                        child: const Text('Re-sortear'),
+                      ),
+                  ],
+                ),
+              ),
+            ] else ...[
+              const SizedBox(height: 12),
+              Text(
+                _modo == Reto.modoFrenesi
+                    ? 'Su tiempo (fecha única para todos)'
+                    : 'Vencimiento (opcional)',
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 6),
+              _FechaFinPicker(
+                fechaFin: _modo == Reto.modoFrenesi
+                    ? _plazoIndividual
+                    : _fechaFin,
+                onChanged: (v) => setState(() {
+                  if (_modo == Reto.modoFrenesi) {
+                    _plazoIndividual = v;
+                  } else {
+                    _fechaFin = v;
+                  }
+                }),
+              ),
+              if (_modo == Reto.modoFrenesi) ...[
+                const SizedBox(height: 6),
+                Text(
+                  'El que no lo cumpla antes de esa fecha pierde su slot: otro hijo puede robarlo.',
+                  style: TextStyle(
+                    fontSize: 11.5,
+                    height: 1.35,
+                    color: textoSuaveTema(context),
+                  ),
+                ),
+              ],
+            ],
           ],
         ),
       ),
       actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('Cancelar'),
-        ),
-        FilledButton(
-          onPressed: () async {
-            final titulo = _titulo.text.trim();
-            final descripcion = _descripcion.text.trim();
-            final pts = int.tryParse(_puntos.text) ?? 0;
-            if (titulo.isEmpty || descripcion.isEmpty || pts <= 0) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                    content: Text('Completa título, descripción y puntos.')),
-              );
-              return;
-            }
-            final app = context.read<AppProvider>();
-            final inicial = widget.inicial;
-            if (inicial == null) {
-              await app.crearReto(
+        DialogActions(
+          onCancel: () => Navigator.pop(context),
+          primary: DuoButton(
+            fullWidth: false,
+            label: editando ? 'Guardar' : 'Crear reto',
+            onPressed: () async {
+              final titulo = _titulo.text.trim();
+              final descripcion = _descripcion.text.trim();
+              final pts = int.tryParse(_puntos.text) ?? 0;
+              if (titulo.isEmpty || descripcion.isEmpty || pts <= 0) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Completa título, descripción y puntos.'),
+                  ),
+                );
+                return;
+              }
+              final app = context.read<AppProvider>();
+              final inicial = widget.inicial;
+              if (inicial == null) {
+                await app.crearReto(
                   titulo: titulo,
                   descripcion: descripcion,
                   puntos: pts,
-                  fechaFin: _fechaFin);
-            } else {
-              await app.editarReto(inicial.copyWith(
-                titulo: titulo,
-                descripcion: descripcion,
-                puntos: pts,
-                fechaFin: _fechaFin,
-              ));
-            }
-            if (context.mounted) Navigator.pop(context);
-          },
-          child: Text(editando ? 'Guardar' : 'Crear reto'),
+                  // En lluvia el vencimiento es automático: el día sorteado.
+                  fechaFin: _modo == Reto.modoLluvia ? null : _fechaFin,
+                  modo: _modo,
+                  fechaLluvia: _diaLluvia,
+                  plazoIndividual: _modo == Reto.modoFrenesi
+                      ? _plazoIndividual
+                      : null,
+                );
+              } else {
+                var finEdicion = _fechaFin;
+                if (_modo == Reto.modoLluvia) {
+                  final d = _diaLluvia ??
+                      inicial.fechaLluvia ??
+                      DateTime.now();
+                  finEdicion = DateTime(d.year, d.month, d.day, 23, 59, 59);
+                }
+                await app.editarReto(
+                  inicial.copyWith(
+                    titulo: titulo,
+                    descripcion: descripcion,
+                    puntos: pts,
+                    fechaFin: finEdicion,
+                    modo: _modo,
+                    fechaLluvia: _diaLluvia,
+                    plazoIndividual: _modo == Reto.modoFrenesi
+                        ? _plazoIndividual
+                        : null,
+                  ),
+                );
+              }
+              if (context.mounted) Navigator.pop(context);
+            },
+          ),
         ),
       ],
     );
@@ -308,7 +573,8 @@ class _FechaFinPicker extends StatelessWidget {
     );
     if (hora == null) return;
     onChanged(
-        DateTime(fecha.year, fecha.month, fecha.day, hora.hour, hora.minute));
+      DateTime(fecha.year, fecha.month, fecha.day, hora.hour, hora.minute),
+    );
   }
 
   @override
@@ -316,7 +582,7 @@ class _FechaFinPicker extends StatelessWidget {
     final f = fechaFin;
     return DuoCard(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      color: AppColors.verdeFondo,
+      color: verdeFondoTema(context),
       child: Row(
         children: [
           Icon(
@@ -330,7 +596,10 @@ class _FechaFinPicker extends StatelessWidget {
               f == null
                   ? 'Sin límite (vence al terminar la semana)'
                   : 'Vence el ${_formato(f)}',
-              style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600),
+              style: const TextStyle(
+                fontSize: 12.5,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ),
           TextButton(
@@ -349,45 +618,27 @@ class _FechaFinPicker extends StatelessWidget {
   }
 }
 
-/// Tarjeta destacada verde estilo referencia (solo admin).
+/// Tarjeta destacada verde oscuro idéntica al segmento Retos de la referencia.
 class _RetoDestacado extends StatelessWidget {
   const _RetoDestacado();
 
   @override
   Widget build(BuildContext context) {
-    return CardBox(
-      color: AppColors.verdeFondo,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'RETO FAMILIAR DESTACADO',
-            style: TextStyle(
-              color: AppColors.grisOscuro,
-              fontSize: 10,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 0.8,
-            ),
-          ),
-          const SizedBox(height: 4),
-          const Text(
-            '¡Todos sumamos!',
-            style: TextStyle(
-              color: AppColors.grisOscuro,
-              fontSize: 20,
-              fontWeight: FontWeight.w900,
-            ),
-          ),
-          const SizedBox(height: 4),
-          const Text(
-            'Completen retos juntos y ganen XP extra.',
-            style: TextStyle(
-              color: AppColors.grisOscuro,
-              fontSize: 13,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-        ],
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: AppColors.verdeProfundo,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: const Text(
+        '¡Todos sumamos! Completen retos juntos y ganen XP extra.',
+        style: TextStyle(
+          color: Colors.white,
+          fontSize: 15,
+          fontWeight: FontWeight.bold,
+        ),
       ),
     );
   }
@@ -400,38 +651,69 @@ class _SinRetoCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (!esAdmin) {
-      // Texto exacto del zip ( ChildChallenges ).
-      return const CardBox(
-        color: AppColors.azulFondo,
-        child: Text(
-          'Aún no hay reto esta semana. Pídele al administrador que cree '
-          'un reto familiar.',
-          style: TextStyle(
-            fontWeight: FontWeight.w800,
-            color: AppColors.grisOscuro,
+      // Tarjeta vacía idéntica a ChildChallengesScreen de la referencia.
+      final isDark = Theme.of(context).brightness == Brightness.dark;
+      return Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.all(30),
+        decoration: BoxDecoration(
+          color: isDark ? AppColors.superficieOscura : Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: isDark
+                ? AppColors.grisMedio.withValues(alpha: 0.3)
+                : const Color(0xFFD1D5DB),
           ),
+        ),
+        child: Column(
+          children: [
+            // Icono 3D animado en vez de la escoba estática: el rayo
+            // transmite energía de reto.
+            const SizedBox(
+              width: 60,
+              height: 60,
+              child: Center(child: Bolt3D(size: 52, animar: true)),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Aún no hay reto esta semana',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: textoTema(context),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Pídele al administrador que cree un reto familiar.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: textoSuaveTema(context)),
+            ),
+          ],
         ),
       );
     }
     return CardBox(
-      color: AppColors.azulFondo,
+      color: azulFondoTema(context),
       child: Column(
         children: [
-          const Text(
+          Text(
             'Aún no hay reto esta semana',
             style: TextStyle(
-                fontSize: 17,
-                fontWeight: FontWeight.w800,
-                color: AppColors.grisOscuro),
+              fontSize: 17,
+              fontWeight: FontWeight.w800,
+              color: textoTema(context),
+            ),
           ),
           const SizedBox(height: 6),
-          const Text(
+          Text(
             'Crea un reto familiar: todos lo cumplen y ganan puntos bonus.',
             textAlign: TextAlign.center,
             style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w700,
-                color: AppColors.grisOscuro),
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              color: textoSuaveTema(context),
+            ),
           ),
           const SizedBox(height: 16),
           DuoButton(
@@ -443,25 +725,6 @@ class _SinRetoCard extends StatelessWidget {
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-/// Tarjeta de ayuda "¿Cómo funcionan?" con el texto exacto del zip.
-class _ComoFuncionan extends StatelessWidget {
-  const _ComoFuncionan();
-
-  @override
-  Widget build(BuildContext context) {
-    return const CardBox(
-      child: Text(
-        '¿Cómo funcionan? Los retos son metas en equipo: al cumplirlas, '
-        'toda la familia gana XP extra.',
-        style: TextStyle(
-          fontWeight: FontWeight.w700,
-          color: AppColors.grisOscuro,
-        ),
       ),
     );
   }
@@ -481,7 +744,7 @@ class _RetoCabecera extends StatelessWidget {
           width: 48,
           height: 48,
           decoration: BoxDecoration(
-            color: AppColors.amarilloFondo,
+            color: amarilloFondoTema(context),
             borderRadius: BorderRadius.circular(12),
           ),
           child: const Icon(
@@ -497,7 +760,10 @@ class _RetoCabecera extends StatelessWidget {
             children: [
               Text(
                 reto.titulo,
-                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900),
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w900,
+                ),
               ),
               const SizedBox(height: 2),
               Text(
@@ -508,6 +774,49 @@ class _RetoCabecera extends StatelessWidget {
                   color: textoSuaveTema(context),
                 ),
               ),
+              if (reto.esLluvia || reto.esFrenesi) ...[
+                const SizedBox(height: 6),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: reto.esLluvia
+                        ? azulFondoTema(context)
+                        : amarilloFondoTema(context),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        reto.esLluvia
+                            ? Icons.casino_rounded
+                            : Icons.local_fire_department,
+                        size: 12,
+                        color: textoTema(context),
+                      ),
+                      const SizedBox(width: 4),
+                      Flexible(
+                        child: Text(
+                          reto.esLluvia
+                              ? (reto.fechaLluvia != null &&
+                                      reto.lluviaActiva(DateTime.now())
+                                  ? '¡Lluvia HOY! Sé el primero'
+                                  : reto.fechaLluvia != null
+                                      ? 'Lluvia el ${_nombreDia(reto.fechaLluvia!)}'
+                                      : 'Lluvia: día aleatorio')
+                              : 'Frenesí · su tiempo: ${_formatoFecha(reto.plazoEfectivo)}',
+                          style: TextStyle(
+                            fontSize: 10.5,
+                            fontWeight: FontWeight.w800,
+                            color: textoTema(context),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ],
           ),
         ),
@@ -541,36 +850,105 @@ class _ProgresoReto extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ahora = DateTime.now();
     final c = reto.cumplidos.length;
-    final max = total > 0 ? total : (c >= 1 ? c : 1);
-    final valor = max == 0 ? 0.0 : (c / max).clamp(0.0, 1.0);
+    final max = reto.esLluvia
+        ? 1
+        : (total > 0 ? total : (c >= 1 ? c : 1));
+    final valor = reto.ganador != null
+        ? 1.0
+        : (max == 0 ? 0.0 : (c / max).clamp(0.0, 1.0));
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const SizedBox(height: 14),
         Row(
           children: [
-            Text(
-              'Progreso familiar',
-              style: TextStyle(
-                fontSize: 12.5,
-                fontWeight: FontWeight.w700,
-                color: textoSuaveTema(context),
+            Expanded(
+              child: Text(
+                reto.esLluvia
+                    ? '¡Carrera! Solo 1 ganador'
+                    : 'Progreso familiar',
+                style: TextStyle(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w700,
+                  color: textoSuaveTema(context),
+                ),
               ),
             ),
-            const Spacer(),
             Text(
-              '$c/$max',
-              style: const TextStyle(
+              reto.esLluvia
+                  ? (reto.ganador != null
+                      ? '🏆 ${_nombreDe(context, reto.ganador!)}'
+                      : 'En carrera')
+                  : '$c/$max',
+              style: TextStyle(
                 fontSize: 12.5,
                 fontWeight: FontWeight.w900,
-                color: AppColors.grisOscuro,
+                color: textoTema(context),
               ),
             ),
           ],
         ),
         const SizedBox(height: 6),
         ProgressLine(valor, color: AppColors.verde),
+        if (reto.esFrenesi && reto.robados.isNotEmpty) ...[
+          const SizedBox(height: 6),
+          Row(
+            children: [
+              Icon(
+                Icons.local_fire_department,
+                size: 14,
+                color: AppColors.coral,
+              ),
+              const SizedBox(width: 4),
+              Text(
+                'Robos: ${reto.robados.length}',
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800,
+                  color: AppColors.coral,
+                ),
+              ),
+            ],
+          ),
+        ],
+        if (reto.esLluvia && reto.fechaLluvia != null) ...[
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Icon(Icons.casino_rounded, size: 14, color: textoSuaveTema(context)),
+              const SizedBox(width: 4),
+              Text(
+                reto.lluviaActiva(ahora)
+                    ? 'La lluvia es hoy'
+                    : 'La lluvia es el ${_nombreDia(reto.fechaLluvia!)}',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: textoSuaveTema(context),
+                ),
+              ),
+            ],
+          ),
+        ],
+        if (reto.esFrenesi) ...[
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Icon(Icons.timer_outlined, size: 14, color: textoSuaveTema(context)),
+              const SizedBox(width: 4),
+              Text(
+                'Su tiempo vence el ${_formatoFecha(reto.plazoEfectivo)}',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: textoSuaveTema(context),
+                ),
+              ),
+            ],
+          ),
+        ],
         if (reto.fechaFin != null) ...[
           const SizedBox(height: 8),
           Row(
@@ -604,16 +982,19 @@ class _RetoCardAdmin extends StatelessWidget {
       builder: (ctx) => AlertDialog(
         title: const Text('¿Eliminar reto?'),
         content: Text(
-            'Se eliminará "${reto.titulo}". Los puntos ya otorgados por '
-            'retos aprobados no se modifican.'),
+          'Se eliminará "${reto.titulo}". Los puntos ya otorgados por '
+          'retos aprobados no se modifican.',
+        ),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancelar'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Eliminar'),
+          DialogActions(
+            onCancel: () => Navigator.pop(ctx, false),
+            primary: DuoButton(
+              fullWidth: false,
+              color: AppColors.rojo,
+              borderColor: AppColors.rojoOscuro,
+              onPressed: () => Navigator.pop(ctx, true),
+              label: 'Eliminar',
+            ),
           ),
         ],
       ),
@@ -641,7 +1022,11 @@ class _RetoCardAdmin extends StatelessWidget {
               Column(
                 children: [
                   IconButton(
-                    icon: const Icon(Icons.edit, color: AppColors.azul, size: 20),
+                    icon: const Icon(
+                      Icons.edit,
+                      color: AppColors.azul,
+                      size: 20,
+                    ),
                     tooltip: 'Editar reto',
                     onPressed: () => showDialog(
                       context: context,
@@ -649,8 +1034,11 @@ class _RetoCardAdmin extends StatelessWidget {
                     ),
                   ),
                   IconButton(
-                    icon: const Icon(Icons.delete_outline,
-                        color: AppColors.rojo, size: 20),
+                    icon: const Icon(
+                      Icons.delete_outline,
+                      color: AppColors.rojo,
+                      size: 20,
+                    ),
                     tooltip: 'Eliminar reto',
                     onPressed: () => _confirmarEliminar(context, reto),
                   ),
@@ -659,6 +1047,50 @@ class _RetoCardAdmin extends StatelessWidget {
             ],
           ),
           _ProgresoReto(reto: reto, total: total),
+          if (reto.esLluvia && reto.ganador != null) ...[
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Trophy3D(size: 16, animar: false),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    '${_nombreDe(context, reto.ganador!)} ganó la lluvia '
+                    'al instante (+${reto.puntos} pts)',
+                    style: const TextStyle(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.verdeOscuro,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+          for (final e in reto.robados.entries) ...[
+            const SizedBox(height: 6),
+            Row(
+              children: [
+                const Icon(
+                  Icons.local_fire_department,
+                  size: 16,
+                  color: AppColors.coral,
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    '${_nombreDe(context, e.value)} robó el slot de '
+                    '${_nombreDe(context, e.key)} (+${reto.puntos} pts)',
+                    style: const TextStyle(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.coralOscuro,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
           const SizedBox(height: 10),
           if (reto.finalizado)
             Center(
@@ -694,13 +1126,53 @@ class _RetoCardChild extends StatelessWidget {
   final Reto reto;
   final int total;
   final User user;
-  const _RetoCardChild({required this.reto, required this.total, required this.user});
+  const _RetoCardChild({
+    required this.reto,
+    required this.total,
+    required this.user,
+  });
+
+  Future<void> _robarSlot(
+    BuildContext context,
+    AppProvider app,
+    User victima,
+  ) async {
+    final ok = await app.robarReto(reto, victima.id!);
+    if (!ok || !context.mounted) return;
+    lanzarConfeti(context);
+    unawaited(CelebrationService.instance.success());
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            '¡Robaste el reto de ${victima.nombre}! +${reto.puntos} pts',
+          ),
+        ),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final app = context.read<AppProvider>();
+    final ahora = DateTime.now();
     final loCumpli = reto.cumplidos.contains(user.id);
     final yaAprobado = reto.aprobados.contains(user.id);
+
+    // Slots vencidos sin cumplir de otros hijos (frenesí): se pueden robar.
+    final robables = <User>[];
+    if (reto.esFrenesi && reto.vigente) {
+      for (final u in app.listaUsuarios) {
+        if (u.id == null ||
+            u.id == user.id ||
+            u.esAdmin ||
+            !u.activo ||
+            !reto.slotRobable(u.id!)) {
+          continue;
+        }
+        robables.add(u);
+      }
+    }
 
     return DuoCard(
       padding: const EdgeInsets.all(16),
@@ -725,14 +1197,136 @@ class _RetoCardChild extends StatelessWidget {
                 ),
               ],
             )
+          else if (reto.esLluvia && reto.ganador != null)
+            Row(
+              children: [
+                Trophy3D(size: 18, animar: false),
+                const SizedBox(width: 6),
+                Text(
+                  '🏆 Ganó ${_nombreDe(context, reto.ganador!)} '
+                  '+${reto.puntos} pts',
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w800,
+                    color: textoTema(context),
+                  ),
+                ),
+              ],
+            )
+          else if (reto.esLluvia && !reto.lluviaActiva(ahora))
+            Row(
+              children: [
+                const Icon(Icons.casino_rounded, size: 18, color: AppColors.azul),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    reto.fechaLluvia != null
+                        ? 'La lluvia es el ${_nombreDia(reto.fechaLluvia!)} — '
+                              'el primero en marcar gana al instante.'
+                        : 'Lluvia de día aleatorio: sé el primero en marcar.',
+                    style: TextStyle(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w700,
+                      color: textoSuaveTema(context),
+                    ),
+                  ),
+                ),
+              ],
+            )
           else if (loCumpli)
-            const _MarcadoChip()
+            _MarcadoChip(
+              texto: reto.esFrenesi
+                  ? '¡Marcado a tiempo! Cobras al finalizar el reto.'
+                  : '¡Marcado! Espera la aprobación del admin.',
+            )
+          else if (reto.esFrenesi && !reto.puedeMarcarFrenesi(ahora))
+            Row(
+              children: [
+                const Icon(
+                  Icons.hourglass_bottom,
+                  size: 18,
+                  color: AppColors.rojo,
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    '⏰ Pasó tu tiempo: tu slot puede ser robado.',
+                    style: const TextStyle(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.rojo,
+                    ),
+                  ),
+                ),
+              ],
+            )
           else
             DuoButton(
-              label: '¡Lo cumplí!',
+              label: reto.esLluvia
+                  ? '¡Lo cumplí! (sé el primero)'
+                  : '¡Lo cumplí!',
               icon: Icons.verified,
               onPressed: () => app.marcarRetoCumplido(reto),
             ),
+          for (final e in reto.robados.entries) ...[
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                const Icon(
+                  Icons.local_fire_department,
+                  size: 16,
+                  color: AppColors.coral,
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    '${_nombreDe(context, e.value)} robó el slot de '
+                    '${_nombreDe(context, e.key)} (+${reto.puntos} pts)',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.coralOscuro,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+          if (robables.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Text(
+              '🔥 Slots para robar',
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w900,
+                color: textoTema(context),
+              ),
+            ),
+            const SizedBox(height: 6),
+            for (final v in robables)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 6),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        '${v.nombre} pasó su tiempo',
+                        style: TextStyle(
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w700,
+                          color: textoSuaveTema(context),
+                        ),
+                      ),
+                    ),
+                    DuoButton(
+                      fullWidth: false,
+                      label: '¡Robarla! +${reto.puntos}',
+                      onPressed: () => _robarSlot(context, app, v),
+                    ),
+                  ],
+                ),
+              ),
+          ],
         ],
       ),
     );
@@ -740,7 +1334,10 @@ class _RetoCardChild extends StatelessWidget {
 }
 
 class _MarcadoChip extends StatelessWidget {
-  const _MarcadoChip();
+  final String texto;
+  const _MarcadoChip({
+    this.texto = '¡Marcado! Espera la aprobación del admin.',
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -748,11 +1345,16 @@ class _MarcadoChip extends StatelessWidget {
       children: [
         const Icon(Icons.verified, color: AppColors.verde, size: 22),
         const SizedBox(width: 8),
-        const Text('¡Marcado! Espera la aprobación del admin.',
-            style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w700,
-                color: AppColors.verde)),
+        Expanded(
+          child: Text(
+            texto,
+            style: const TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              color: AppColors.verde,
+            ),
+          ),
+        ),
       ],
     );
   }
@@ -819,7 +1421,7 @@ class _RetosPasadosState extends State<_RetosPasados> {
           CardBox(
             child: Row(
               children: [
-                const Icon(Icons.flag, color: AppColors.grisOscuro, size: 20),
+                Icon(Icons.flag, color: textoTema(context), size: 20),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
@@ -827,15 +1429,20 @@ class _RetosPasadosState extends State<_RetosPasados> {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
-                        fontSize: 15, fontWeight: FontWeight.w900),
+                      fontSize: 15,
+                      fontWeight: FontWeight.w900,
+                    ),
                   ),
                 ),
                 Text(
-                  '${r.cumplidos.length} cumplidos · +${r.puntos} pts',
+                  r.ganador != null
+                      ? '🏆 ${_nombreDe(context, r.ganador!)} · +${r.puntos} pts'
+                      : '${r.cumplidos.length} cumplidos · +${r.puntos} pts',
                   style: TextStyle(
-                      fontSize: 12.5,
-                      fontWeight: FontWeight.w700,
-                      color: textoSuaveTema(context)),
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w700,
+                    color: textoSuaveTema(context),
+                  ),
                 ),
               ],
             ),

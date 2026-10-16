@@ -20,8 +20,10 @@ class SyncClient {
   void Function()? _onReconnect;
   String? _baseActiva;
 
-  Future<String?> encontrarBase() =>
-      _encontrarBase().timeout(const Duration(seconds: 8), onTimeout: () => null);
+  Future<String?> encontrarBase() => _encontrarBase().timeout(
+    const Duration(seconds: 8),
+    onTimeout: () => null,
+  );
 
   Future<String?> _encontrarBase() async {
     if (_baseActiva != null) return _baseActiva;
@@ -30,8 +32,7 @@ class SyncClient {
       for (final url in ServerConfig.candidateUrls) {
         HttpClient? client;
         try {
-          client = HttpClient()
-            ..connectionTimeout = const Duration(seconds: 8);
+          client = HttpClient()..connectionTimeout = const Duration(seconds: 8);
           final req = await client.getUrl(Uri.parse('$url/api/db'));
           final res = await req.close();
           await res.drain();
@@ -69,8 +70,7 @@ class SyncClient {
       }
       HttpClient? client;
       try {
-        client = HttpClient()
-          ..connectionTimeout = const Duration(seconds: 10);
+        client = HttpClient()..connectionTimeout = const Duration(seconds: 10);
         final req = await client.getUrl(Uri.parse('$base/api/db'));
         final res = await req.close();
         final body = await res.transform(utf8.decoder).join();
@@ -90,12 +90,18 @@ class SyncClient {
     return null;
   }
 
-  Future<Map<String, dynamic>?> loginServerSide(String usuario, String password) =>
-      _loginServerSide(usuario, password)
-          .timeout(const Duration(seconds: 10), onTimeout: () => null);
+  Future<Map<String, dynamic>?> loginServerSide(
+    String usuario,
+    String password,
+  ) => _loginServerSide(
+    usuario,
+    password,
+  ).timeout(const Duration(seconds: 10), onTimeout: () => null);
 
   Future<Map<String, dynamic>?> _loginServerSide(
-      String usuario, String password) async {
+    String usuario,
+    String password,
+  ) async {
     final base = await encontrarBase();
     if (base == null) return null;
     HttpClient? client;
@@ -150,20 +156,22 @@ class SyncClient {
   /// Escucha notificaciones del servidor vía SSE y llama a [onRemote]
   /// cada vez que otro cliente cambia datos. Se reconecta automáticamente.
   /// Registra el token FCM de este dispositivo para un usuario.
-  Future<void> registrarFcmToken(int userId, String token) => _postJson(
-        '/api/register-token',
-        {'userId': userId, 'token': token},
-      );
+  Future<void> registrarFcmToken(int userId, String token) =>
+      _postJson('/api/register-token', {'userId': userId, 'token': token});
 
   /// Quita el token FCM del usuario (al cerrar sesión).
   Future<void> borrarFcmToken(int userId, String token) => _postJson(
-        '/api/register-token',
-        {'userId': userId, 'token': token, 'remove': true},
-      );
+    '/api/register-token',
+    {'userId': userId, 'token': token, 'remove': true},
+  );
 
   /// Pide al servidor que envíe un push real al dispositivo del usuario.
-  Future<void> enviarPushFcm(int userId, String titulo, String cuerpo,
-      [Map<String, String>? data]) async {
+  Future<void> enviarPushFcm(
+    int userId,
+    String titulo,
+    String cuerpo, [
+    Map<String, String>? data,
+  ]) async {
     final payload = <String, dynamic>{
       'userId': userId,
       'title': titulo,

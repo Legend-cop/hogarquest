@@ -2,6 +2,8 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import 'icono3d.dart';
+
 /// Iconos "vivos" pintados a mano con CustomPaint: degradados, bisel,
 /// brillo especular, sombra y animación sutil. Sustituyen a los iconos
 /// planos de Material para racha (fuego), XP (rayo), medallas y trofeos.
@@ -11,12 +13,27 @@ enum MedalTono { oro, plata, bronce, platino, zafiro }
 MedalTono medalTonoDe(String liga) {
   switch (liga.toLowerCase()) {
     case 'plata':
+    case 'ámbar':
+    case 'perla':
       return MedalTono.plata;
     case 'oro':
+    case 'rubí':
+    case 'amatista':
+    case 'topacio':
+    case 'cristal':
+    case 'estelar':
+    case 'galáctica':
+    case 'corona':
       return MedalTono.oro;
     case 'platino':
+    case 'esmeralda':
+    case 'jade':
+    case 'coral':
       return MedalTono.platino;
     case 'zafiro':
+    case 'obsidiana':
+    case 'cobalto':
+    case 'celeste':
       return MedalTono.zafiro;
     default:
       return MedalTono.bronce;
@@ -34,19 +51,34 @@ _PaletaMetal _paleta(MedalTono tono) {
   switch (tono) {
     case MedalTono.oro:
       return const _PaletaMetal(
-          Color(0xFFFFF3B8), Color(0xFFFFC800), Color(0xFFC77E00));
+        Color(0xFFFFF3B8),
+        Color(0xFFFACC15),
+        Color(0xFFC77E00),
+      );
     case MedalTono.plata:
       return const _PaletaMetal(
-          Color(0xFFFFFFFF), Color(0xFFB0B7C3), Color(0xFF757E8C));
+        Color(0xFFFFFFFF),
+        Color(0xFFB0B7C3),
+        Color(0xFF757E8C),
+      );
     case MedalTono.bronce:
       return const _PaletaMetal(
-          Color(0xFFF2C089), Color(0xFFCD7F32), Color(0xFF8C4E1B));
+        Color(0xFFF2C089),
+        Color(0xFFCD7F32),
+        Color(0xFF8C4E1B),
+      );
     case MedalTono.platino:
       return const _PaletaMetal(
-          Color(0xFFFFFFFF), Color(0xFFCFEDE8), Color(0xFF6FAFA4));
+        Color(0xFFFFFFFF),
+        Color(0xFFCFEDE8),
+        Color(0xFF6FAFA4),
+      );
     case MedalTono.zafiro:
       return const _PaletaMetal(
-          Color(0xFF9FC2FF), Color(0xFF2B59C3), Color(0xFF16357E));
+        Color(0xFF9FC2FF),
+        Color(0xFF2B59C3),
+        Color(0xFF16357E),
+      );
   }
 }
 
@@ -57,23 +89,44 @@ _PaletaMetal _paleta(MedalTono tono) {
 class Flame3D extends StatefulWidget {
   final double size;
   final bool animar;
-  const Flame3D({super.key, this.size = 32, this.animar = true});
+
+  /// Racha del usuario: escala la llama (0.62× en racha 1 → 1.0× en
+  /// racha ≥12). [size] sigue siendo el tope máximo del icono.
+  final int? racha;
+
+  const Flame3D({super.key, this.size = 32, this.animar = true, this.racha});
 
   @override
   State<Flame3D> createState() => _Flame3DState();
 }
 
-class _Flame3DState extends State<Flame3D>
-    with SingleTickerProviderStateMixin {
+class _Flame3DState extends State<Flame3D> with SingleTickerProviderStateMixin {
   late final AnimationController _c = AnimationController(
     vsync: this,
     duration: const Duration(milliseconds: 950),
   );
+  bool _arrancado = false;
 
   @override
-  void initState() {
-    super.initState();
-    if (widget.animar) _c.repeat(reverse: true);
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_arrancado) return;
+    _arrancado = true;
+    // Respeta "movimiento reducido" del sistema.
+    final reduced = MediaQuery.maybeOf(context)?.disableAnimations ?? false;
+    if (widget.animar && !reduced) _c.repeat(reverse: true);
+  }
+
+  @override
+  void didUpdateWidget(covariant Flame3D old) {
+    super.didUpdateWidget(old);
+    if (old.animar != widget.animar) {
+      if (widget.animar) {
+        _c.repeat(reverse: true);
+      } else {
+        _c.stop();
+      }
+    }
   }
 
   @override
@@ -82,12 +135,20 @@ class _Flame3DState extends State<Flame3D>
     super.dispose();
   }
 
+  /// Factor de crecimiento por racha: la llama crece con los días seguidos.
+  double get _factor {
+    final r = widget.racha;
+    if (r == null) return 1.0;
+    return 0.62 + 0.38 * ((r < 1 ? 1 : r).clamp(1, 12) - 1) / 11;
+  }
+
   @override
   Widget build(BuildContext context) {
+    final s = widget.size * _factor;
     return RepaintBoundary(
       child: SizedBox(
-        width: widget.size,
-        height: widget.size,
+        width: s,
+        height: s,
         child: AnimatedBuilder(
           animation: _c,
           builder: (context, _) =>
@@ -110,14 +171,38 @@ class _FlamePainter extends CustomPainter {
     final tipY = r.top + h * (0.03 - 0.03 * wob);
     final p = Path();
     p.moveTo(cx + sway, tipY);
-    p.cubicTo(cx + w * 0.24, r.top + h * 0.20, cx + w * 0.34,
-        r.top + h * 0.36, cx + w * 0.33, r.top + h * 0.56);
-    p.cubicTo(cx + w * 0.32, r.top + h * 0.82, cx + w * 0.18,
-        r.bottom - h * 0.02, cx, r.bottom);
-    p.cubicTo(cx - w * 0.18, r.bottom - h * 0.02, cx - w * 0.32,
-        r.top + h * 0.82, cx - w * 0.33, r.top + h * 0.56);
-    p.cubicTo(cx - w * 0.34, r.top + h * 0.36, cx - w * 0.24,
-        r.top + h * 0.20, cx + sway, tipY);
+    p.cubicTo(
+      cx + w * 0.24,
+      r.top + h * 0.20,
+      cx + w * 0.34,
+      r.top + h * 0.36,
+      cx + w * 0.33,
+      r.top + h * 0.56,
+    );
+    p.cubicTo(
+      cx + w * 0.32,
+      r.top + h * 0.82,
+      cx + w * 0.18,
+      r.bottom - h * 0.02,
+      cx,
+      r.bottom,
+    );
+    p.cubicTo(
+      cx - w * 0.18,
+      r.bottom - h * 0.02,
+      cx - w * 0.32,
+      r.top + h * 0.82,
+      cx - w * 0.33,
+      r.top + h * 0.56,
+    );
+    p.cubicTo(
+      cx - w * 0.34,
+      r.top + h * 0.36,
+      cx - w * 0.24,
+      r.top + h * 0.20,
+      cx + sway,
+      tipY,
+    );
     p.close();
     return p;
   }
@@ -128,10 +213,11 @@ class _FlamePainter extends CustomPainter {
     final wob = math.sin(math.pi * t.clamp(0, 1));
     final cx = size.width / 2;
 
-    // Resplandor de fondo.
-    final glowRect =
-        Rect.fromCircle(center: Offset(cx, size.height * 0.60),
-            radius: size.width * 0.62);
+    // Resplandor de fondo (radio limitado: nunca pinta fuera de la caja).
+    final glowRect = Rect.fromCircle(
+      center: Offset(cx, size.height * 0.50),
+      radius: size.width * 0.50,
+    );
     canvas.drawCircle(
       glowRect.center,
       glowRect.width / 2,
@@ -143,6 +229,29 @@ class _FlamePainter extends CustomPainter {
           ],
         ).createShader(glowRect),
     );
+
+    // Lenguas laterales (detrás de la llama principal): le dan la silueta
+    // de fuego vivo de varios puntos en vez de una gota con llama única.
+    final lengua = Paint()
+      ..shader = const LinearGradient(
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+        colors: [Color(0xFFFF9D00), Color(0xFFE03E12)],
+      ).createShader(r);
+    final rl = Rect.fromLTWH(
+      r.left + size.width * 0.03,
+      r.top + size.height * 0.36,
+      size.width * 0.44,
+      size.height * 0.60,
+    );
+    canvas.drawPath(_flama(rl, wob * 0.75), lengua);
+    final rr = Rect.fromLTWH(
+      r.right - size.width * 0.47,
+      r.top + size.height * 0.42,
+      size.width * 0.44,
+      size.height * 0.54,
+    );
+    canvas.drawPath(_flama(rr, -wob * 0.65), lengua);
 
     final p = _flama(r, wob);
 
@@ -178,8 +287,12 @@ class _FlamePainter extends CustomPainter {
     canvas.restore();
 
     // Llama interior amarilla.
-    final ri = Rect.fromLTWH(r.left + size.width * 0.14,
-        r.top + size.height * 0.16, size.width * 0.72, size.height * 0.70);
+    final ri = Rect.fromLTWH(
+      r.left + size.width * 0.14,
+      r.top + size.height * 0.16,
+      size.width * 0.72,
+      size.height * 0.70,
+    );
     final pi = _flama(ri, wob * 0.6);
     canvas.drawPath(
       pi,
@@ -194,9 +307,10 @@ class _FlamePainter extends CustomPainter {
     // Núcleo blanco caliente.
     canvas.drawOval(
       Rect.fromCenter(
-          center: Offset(cx, size.height * 0.74),
-          width: size.width * 0.20,
-          height: size.height * 0.26),
+        center: Offset(cx, size.height * 0.74),
+        width: size.width * 0.20,
+        height: size.height * 0.26,
+      ),
       Paint()..color = const Color(0xF2FFFDE7),
     );
   }
@@ -223,11 +337,27 @@ class _Bolt3DState extends State<Bolt3D> with SingleTickerProviderStateMixin {
     vsync: this,
     duration: const Duration(milliseconds: 2600),
   );
+  bool _arrancado = false;
 
   @override
-  void initState() {
-    super.initState();
-    if (widget.animar) _c.repeat();
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_arrancado) return;
+    _arrancado = true;
+    final reduced = MediaQuery.maybeOf(context)?.disableAnimations ?? false;
+    if (widget.animar && !reduced) _c.repeat();
+  }
+
+  @override
+  void didUpdateWidget(covariant Bolt3D old) {
+    super.didUpdateWidget(old);
+    if (old.animar != widget.animar) {
+      if (widget.animar) {
+        _c.repeat();
+      } else {
+        _c.stop();
+      }
+    }
   }
 
   @override
@@ -281,16 +411,22 @@ class _BoltPainter extends CustomPainter {
       canvas.translate(-size.width / 2, -size.height / 2);
     }
 
-    // Resplandor.
+    // Resplandor (radio limitado: nunca pinta fuera de la caja).
     final g = Rect.fromCircle(
-        center: size.center(Offset.zero), radius: size.width * 0.66);
+      center: size.center(Offset.zero),
+      radius: size.width * 0.50,
+    );
     canvas.drawCircle(
       g.center,
       g.width / 2,
       Paint()
         ..shader = RadialGradient(
           colors: [
-            Color.lerp(const Color(0x4DFFC800), const Color(0xB3FFC800), pulse)!,
+            Color.lerp(
+              const Color(0x4DFFC800),
+              const Color(0xB3FFC800),
+              pulse,
+            )!,
             const Color(0x00FFC800),
           ],
         ).createShader(g),
@@ -311,7 +447,7 @@ class _BoltPainter extends CustomPainter {
         ..shader = const LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
-          colors: [Color(0xFFFFF3B0), Color(0xFFFFC800), Color(0xFFF59A00)],
+          colors: [Color(0xFFFFF3B0), Color(0xFFFACC15), Color(0xFFF59A00)],
           stops: [0, 0.55, 1],
         ).createShader(Offset.zero & size),
     );
@@ -375,17 +511,32 @@ class Medal3D extends StatefulWidget {
   State<Medal3D> createState() => _Medal3DState();
 }
 
-class _Medal3DState extends State<Medal3D>
-    with SingleTickerProviderStateMixin {
+class _Medal3DState extends State<Medal3D> with SingleTickerProviderStateMixin {
   late final AnimationController _c = AnimationController(
     vsync: this,
     duration: const Duration(milliseconds: 2600),
   );
+  bool _arrancado = false;
 
   @override
-  void initState() {
-    super.initState();
-    if (widget.animar) _c.repeat();
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_arrancado) return;
+    _arrancado = true;
+    final reduced = MediaQuery.maybeOf(context)?.disableAnimations ?? false;
+    if (widget.animar && !reduced) _c.repeat();
+  }
+
+  @override
+  void didUpdateWidget(covariant Medal3D old) {
+    super.didUpdateWidget(old);
+    if (old.animar != widget.animar) {
+      if (widget.animar) {
+        _c.repeat();
+      } else {
+        _c.stop();
+      }
+    }
   }
 
   @override
@@ -402,9 +553,8 @@ class _Medal3DState extends State<Medal3D>
         height: widget.size,
         child: AnimatedBuilder(
           animation: _c,
-          builder: (context, _) => CustomPaint(
-            painter: _MedalPainter(_c.value, widget.tono),
-          ),
+          builder: (context, _) =>
+              CustomPaint(painter: _MedalPainter(_c.value, widget.tono)),
         ),
       ),
     );
@@ -416,8 +566,7 @@ Path _estrella(Offset c, double r) {
   for (var i = 0; i < 10; i++) {
     final rad = i.isEven ? r : r * 0.46;
     final ang = -math.pi / 2 + i * math.pi / 5;
-    final o =
-        Offset(c.dx + rad * math.cos(ang), c.dy + rad * math.sin(ang));
+    final o = Offset(c.dx + rad * math.cos(ang), c.dy + rad * math.sin(ang));
     if (i == 0) {
       p.moveTo(o.dx, o.dy);
     } else {
@@ -477,9 +626,10 @@ class _MedalPainter extends CustomPainter {
     // Sombra bajo la medalla.
     canvas.drawOval(
       Rect.fromCenter(
-          center: Offset(cx, h * 0.96),
-          width: radio * 1.7,
-          height: radio * 0.34),
+        center: Offset(cx, h * 0.96),
+        width: radio * 1.7,
+        height: radio * 0.34,
+      ),
       Paint()..color = const Color(0x33000000),
     );
 
@@ -512,22 +662,27 @@ class _MedalPainter extends CustomPainter {
     // Estrella grabada: sombra oscura + luz clara.
     canvas.save();
     canvas.translate(w * 0.012, h * 0.014);
-    canvas.drawPath(_estrella(centro, radio * 0.50),
-        Paint()..color = Color((pal.oscuro.toARGB32() & 0x00FFFFFF) | 0x99000000));
+    canvas.drawPath(
+      _estrella(centro, radio * 0.50),
+      Paint()..color = Color((pal.oscuro.toARGB32() & 0x00FFFFFF) | 0x99000000),
+    );
     canvas.restore();
     canvas.save();
     canvas.translate(-w * 0.012, -h * 0.010);
-    canvas.drawPath(_estrella(centro, radio * 0.50),
-        Paint()..color = Color((pal.claro.toARGB32() & 0x00FFFFFF) | 0xCC000000));
+    canvas.drawPath(
+      _estrella(centro, radio * 0.50),
+      Paint()..color = Color((pal.claro.toARGB32() & 0x00FFFFFF) | 0xCC000000),
+    );
     canvas.restore();
     canvas.drawPath(
-        _estrella(centro, radio * 0.50),
-        Paint()
-          ..shader = LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [pal.claro, pal.base],
-          ).createShader(disco));
+      _estrella(centro, radio * 0.50),
+      Paint()
+        ..shader = LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [pal.claro, pal.base],
+        ).createShader(disco),
+    );
 
     // Brillo especular arriba-izquierda.
     canvas.save();
@@ -537,18 +692,24 @@ class _MedalPainter extends CustomPainter {
     canvas.translate(-centro.dx, -centro.dy);
     canvas.drawOval(
       Rect.fromCenter(
-          center: Offset(centro.dx - radio * 0.42,
-              centro.dy - radio * 0.55),
-          width: radio * 1.1,
-          height: radio * 0.5),
+        center: Offset(centro.dx - radio * 0.42, centro.dy - radio * 0.55),
+        width: radio * 1.1,
+        height: radio * 0.5,
+      ),
       Paint()
-        ..shader = const LinearGradient(
-          colors: [Color(0x80FFFFFF), Color(0x00FFFFFF)],
-        ).createShader(Rect.fromCenter(
-            center: Offset(centro.dx - radio * 0.42,
-                centro.dy - radio * 0.55),
-            width: radio * 1.1,
-            height: radio * 0.5)),
+        ..shader =
+            const LinearGradient(
+              colors: [Color(0x80FFFFFF), Color(0x00FFFFFF)],
+            ).createShader(
+              Rect.fromCenter(
+                center: Offset(
+                  centro.dx - radio * 0.42,
+                  centro.dy - radio * 0.55,
+                ),
+                width: radio * 1.1,
+                height: radio * 0.5,
+              ),
+            ),
     );
     canvas.restore();
 
@@ -561,25 +722,29 @@ class _MedalPainter extends CustomPainter {
       canvas.translate(cx + x, h * 0.60);
       canvas.rotate(-0.55);
       canvas.drawRect(
-        Rect.fromCenter(
-            center: Offset.zero, width: w * 0.16, height: h * 2.0),
+        Rect.fromCenter(center: Offset.zero, width: w * 0.16, height: h * 2.0),
         Paint()
-          ..shader = const LinearGradient(
-            colors: [
-              Color(0x00FFFFFF),
-              Color(0xB3FFFFFF),
-              Color(0x00FFFFFF),
-            ],
-          ).createShader(
-              Rect.fromCenter(center: Offset.zero, width: w * 0.16, height: h)),
+          ..shader =
+              const LinearGradient(
+                colors: [
+                  Color(0x00FFFFFF),
+                  Color(0xB3FFFFFF),
+                  Color(0x00FFFFFF),
+                ],
+              ).createShader(
+                Rect.fromCenter(
+                  center: Offset.zero,
+                  width: w * 0.16,
+                  height: h,
+                ),
+              ),
       );
       canvas.restore();
     }
   }
 
   @override
-  bool shouldRepaint(_MedalPainter old) =>
-      old.t != t || old.tono != tono;
+  bool shouldRepaint(_MedalPainter old) => old.t != t || old.tono != tono;
 }
 
 // ---------------------------------------------------------------------------
@@ -601,11 +766,27 @@ class _Trophy3DState extends State<Trophy3D>
     vsync: this,
     duration: const Duration(milliseconds: 3000),
   );
+  bool _arrancado = false;
 
   @override
-  void initState() {
-    super.initState();
-    if (widget.animar) _c.repeat();
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_arrancado) return;
+    _arrancado = true;
+    final reduced = MediaQuery.maybeOf(context)?.disableAnimations ?? false;
+    if (widget.animar && !reduced) _c.repeat();
+  }
+
+  @override
+  void didUpdateWidget(covariant Trophy3D old) {
+    super.didUpdateWidget(old);
+    if (old.animar != widget.animar) {
+      if (widget.animar) {
+        _c.repeat();
+      } else {
+        _c.stop();
+      }
+    }
   }
 
   @override
@@ -635,8 +816,12 @@ Path _copaPath(Size s) {
   p.moveTo(s.width * 0.26, s.height * 0.14);
   p.lineTo(s.width * 0.74, s.height * 0.14);
   p.lineTo(s.width * 0.70, s.height * 0.46);
-  p.quadraticBezierTo(s.width * 0.50, s.height * 0.70,
-      s.width * 0.30, s.height * 0.46);
+  p.quadraticBezierTo(
+    s.width * 0.50,
+    s.height * 0.70,
+    s.width * 0.30,
+    s.height * 0.46,
+  );
   p.close();
   return p;
 }
@@ -653,9 +838,10 @@ class _TrophyPainter extends CustomPainter {
     // Sombra en el suelo.
     canvas.drawOval(
       Rect.fromCenter(
-          center: Offset(w * 0.5, h * 0.965),
-          width: w * 0.52,
-          height: h * 0.10),
+        center: Offset(w * 0.5, h * 0.965),
+        width: w * 0.52,
+        height: h * 0.10,
+      ),
       Paint()..color = const Color(0x33000000),
     );
 
@@ -676,14 +862,18 @@ class _TrophyPainter extends CustomPainter {
 
     // Base y tallo.
     final base = Path()
-      ..addRRect(RRect.fromRectAndRadius(
-        Rect.fromLTWH(w * 0.36, h * 0.62, w * 0.28, h * 0.16),
-        Radius.circular(w * 0.03),
-      ))
-      ..addRRect(RRect.fromRectAndRadius(
-        Rect.fromLTWH(w * 0.26, h * 0.76, w * 0.48, h * 0.16),
-        Radius.circular(w * 0.04),
-      ));
+      ..addRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromLTWH(w * 0.36, h * 0.62, w * 0.28, h * 0.16),
+          Radius.circular(w * 0.03),
+        ),
+      )
+      ..addRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromLTWH(w * 0.26, h * 0.76, w * 0.48, h * 0.16),
+          Radius.circular(w * 0.04),
+        ),
+      );
     canvas.drawPath(
       base,
       Paint()
@@ -703,7 +893,7 @@ class _TrophyPainter extends CustomPainter {
         ..shader = const LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [Color(0xFFFFF0A0), Color(0xFFFFC800), Color(0xFFE08A00)],
+          colors: [Color(0xFFFFF0A0), Color(0xFFFACC15), Color(0xFFE08A00)],
           stops: [0, 0.5, 1],
         ).createShader(Offset.zero & size),
     );
@@ -737,12 +927,16 @@ class _TrophyPainter extends CustomPainter {
 
     // Estrella grabada en la copa.
     final ce = Offset(w * 0.5, h * 0.36);
-    canvas.drawPath(_estrella(ce, w * 0.13),
-        Paint()..color = const Color(0x667A4E00));
+    canvas.drawPath(
+      _estrella(ce, w * 0.13),
+      Paint()..color = const Color(0x667A4E00),
+    );
     canvas.save();
     canvas.translate(0, -h * 0.02);
-    canvas.drawPath(_estrella(ce, w * 0.13),
-        Paint()..color = const Color(0xB3FFF3B0));
+    canvas.drawPath(
+      _estrella(ce, w * 0.13),
+      Paint()..color = const Color(0xB3FFF3B0),
+    );
     canvas.restore();
 
     // Brillo barrido sobre la copa.
@@ -756,14 +950,20 @@ class _TrophyPainter extends CustomPainter {
       canvas.drawRect(
         Rect.fromCenter(center: Offset.zero, width: w * 0.16, height: h * 1.4),
         Paint()
-          ..shader = const LinearGradient(
-            colors: [
-              Color(0x00FFFFFF),
-              Color(0x99FFFFFF),
-              Color(0x00FFFFFF),
-            ],
-          ).createShader(Rect.fromCenter(
-              center: Offset.zero, width: w * 0.16, height: h)),
+          ..shader =
+              const LinearGradient(
+                colors: [
+                  Color(0x00FFFFFF),
+                  Color(0x99FFFFFF),
+                  Color(0x00FFFFFF),
+                ],
+              ).createShader(
+                Rect.fromCenter(
+                  center: Offset.zero,
+                  width: w * 0.16,
+                  height: h,
+                ),
+              ),
       );
       canvas.restore();
     }
@@ -800,11 +1000,29 @@ class _Anim3DState extends State<_Anim3D> with SingleTickerProviderStateMixin {
     vsync: this,
     duration: widget.duracion,
   );
+  bool _arrancado = false;
 
   @override
-  void initState() {
-    super.initState();
-    if (widget.animar) _c.repeat(reverse: widget.inverso);
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_arrancado) return;
+    _arrancado = true;
+    // Respeta "movimiento reducido" del sistema.
+    final reduced = MediaQuery.maybeOf(context)?.disableAnimations ?? false;
+    if (widget.animar && !reduced) _c.repeat(reverse: widget.inverso);
+  }
+
+  @override
+  void didUpdateWidget(covariant _Anim3D old) {
+    super.didUpdateWidget(old);
+    if (old.duracion != widget.duracion) _c.duration = widget.duracion;
+    if (old.animar != widget.animar) {
+      if (widget.animar) {
+        _c.repeat(reverse: widget.inverso);
+      } else {
+        _c.stop();
+      }
+    }
   }
 
   @override
@@ -815,13 +1033,33 @@ class _Anim3DState extends State<_Anim3D> with SingleTickerProviderStateMixin {
 
   @override
   Widget build(BuildContext context) {
+    final reduced = MediaQuery.maybeOf(context)?.disableAnimations ?? false;
+    final vivo = widget.animar && !reduced;
     return RepaintBoundary(
       child: SizedBox(
         width: widget.size,
         height: widget.size,
         child: AnimatedBuilder(
           animation: _c,
-          builder: (context, _) => CustomPaint(painter: widget.pintar(_c.value)),
+          builder: (context, _) {
+            final t = _c.value;
+            Widget paint = CustomPaint(painter: widget.pintar(t));
+            if (vivo) {
+              // Movimiento visual del icono completo: flota, se inclina y
+              // respira en loop, en fase con la animación interna del painter.
+              final dy = widget.size * 0.07 * math.sin(2 * math.pi * t);
+              final rot = 0.09 * math.sin(2 * math.pi * t + math.pi / 3);
+              final s = 1 + 0.05 * math.sin(4 * math.pi * t + math.pi / 2);
+              paint = Transform.translate(
+                offset: Offset(0, dy),
+                child: Transform.rotate(
+                  angle: rot,
+                  child: Transform.scale(scale: s, child: paint),
+                ),
+              );
+            }
+            return paint;
+          },
         ),
       ),
     );
@@ -839,12 +1077,12 @@ class People3D extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => _Anim3D(
-        size: size,
-        animar: animar,
-        inverso: true,
-        duracion: const Duration(milliseconds: 2200),
-        pintar: (t) => _PeoplePainter(t),
-      );
+    size: size,
+    animar: animar,
+    inverso: true,
+    duracion: const Duration(milliseconds: 2200),
+    pintar: (t) => _PeoplePainter(t),
+  );
 }
 
 class _PeoplePainter extends CustomPainter {
@@ -941,7 +1179,9 @@ class _PeoplePainter extends CustomPainter {
     final bob = math.sin(math.pi * t.clamp(0, 1));
 
     final g = Rect.fromCircle(
-        center: Offset(w * 0.5, h * 0.58), radius: w * 0.62);
+      center: Offset(w * 0.5, h * 0.58),
+      radius: w * 0.62,
+    );
     canvas.drawCircle(
       g.center,
       g.width / 2,
@@ -1081,12 +1321,12 @@ class ClipboardCheck3D extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => _Anim3D(
-        size: size,
-        animar: animar,
-        inverso: true,
-        duracion: const Duration(milliseconds: 2400),
-        pintar: (t) => _ClipboardCheckPainter(t),
-      );
+    size: size,
+    animar: animar,
+    inverso: true,
+    duracion: const Duration(milliseconds: 2400),
+    pintar: (t) => _ClipboardCheckPainter(t),
+  );
 }
 
 class _ClipboardCheckPainter extends CustomPainter {
@@ -1109,7 +1349,11 @@ class _ClipboardCheckPainter extends CustomPainter {
       Paint()
         ..shader = RadialGradient(
           colors: [
-            Color.lerp(const Color(0x3358CC02), const Color(0x6658CC02), pulse)!,
+            Color.lerp(
+              const Color(0x3358CC02),
+              const Color(0x6658CC02),
+              pulse,
+            )!,
             const Color(0x0058CC02),
           ],
         ).createShader(gl),
@@ -1139,7 +1383,7 @@ class _ClipboardCheckPainter extends CustomPainter {
     canvas.translate(-w * 0.012, -h * 0.014);
     canvas.drawPath(check, trazo..color = const Color(0xB3B9F56A));
     canvas.restore();
-    canvas.drawPath(check, trazo..color = const Color(0xFF58CC02));
+    canvas.drawPath(check, trazo..color = const Color(0xFF22C55E));
 
     canvas.restore();
   }
@@ -1159,12 +1403,12 @@ class ClipboardClock3D extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => _Anim3D(
-        size: size,
-        animar: animar,
-        inverso: false,
-        duracion: const Duration(milliseconds: 6000),
-        pintar: (t) => _ClipboardClockPainter(t),
-      );
+    size: size,
+    animar: animar,
+    inverso: false,
+    duracion: const Duration(milliseconds: 6000),
+    pintar: (t) => _ClipboardClockPainter(t),
+  );
 }
 
 class _ClipboardClockPainter extends CustomPainter {
@@ -1194,7 +1438,7 @@ class _ClipboardClockPainter extends CustomPainter {
         ..shader = const LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
-          colors: [Color(0xFF5AD1FF), Color(0xFF1CB0F6), Color(0xFF0B74AD)],
+          colors: [Color(0xFF5AD1FF), Color(0xFF38BDF8), Color(0xFF0B74AD)],
           stops: [0, 0.5, 1],
         ).createShader(disco),
     );
@@ -1263,13 +1507,19 @@ class _ClipboardClockPainter extends CustomPainter {
         ..style = PaintingStyle.stroke
         ..strokeWidth = w * 0.024
         ..strokeCap = StrokeCap.round
-        ..color = const Color(0xFFFF4B4B),
+        ..color = const Color(0xFFFB7185),
     );
 
     canvas.drawCircle(
-        centro, w * 0.026, Paint()..color = const Color(0xFF3C3C3C));
+      centro,
+      w * 0.026,
+      Paint()..color = const Color(0xFF3C3C3C),
+    );
     canvas.drawCircle(
-        centro, w * 0.011, Paint()..color = const Color(0xFFFFFFFF));
+      centro,
+      w * 0.011,
+      Paint()..color = const Color(0xFFFFFFFF),
+    );
   }
 
   @override
@@ -1287,12 +1537,12 @@ class Broom3D extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => _Anim3D(
-        size: size,
-        animar: animar,
-        inverso: true,
-        duracion: const Duration(milliseconds: 2600),
-        pintar: (t) => _BroomPainter(t),
-      );
+    size: size,
+    animar: animar,
+    inverso: true,
+    duracion: const Duration(milliseconds: 2600),
+    pintar: (t) => _BroomPainter(t),
+  );
 }
 
 class _BroomPainter extends CustomPainter {
@@ -1306,9 +1556,10 @@ class _BroomPainter extends CustomPainter {
 
     canvas.drawOval(
       Rect.fromCenter(
-          center: Offset(w * 0.38, h * 0.965),
-          width: w * 0.54,
-          height: h * 0.09),
+        center: Offset(w * 0.38, h * 0.965),
+        width: w * 0.54,
+        height: h * 0.09,
+      ),
       Paint()..color = const Color(0x33000000),
     );
 
@@ -1360,7 +1611,7 @@ class _BroomPainter extends CustomPainter {
         ..shader = const LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
-          colors: [Color(0xFFFFE24F), Color(0xFFFFC800), Color(0xFFD98A00)],
+          colors: [Color(0xFFFFE24F), Color(0xFFFACC15), Color(0xFFD98A00)],
           stops: [0, 0.5, 1],
         ).createShader(Offset.zero & size),
     );
@@ -1418,12 +1669,12 @@ class Meal3D extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => _Anim3D(
-        size: size,
-        animar: animar,
-        inverso: true,
-        duracion: const Duration(milliseconds: 2400),
-        pintar: (t) => _MealPainter(t),
-      );
+    size: size,
+    animar: animar,
+    inverso: true,
+    duracion: const Duration(milliseconds: 2400),
+    pintar: (t) => _MealPainter(t),
+  );
 }
 
 class _MealPainter extends CustomPainter {
@@ -1438,9 +1689,10 @@ class _MealPainter extends CustomPainter {
 
     canvas.drawOval(
       Rect.fromCenter(
-          center: Offset(w * 0.5, h * 0.965),
-          width: w * 0.62,
-          height: h * 0.09),
+        center: Offset(w * 0.5, h * 0.965),
+        width: w * 0.62,
+        height: h * 0.09,
+      ),
       Paint()..color = const Color(0x40000000),
     );
 
@@ -1485,7 +1737,10 @@ class _MealPainter extends CustomPainter {
       canvas.rotate(s.$2);
       canvas.drawOval(
         Rect.fromCenter(
-            center: Offset.zero, width: w * 0.05, height: h * 0.026),
+          center: Offset.zero,
+          width: w * 0.05,
+          height: h * 0.026,
+        ),
         Paint()..color = const Color(0xFFF7F0D4),
       );
       canvas.restore();
@@ -1583,12 +1838,12 @@ class Box3D extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => _Anim3D(
-        size: size,
-        animar: animar,
-        inverso: true,
-        duracion: const Duration(milliseconds: 2400),
-        pintar: (t) => _BoxPainter(t),
-      );
+    size: size,
+    animar: animar,
+    inverso: true,
+    duracion: const Duration(milliseconds: 2400),
+    pintar: (t) => _BoxPainter(t),
+  );
 }
 
 class _BoxPainter extends CustomPainter {
@@ -1603,9 +1858,10 @@ class _BoxPainter extends CustomPainter {
 
     canvas.drawOval(
       Rect.fromCenter(
-          center: Offset(w * 0.5, h * 0.975),
-          width: w * 0.56,
-          height: h * 0.08),
+        center: Offset(w * 0.5, h * 0.975),
+        width: w * 0.56,
+        height: h * 0.08,
+      ),
       Paint()..color = const Color(0x40000000),
     );
 
@@ -1685,14 +1941,20 @@ class _BoxPainter extends CustomPainter {
       canvas.drawRect(
         Rect.fromCenter(center: Offset.zero, width: w * 0.16, height: h * 1.4),
         Paint()
-          ..shader = const LinearGradient(
-            colors: [
-              Color(0x00FFFFFF),
-              Color(0x80FFFFFF),
-              Color(0x00FFFFFF),
-            ],
-          ).createShader(Rect.fromCenter(
-              center: Offset.zero, width: w * 0.16, height: h)),
+          ..shader =
+              const LinearGradient(
+                colors: [
+                  Color(0x00FFFFFF),
+                  Color(0x80FFFFFF),
+                  Color(0x00FFFFFF),
+                ],
+              ).createShader(
+                Rect.fromCenter(
+                  center: Offset.zero,
+                  width: w * 0.16,
+                  height: h,
+                ),
+              ),
       );
       canvas.restore();
     }
@@ -1715,12 +1977,12 @@ class Clock3D extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => _Anim3D(
-        size: size,
-        animar: animar,
-        inverso: false,
-        duracion: const Duration(milliseconds: 6000),
-        pintar: (t) => _ClockPainter(t),
-      );
+    size: size,
+    animar: animar,
+    inverso: false,
+    duracion: const Duration(milliseconds: 6000),
+    pintar: (t) => _ClockPainter(t),
+  );
 }
 
 class _ClockPainter extends CustomPainter {
@@ -1747,9 +2009,10 @@ class _ClockPainter extends CustomPainter {
 
     canvas.drawOval(
       Rect.fromCenter(
-          center: Offset(cx, h * 0.95),
-          width: radio * 1.8,
-          height: radio * 0.30),
+        center: Offset(cx, h * 0.95),
+        width: radio * 1.8,
+        height: radio * 0.30,
+      ),
       Paint()..color = const Color(0x33000000),
     );
 
@@ -1772,9 +2035,15 @@ class _ClockPainter extends CustomPainter {
       ..strokeCap = StrokeCap.round
       ..color = const Color(0xFF0B74AD);
     canvas.drawLine(
-        Offset(w * 0.30, h * 0.84), Offset(w * 0.21, h * 0.95), pata);
+      Offset(w * 0.30, h * 0.84),
+      Offset(w * 0.21, h * 0.95),
+      pata,
+    );
     canvas.drawLine(
-        Offset(w * 0.70, h * 0.84), Offset(w * 0.79, h * 0.95), pata);
+      Offset(w * 0.70, h * 0.84),
+      Offset(w * 0.79, h * 0.95),
+      pata,
+    );
 
     final disco = Rect.fromCircle(center: Offset(cx, cy), radius: radio);
     canvas.drawCircle(
@@ -1786,7 +2055,7 @@ class _ClockPainter extends CustomPainter {
           radius: 1.0,
           colors: [
             const Color(0xFF7ADCFF),
-            const Color(0xFF1CB0F6),
+            const Color(0xFF38BDF8),
             const Color(0xFF0B74AD),
           ],
           stops: const [0, 0.5, 1],
@@ -1858,13 +2127,19 @@ class _ClockPainter extends CustomPainter {
         ..style = PaintingStyle.stroke
         ..strokeWidth = w * 0.024
         ..strokeCap = StrokeCap.round
-        ..color = const Color(0xFFFF4B4B),
+        ..color = const Color(0xFFFB7185),
     );
 
     canvas.drawCircle(
-        Offset(cx, cy), w * 0.026, Paint()..color = const Color(0xFF3C3C3C));
+      Offset(cx, cy),
+      w * 0.026,
+      Paint()..color = const Color(0xFF3C3C3C),
+    );
     canvas.drawCircle(
-        Offset(cx, cy), w * 0.011, Paint()..color = const Color(0xFFFFFFFF));
+      Offset(cx, cy),
+      w * 0.011,
+      Paint()..color = const Color(0xFFFFFFFF),
+    );
   }
 
   @override
@@ -1875,20 +2150,56 @@ class _ClockPainter extends CustomPainter {
 // MAPA UNIFICADO: icono 3D de una insignia por su nombre de icono Material.
 // ---------------------------------------------------------------------------
 
+/// Icono 3D de una insignia por su nombre.
+///
+/// Colección de 22 iconos de logro disponibles para el catálogo editable de
+/// insignias: trofeo, medalla, estrella, fuego, rayo, reloj, tarea, lista,
+/// bandera, aprobado, corazón, birrete, libro, apretón, equipo, hogar,
+/// premio, llave, limpieza, cocina, orden y naturaleza.
 Widget insignia3D(String icono, {double size = 28, bool animar = true}) {
   switch (icono) {
+    case 'military_tech':
+      return Medal3D(size: size, animar: animar);
+    case 'local_fire_department':
+      return Flame3D(size: size, animar: animar);
+    case 'flash_on':
+      return Bolt3D(size: size, animar: animar);
+    case 'schedule':
+      return Clock3D(size: size, animar: animar);
+    case 'task_alt':
+      return ClipboardCheck3D(size: size);
+    case 'groups':
+      return People3D(size: size);
     case 'cleaning_services':
       return Broom3D(size: size, animar: animar);
     case 'restaurant':
       return Meal3D(size: size, animar: animar);
     case 'inventory_2':
       return Box3D(size: size, animar: animar);
-    case 'schedule':
-      return Clock3D(size: size, animar: animar);
-    case 'local_fire_department':
-      return Flame3D(size: size, animar: animar);
-    case 'flash_on':
-      return Bolt3D(size: size, animar: animar);
+    case 'star':
+      return Icono3D(tipo: Icono3DTipo.estrella, size: size);
+    case 'favorite':
+      return Icono3D(tipo: Icono3DTipo.corazon, size: size);
+    case 'school':
+      return Icono3D(tipo: Icono3DTipo.birrete, size: size);
+    case 'menu_book':
+      return Icono3D(tipo: Icono3DTipo.libro, size: size);
+    case 'handshake':
+      return Icono3D(tipo: Icono3DTipo.apreton, size: size);
+    case 'flag':
+      return Icono3D(tipo: Icono3DTipo.bandera, size: size);
+    case 'check_circle':
+      return Icono3D(tipo: Icono3DTipo.check, size: size);
+    case 'checklist':
+      return Icono3D(tipo: Icono3DTipo.checklist, size: size);
+    case 'home':
+      return Icono3D(tipo: Icono3DTipo.casita, size: size);
+    case 'gift':
+      return Icono3D(tipo: Icono3DTipo.regalo, size: size);
+    case 'key':
+      return Icono3D(tipo: Icono3DTipo.llave, size: size);
+    case 'park':
+      return Icono3D(tipo: Icono3DTipo.planta, size: size);
     case 'emoji_events':
     default:
       return Trophy3D(size: size, animar: animar);

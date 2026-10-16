@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../theme/app_theme.dart';
+import 'icono3d.dart';
+import 'playful_motion.dart';
 
 /// Título de página estilo diseño de referencia: 26 w900 + subtítulo tenue,
 /// con espacio inferior de 16. `actions` (iconos) va a la derecha.
@@ -20,10 +22,7 @@ class PageTitle extends StatelessWidget {
     final column = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          title,
-          style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w900),
-        ),
+        Text(title, style: Theme.of(context).textTheme.headlineMedium),
         if (subtitle != null)
           Text(
             subtitle!,
@@ -73,11 +72,11 @@ class CardBox extends StatelessWidget {
       padding: padding,
       decoration: BoxDecoration(
         color: color ?? (isDark ? AppColors.superficieOscura : Colors.white),
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(24),
         border: Border.all(
           color: isDark
               ? AppColors.grisMedio.withValues(alpha: 0.3)
-              : const Color(0xFFE5E5E5),
+              : AppColors.linea,
           width: 2,
         ),
       ),
@@ -105,8 +104,9 @@ class MetricCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // El fondo es pastel (claro) en ambos modos: el texto siempre oscuro.
-    const tinta = AppColors.grisOscuro;
+    // Fondo pastel en claro y fondo profundo en oscuro: la tinta sigue el
+    // tema (grisOscuro en claro, blanco en oscuro) para no perderse.
+    final tinta = textoTema(context);
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
@@ -120,7 +120,7 @@ class MetricCard extends StatelessWidget {
           const SizedBox(height: 4),
           Text(
             value,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 22,
               fontWeight: FontWeight.w900,
               color: tinta,
@@ -129,7 +129,7 @@ class MetricCard extends StatelessWidget {
           Text(
             label,
             textAlign: TextAlign.center,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.w700,
               color: tinta,
@@ -150,14 +150,145 @@ class ProgressLine extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(99),
-      child: LinearProgressIndicator(
-        value: value.clamp(0, 1),
-        minHeight: 12,
-        color: color,
-        backgroundColor: isDark ? Colors.white12 : AppColors.fondo,
+    final target = value.clamp(0, 1).toDouble();
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0, end: target),
+      duration: Duration(milliseconds: hqReduceMotion(context) ? 0 : 800),
+      curve: Curves.easeOutCubic,
+      builder: (context, animatedValue, _) => ClipRRect(
+        borderRadius: BorderRadius.circular(99),
+        child: LinearProgressIndicator(
+          value: animatedValue,
+          minHeight: 12,
+          color: color,
+          backgroundColor: isDark ? Colors.white12 : AppColors.fondo,
+        ),
       ),
+    );
+  }
+}
+
+/// Segmento pastilla idéntico al de la referencia: contenedor verde claro
+/// con radio 16, pestaña activa en píldora blanca con icono + etiqueta.
+class PillSegment extends StatelessWidget {
+  final int index;
+  final ValueChanged<int> onChanged;
+  final List<({IconData icon, String label})> items;
+  const PillSegment({
+    super.key,
+    required this.index,
+    required this.onChanged,
+    required this.items,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: isDark
+            ? AppColors.verde.withValues(alpha: 0.15)
+            : AppColors.verdeFondo,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Row(
+        children: [
+          for (var i = 0; i < items.length; i++)
+            Expanded(
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: () => onChanged(i),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  decoration: BoxDecoration(
+                    color: index == i
+                        ? (isDark
+                              ? AppColors.superficieOscura
+                              : Colors.white)
+                        : Colors.transparent,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(items[i].icon, size: 16),
+                      const SizedBox(width: 8),
+                      Text(
+                        items[i].label,
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Encabezado de pantalla estilo referencia: eyebrow verde 11 + título 28.
+class ReferenciaTitulo extends StatelessWidget {
+  final String eyebrow;
+  final String title;
+  final List<Widget> actions;
+
+  /// Ícono 3D infantil opcional junto al título.
+  final Icono3DTipo? icono;
+
+  const ReferenciaTitulo(
+    this.eyebrow,
+    this.title, {
+    super.key,
+    this.actions = const [],
+    this.icono,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final column = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          eyebrow,
+          style: const TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.bold,
+            color: AppColors.verde,
+            letterSpacing: 1.1,
+          ),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          title,
+          style: TextStyle(
+            fontSize: 28,
+            fontWeight: FontWeight.bold,
+            color: textoTema(context),
+          ),
+        ),
+      ],
+    );
+    final conIcono = icono == null
+        ? column
+        : Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icono3D(tipo: icono!, size: 38),
+              const SizedBox(width: 10),
+              Expanded(child: column),
+            ],
+          );
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 20),
+      child: actions.isEmpty
+          ? conIcono
+          : Row(
+              children: [Expanded(child: conIcono), ...actions],
+            ),
     );
   }
 }
@@ -167,42 +298,37 @@ class SegmentTabs extends StatelessWidget {
   final List<String> labels;
   final int index;
   final ValueChanged<int> onChanged;
-  const SegmentTabs(
-    this.labels,
-    this.index,
-    this.onChanged, {
-    super.key,
-  });
+  const SegmentTabs(this.labels, this.index, this.onChanged, {super.key});
 
   @override
   Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.only(bottom: 16),
-        child: SegmentedButton<int>(
-          showSelectedIcon: false,
-          segments: [
-            for (var i = 0; i < labels.length; i++)
-              ButtonSegment(value: i, label: Text(labels[i])),
-          ],
-          selected: {index},
-          onSelectionChanged: (s) => onChanged(s.first),
-        ),
-      );
+    padding: const EdgeInsets.only(bottom: 16),
+    child: SegmentedButton<int>(
+      showSelectedIcon: false,
+      segments: [
+        for (var i = 0; i < labels.length; i++)
+          ButtonSegment(value: i, label: Text(labels[i])),
+      ],
+      selected: {index},
+      onSelectionChanged: (s) => onChanged(s.first),
+    ),
+  );
 }
 
 /// Chip de dificultad estilo referencia: fondo pastel (verde/amarillo/rosa)
 /// y etiqueta en formato normal, tamaño de chip por defecto.
 Widget difChip(BuildContext context, String dificultad) {
   final bg = switch (dificultad) {
-    'facil' => AppColors.verdeFondo,
-    'media' => AppColors.amarilloFondo,
-    'dificil' => AppColors.rojoFondo,
-    _ => AppColors.azulFondo,
+    'facil' => verdeFondoTema(context),
+    'media' => amarilloFondoTema(context),
+    'dificil' => rojoFondoTema(context),
+    _ => azulFondoTema(context),
   };
   final label = dificultad == 'facil'
       ? 'FÁCIL'
       : dificultad == 'media'
-          ? 'MEDIA'
-          : 'DIFÍCIL';
+      ? 'MEDIA'
+      : 'DIFÍCIL';
   return Chip(
     label: Text(label),
     backgroundColor: bg,
@@ -212,4 +338,95 @@ Widget difChip(BuildContext context, String dificultad) {
       fontWeight: FontWeight.w700,
     ),
   );
+}
+
+/// Botón "Cancelar" unificado para diálogos: fondo suave, borde redondeado,
+/// icono ✕ y rebote al presionar. Sustituye a los TextButton planos.
+/// Botón "Cancelar" con el mismo lenguaje visual que [DuoButton]: radio 16,
+/// sombra dura inferior, texto en mayúsculas w900 y rebote al presionar.
+class CancelarButton extends StatelessWidget {
+  final VoidCallback? onPressed;
+  final String label;
+  final bool fullWidth;
+
+  const CancelarButton({
+    super.key,
+    this.onPressed,
+    this.label = 'Cancelar',
+    this.fullWidth = true,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    final tinta = textoTema(context);
+    final bg = dark ? AppColors.superficieOscura : const Color(0xFFF1F5F9);
+    final sombra = dark ? Colors.white24 : AppColors.linea;
+    return Semantics(
+      button: true,
+      child: BouncyTap(
+        onTap: onPressed,
+        child: Container(
+          width: fullWidth ? double.infinity : null,
+          height: 44,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: bg,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(color: sombra, offset: const Offset(0, 4)),
+            ],
+          ),
+          child: Row(
+            mainAxisSize: fullWidth ? MainAxisSize.max : MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.close_rounded, size: 18, color: tinta),
+              const SizedBox(width: 6),
+              Text(
+                label.toUpperCase(),
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 0.3,
+                  color: tinta,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Acciones de diálogo apiladas en vertical y a lo ancho: la acción
+/// principal arriba y Cancelar debajo, ambas ocupando todo el ancho.
+class DialogActions extends StatelessWidget {
+  final Widget primary;
+  final VoidCallback? onCancel;
+  final String cancelLabel;
+
+  const DialogActions({
+    super.key,
+    required this.primary,
+    this.onCancel,
+    this.cancelLabel = 'Cancelar',
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: double.infinity,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          primary,
+          const SizedBox(height: 10),
+          CancelarButton(onPressed: onCancel, label: cancelLabel),
+        ],
+      ),
+    );
+  }
 }

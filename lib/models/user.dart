@@ -40,6 +40,7 @@ class User {
     this.pin = '',
     this.insigniasObtenidas,
     this.mascota = '',
+    // ignore: prefer_initializing_formals
   }) : _edad = edad;
 
   /// Edad calculada a partir de la fecha de nacimiento cuando existe, de modo
@@ -67,7 +68,14 @@ class User {
 
   /// Paleta de colores para los integrantes (cada uno con uno distinto).
   static const List<String> nombresPaleta = [
-    'verde', 'azul', 'morado', 'rojo', 'naranja', 'cian', 'rosado', 'cafe',
+    'verde',
+    'azul',
+    'morado',
+    'rojo',
+    'naranja',
+    'cian',
+    'rosado',
+    'cafe',
   ];
 
   /// Normaliza el color guardado (ej: 'Rojo', 'Café', 'cafe') a una clave.
@@ -88,7 +96,9 @@ class User {
     if (t.startsWith('rojo') || t == 'red') return 'rojo';
     if (t.startsWith('verde') || t == 'green') return 'verde';
     if (t.startsWith('azul') || t == 'blue') return 'azul';
-    if (t.startsWith('mora') || t == 'purple' || t == 'violeta') return 'morado';
+    if (t.startsWith('mora') || t == 'purple' || t == 'violeta') {
+      return 'morado';
+    }
     return null;
   }
 

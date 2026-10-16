@@ -12,8 +12,9 @@ class BluetoothSyncService {
   static final BluetoothSyncService instance = BluetoothSyncService();
 
   final ValueNotifier<bool> activo = ValueNotifier(false);
-  final ValueNotifier<String> mensaje =
-      ValueNotifier('Sincronización Bluetooth no disponible en esta plataforma');
+  final ValueNotifier<String> mensaje = ValueNotifier(
+    'Sincronización Bluetooth no disponible en esta plataforma',
+  );
   final ValueNotifier<List<BluetoothPeer>> peers = ValueNotifier(const []);
   final ValueNotifier<DateTime?> ultimaSync = ValueNotifier(null);
 

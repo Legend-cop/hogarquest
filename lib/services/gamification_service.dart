@@ -13,13 +13,7 @@ class GamificationService {
     5: 'Experto del hogar',
   };
 
-  static const limites = <int, int>{
-    1: 0,
-    2: 100,
-    3: 250,
-    4: 500,
-    5: 800,
-  };
+  static const limites = <int, int>{1: 0, 2: 100, 3: 250, 4: 500, 5: 800};
 
   /// Nivel según los puntos acumulados (hasta 5, y una fórmula para niveles 6+).
   static int nivelPara(int puntos) {
@@ -51,20 +45,77 @@ class GamificationService {
     return (base, base + 399);
   }
 
-  /// Ligas ordenadas de menor a mayor (para el panel de trofeos).
-  static const List<String> ligas = ['Bronce', 'Plata', 'Oro', 'Platino', 'Zafiro'];
+  /// Ligas ordenadas de menor a mayor. Son escalones por PUNTOS acumulados
+  /// (no por posición): así la progresión es real y gradual, sin saltos.
+  static const List<String> ligas = [
+    'Bronce',
+    'Plata',
+    'Oro',
+    'Platino',
+    'Zafiro',
+    'Esmeralda',
+    'Rubí',
+    'Amatista',
+    'Topacio',
+    'Obsidiana',
+    'Cristal',
+    'Perla',
+    'Coral',
+    'Ámbar',
+    'Jade',
+    'Cobalto',
+    'Celeste',
+    'Estelar',
+    'Galáctica',
+    'Corona',
+  ];
 
-  /// Liga de un integrante según su posición (1-based) en el ranking de la
-  /// semana anterior. Percentiles: 0–12% Zafiro, 12–40% Platino, 40–65% Oro,
-  /// 65–85% Plata, 85–100% Bronce. Con un solo integrante: Zafiro.
-  static String ligaDe(int posicion, int total) {
-    if (total <= 0) return 'Bronce';
-    final p = total <= 1 ? 0.0 : (posicion - 1) / total;
-    if (p < 0.12) return 'Zafiro';
-    if (p < 0.40) return 'Platino';
-    if (p < 0.65) return 'Oro';
-    if (p < 0.85) return 'Plata';
-    return 'Bronce';
+  /// Puntos mínimos para pertenecer a cada liga (misma longitud que [ligas]).
+  static const List<int> _umbralesLiga = [
+    0,
+    100,
+    250,
+    450,
+    700,
+    1000,
+    1400,
+    1900,
+    2500,
+    3200,
+    4000,
+    5000,
+    6200,
+    7600,
+    9200,
+    11000,
+    13000,
+    15500,
+    18500,
+    22000,
+  ];
+
+  /// Índice (0-based) de la liga según los puntos acumulados.
+  static int indiceLiga(int puntos) {
+    var idx = 0;
+    for (var i = 0; i < ligas.length; i++) {
+      if (puntos >= _umbralesLiga[i]) idx = i;
+    }
+    return idx;
+  }
+
+  /// Liga de un integrante según sus puntos acumulados.
+  static String ligaDe(int puntos) => ligas[indiceLiga(puntos)];
+
+  /// Puntos mínimos de la liga en la posición [idx] (0-based).
+  static int umbralLiga(int idx) =>
+      idx < 0 ? 0 : _umbralesLiga[idx.clamp(0, _umbralesLiga.length - 1)];
+
+  /// Puntos que faltan para subir a la siguiente liga (0 si ya es la última).
+  static int puntosParaSiguienteLiga(int puntos) {
+    final idx = indiceLiga(puntos);
+    if (idx >= ligas.length - 1) return 0;
+    final faltan = _umbralesLiga[idx + 1] - puntos;
+    return faltan > 0 ? faltan : 0;
   }
 
   /// Progreso (0.0 - 1.0) hacia el siguiente nivel.
@@ -92,11 +143,12 @@ class GamificationService {
   /// Actualiza la racha contando días consecutivos con tareas aprobadas.
   static int calcularRacha(List<DateTime> fechasAprobadas) {
     if (fechasAprobadas.isEmpty) return 0;
-    final fechas = fechasAprobadas
-        .map((f) => DateTime(f.year, f.month, f.day))
-        .toSet()
-        .toList()
-      ..sort();
+    final fechas =
+        fechasAprobadas
+            .map((f) => DateTime(f.year, f.month, f.day))
+            .toSet()
+            .toList()
+          ..sort();
     var racha = 1;
     final hoy = DateTime.now();
     final ultima = fechas.last;
@@ -112,9 +164,10 @@ class GamificationService {
     return racha;
   }
 
-  /// Determina qué insignias merece un integrante.
-  /// Devuelve lista de índices de insignias (1..7 según el catálogo fijo).
+  /// Determina qué insignias merece un integrante según el catálogo
+  /// editable: cada insignia define su métrica y su meta.
   static List<int> insigniasGanadas({
+    required List<Badge> catalogo,
     required int puntos,
     required int racha,
     required List<Assignment> aprobadas,
@@ -122,15 +175,22 @@ class GamificationService {
   }) {
     final c = _contarCategorias(aprobadas: aprobadas, tareas: tareas);
     final diarias = _maxPorDia(aprobadas);
-    final ganadas = <int>{};
-    if (c['limpieza']! >= 10) ganadas.add(1);
-    if (c['cocina']! >= 10) ganadas.add(2);
-    if (c['orden']! >= 10) ganadas.add(3);
-    if (c['puntual']! >= 5) ganadas.add(4);
-    if (racha >= 7) ganadas.add(5);
-    if (nivelPara(puntos) >= 5) ganadas.add(6);
-    if (diarias >= 5) ganadas.add(7);
-    return ganadas.toList()..sort();
+    final ganadas = <int>[];
+    for (final b in catalogo) {
+      final id = b.id;
+      if (id == null) continue;
+      final meta = b.meta > 0 ? b.meta : 1;
+      final valor = _valorMetrica(
+        b.metrica,
+        puntos: puntos,
+        racha: racha,
+        categorias: c,
+        diarias: diarias,
+        tareasAprobadas: aprobadas.length,
+      );
+      if (valor >= meta) ganadas.add(id);
+    }
+    return ganadas..sort();
   }
 
   /// Cuenta tareas aprobadas por categoría según la descripción.
@@ -191,16 +251,26 @@ class GamificationService {
     return max;
   }
 
-  /// Meta (valor objetivo) de cada insignia del catálogo, por id.
-  static const Map<int, int> metasInsignias = {
-    1: 10, // Maestro de limpieza
-    2: 10, // Rey de la cocina
-    3: 10, // Orden perfecto
-    4: 5, // Puntual
-    5: 7, // Racha de 7 días
-    6: 800, // Experto del hogar (puntos para nivel 5)
-    7: 5, // 5 tareas en un día
-  };
+  /// Valor actual de la métrica que mide una insignia.
+  static int _valorMetrica(
+    String metrica, {
+    required int puntos,
+    required int racha,
+    required Map<String, int> categorias,
+    required int diarias,
+    required int tareasAprobadas,
+  }) {
+    return switch (metrica) {
+      'limpieza' => categorias['limpieza']!,
+      'cocina' => categorias['cocina']!,
+      'orden' => categorias['orden']!,
+      'puntual' => categorias['puntual']!,
+      'racha' => racha,
+      'nivel' => nivelPara(puntos),
+      'diarias' => diarias,
+      _ => tareasAprobadas,
+    };
+  }
 
   /// Progreso actual de cada insignia del catálogo para un integrante.
   /// Devuelve tuplas (insignia, actual, meta, ganada).
@@ -213,25 +283,27 @@ class GamificationService {
   }) {
     final c = _contarCategorias(aprobadas: aprobadas, tareas: tareas);
     final diarias = _maxPorDia(aprobadas);
-    final valores = <int, int>{
-      1: c['limpieza']!,
-      2: c['cocina']!,
-      3: c['orden']!,
-      4: c['puntual']!,
-      5: racha,
-      6: puntos,
-      7: diarias,
-    };
-    final ganadas = Set<int>.from(insigniasGanadas(
-      puntos: puntos,
-      racha: racha,
-      aprobadas: aprobadas,
-      tareas: tareas,
-    ));
+    final ganadas = Set<int>.from(
+      insigniasGanadas(
+        catalogo: catalogo,
+        puntos: puntos,
+        racha: racha,
+        aprobadas: aprobadas,
+        tareas: tareas,
+      ),
+    );
     return catalogo.map((b) {
-      final meta = metasInsignias[b.id] ?? 1;
-      final actual = (valores[b.id] ?? 0).clamp(0, meta);
-      return (b, actual, meta, ganadas.contains(b.id));
+      final meta = b.meta > 0 ? b.meta : 1;
+      final valor = _valorMetrica(
+        b.metrica,
+        puntos: puntos,
+        racha: racha,
+        categorias: c,
+        diarias: diarias,
+        tareasAprobadas: aprobadas.length,
+      );
+      final actual = valor.clamp(0, meta);
+      return (b, actual, meta, b.id != null && ganadas.contains(b.id));
     }).toList();
   }
 }

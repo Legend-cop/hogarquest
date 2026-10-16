@@ -38,8 +38,10 @@ class NotificationService {
   /// ¿El sistema permite mostrar notificaciones de la app?
   Future<bool> permisoConcedido() async {
     try {
-      final androidImpl = _plugin.resolvePlatformSpecificImplementation<
-          AndroidFlutterLocalNotificationsPlugin>();
+      final androidImpl = _plugin
+          .resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin
+          >();
       return (await androidImpl?.areNotificationsEnabled()) ?? true;
     } catch (_) {
       return true;
@@ -58,8 +60,11 @@ class NotificationService {
 
   /// Guarda la hora del recordatorio (minutos del día) y la sincroniza con el
   /// server, que es quien envía el push diario.
-  Future<void> guardarHora(
-      {required AppProvider app, required int userId, required int minutos}) async {
+  Future<void> guardarHora({
+    required AppProvider app,
+    required int userId,
+    required int minutos,
+  }) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setInt('$_claveMinutos$userId', minutos);
     await prefs.setInt('$_claveHora$userId', minutos ~/ 60);
@@ -124,8 +129,10 @@ class NotificationService {
 
   /// Envía la hora configurada del recordatorio y el offset UTC local al
   /// server, para que él programe el push diario.
-  Future<void> sincronizar(
-      {required AppProvider app, required int userId}) async {
+  Future<void> sincronizar({
+    required AppProvider app,
+    required int userId,
+  }) async {
     final minutos = await horaConfigurada(userId);
     final offset = DateTime.now().timeZoneOffset.inMinutes;
     await app.guardarRecordatorioEnServer(
@@ -144,8 +151,10 @@ class NotificationService {
 
   /// Solicita permiso para mostrar notificaciones (Android 13+).
   Future<bool> solicitarPermiso() async {
-    final androidImpl = _plugin.resolvePlatformSpecificImplementation<
-        AndroidFlutterLocalNotificationsPlugin>();
+    final androidImpl = _plugin
+        .resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin
+        >();
     return (await androidImpl?.requestNotificationsPermission()) ?? true;
   }
 

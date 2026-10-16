@@ -6,14 +6,14 @@ import '../theme/app_theme.dart';
 import '../widgets/duo_widgets.dart';
 import '../widgets/section_header.dart';
 
-class BluetoothSyncScreen extends StatefulWidget {
-  const BluetoothSyncScreen({super.key});
+class SincronizacionBluetoothScreen extends StatefulWidget {
+  const SincronizacionBluetoothScreen({super.key});
 
   @override
-  State<BluetoothSyncScreen> createState() => _BluetoothSyncScreenState();
+  State<SincronizacionBluetoothScreen> createState() => _SincronizacionBluetoothScreenState();
 }
 
-class _BluetoothSyncScreenState extends State<BluetoothSyncScreen> {
+class _SincronizacionBluetoothScreenState extends State<SincronizacionBluetoothScreen> {
   final _svc = BluetoothSyncService.instance;
 
   @override
@@ -71,14 +71,18 @@ class _BluetoothSyncScreenState extends State<BluetoothSyncScreen> {
           children: [
             DuoCard(
               child: SwitchListTile(
-                contentPadding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 4,
+                ),
                 secondary: CircleAvatar(
                   backgroundColor: AppColors.azul.withValues(alpha: 0.15),
                   child: const Icon(Icons.bluetooth, color: AppColors.azul),
                 ),
-                title: const Text('Sincronización por Bluetooth',
-                    style: TextStyle(fontWeight: FontWeight.w700)),
+                title: const Text(
+                  'Sincronización por Bluetooth',
+                  style: TextStyle(fontWeight: FontWeight.w700),
+                ),
                 subtitle: Text(_svc.mensaje.value),
                 value: activo,
                 onChanged: _svc.disponible ? _alternar : null,
@@ -89,7 +93,10 @@ class _BluetoothSyncScreenState extends State<BluetoothSyncScreen> {
                 padding: const EdgeInsets.only(top: 8),
                 child: Text(
                   'Esta función solo está disponible en Android.',
-                  style: TextStyle(color: textoSuaveTema(context), fontSize: 12),
+                  style: TextStyle(
+                    color: textoSuaveTema(context),
+                    fontSize: 12,
+                  ),
                 ),
               ),
             const SizedBox(height: 20),
@@ -106,7 +113,9 @@ class _BluetoothSyncScreenState extends State<BluetoothSyncScreen> {
                   trailing: Text(
                     codigo,
                     style: const TextStyle(
-                        fontWeight: FontWeight.w800, fontSize: 16),
+                      fontWeight: FontWeight.w800,
+                      fontSize: 16,
+                    ),
                   ),
                 ),
               ),
@@ -122,22 +131,31 @@ class _BluetoothSyncScreenState extends State<BluetoothSyncScreen> {
                   padding: const EdgeInsets.only(bottom: 8),
                   child: Text(
                     'Última sincronización: ${_hora(ultima)}',
-                    style: TextStyle(color: textoSuaveTema(context), fontSize: 12),
+                    style: TextStyle(
+                      color: textoSuaveTema(context),
+                      fontSize: 12,
+                    ),
                   ),
                 ),
               SectionHeader(title: 'Dispositivos cercanos'),
               if (peers.isEmpty)
-                Text('No se han detectado dispositivos.',
-                    style: TextStyle(color: textoSuaveTema(context)))
+                Text(
+                  'No se han detectado dispositivos.',
+                  style: TextStyle(color: textoSuaveTema(context)),
+                )
               else
                 for (final p in peers)
                   DuoCard(
                     margin: const EdgeInsets.only(bottom: 10),
                     child: ListTile(
                       leading: CircleAvatar(
-                        backgroundColor: AppColors.verde.withValues(alpha: 0.15),
-                        child: const Icon(Icons.phone_android,
-                            color: AppColors.verde),
+                        backgroundColor: AppColors.verde.withValues(
+                          alpha: 0.15,
+                        ),
+                        child: const Icon(
+                          Icons.phone_android,
+                          color: AppColors.verde,
+                        ),
                       ),
                       title: Text(p.nombre),
                       subtitle: Text(p.id),

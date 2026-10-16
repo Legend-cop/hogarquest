@@ -1,3 +1,7 @@
+// Implementación web del selector de fotos: solo se carga en compilaciones web
+// (export condicional en photo_picker.dart), por eso usa dart:html.
+// ignore_for_file: avoid_web_libraries_in_flutter, deprecated_member_use
+
 import 'dart:async';
 import 'dart:convert';
 import 'dart:html' as html;
@@ -24,9 +28,7 @@ Future<(Uint8List, String)?> elegirFoto() async {
         final bytes = reader.result is Uint8List
             ? reader.result as Uint8List
             : Uint8List.fromList(
-                base64.decode(
-                  (reader.result as String).split(',').last,
-                ),
+                base64.decode((reader.result as String).split(',').last),
               );
         final mime = file.type == 'image/png' ? 'image/png' : 'image/jpeg';
         completer.complete((bytes, mime));

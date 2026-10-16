@@ -20,9 +20,9 @@ Objetivo: que tú tengas control y seguridad sin pagar nada.
   `app_provider.verificarPin` / `desbloquearAdmin` / `fijarPin`)
 - **Botón "Exportar respaldo"**: descarga un archivo JSON de toda la base (usuarios,
   tareas, puntos, historial) para guardarlo en tu drive. → ✅ IMPLEMENTADO
-  (`profile_screen.dart` → `app.exportarRespaldo()` → `database_helper.exportarDb()`)
+  (`perfil_screen.dart` → `app.exportarRespaldo()` → `database_helper.exportarDb()`)
 - **Restaurar respaldo** (opcional, en esta fase o la siguiente): cargar ese JSON de
-  vuelta. → ✅ IMPLEMENTADO (`profile_screen.dart` → `app.importarRespaldo` →
+  vuelta. → ✅ IMPLEMENTADO (`perfil_screen.dart` → `app.importarRespaldo` →
   `database_helper.importarDb`; usa file_picker para elegir el .json y re-sella los
   registros para que el servidor prefiera la versión restaurada)
 
@@ -135,7 +135,7 @@ Objetivo: gráfica legible en móvil, tareas con hora y gestión real de copadre
   barra en vez de `Expanded`)
 - **Hora límite en tareas**: el formulario de crear/editar ahora elige fecha **y hora**;
   las tarjetas y listas muestran "fecha HH:mm"; la lógica de vencidas usa la hora
-  completa. → ✅ IMPLEMENTADO (`tasks_screen.dart`, helper `_fmtLimite`,
+  completa. → ✅ IMPLEMENTADO (`tareas_screen.dart`, helper `_fmtLimite`,
   `showTimePicker` tras `showDatePicker`)
 - **Recordatorio local a la hora límite**: al guardar una tarea con fecha/hora futura se
   programa una notificación local (best-effort, con `zonedSchedule`). → ✅ IMPLEMENTADO
@@ -144,7 +144,7 @@ Objetivo: gráfica legible en móvil, tareas con hora y gestión real de copadre
 - **Selector de rol real para copadres**: el diálogo de usuario ahora expone
   "Hijo/Integrante" vs "Padre/Copadre" (antes la variable `_rol` existía pero no se
   mostraba, así que nadie podía promover a copadre desde la app). → ✅ CORREGIDO/HECHO
-  (`admin_usuarios_screen.dart`, `_UsuarioFormDialog` con `DropdownButtonFormField` de
+  (`integrantes_screen.dart`, `_UsuarioFormDialog` con `DropdownButtonFormField` de
   rol y campo de contraseña)
 
 Esfuerzo: M. Dependencias: Fases 1-5 estables.
@@ -236,7 +236,7 @@ línea base) + `flutter build web --no-pub` + push a `main`.
 - **Perfil**: banner `#2A3B1D` con textos blancos, `_StatsGrid` 2×2
   (Nivel/Racha/XP/Edad), "Medallero de insignias" (medallones ámbar si
   logrados + "X de Y"), engranaje ⚙️ → Ajustes. → ✅
-- **`settings_screen.dart` nuevo** (maxWidth 700): Apariencia y sonido
+- **`ajustes_screen.dart` nuevo** (maxWidth 700): Apariencia y sonido
   (tema, sonidos, vibración), Notificaciones (hora/permisos), Administración
   solo admin (PIN, exportar, restaurar, sync, bluetooth, "Reiniciar datos"
   con confirmación `REINICIAR`). → ✅

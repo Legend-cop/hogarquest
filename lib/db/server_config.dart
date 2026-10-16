@@ -17,7 +17,8 @@ class ServerConfig {
   /// Respaldo por si el build no recibe API_BASE_URL (variable del repo
   /// ausente). Así la app nativa siempre puede hablar con el servidor real
   /// aunque el --dart-define venga vacío.
-  static const String _fallbackUrl = 'https://hogarquest-api-uts.azurewebsites.net';
+  static const String _fallbackUrl =
+      'https://hogarquest-api-uts.azurewebsites.net';
 
   /// URL que usa la app nativa (Android/Windows) para hablar con la nube.
   /// Si el build no definió API_BASE_URL (o dejó el marcador), usa el respaldo.
@@ -30,7 +31,8 @@ class ServerConfig {
   /// Orden en que la app nativa probará las direcciones (solo la nube).
   static List<String> get candidateUrls => [cloudUrl];
 
-  static const String writeToken = 'hq-aCOYOzECZhLg04xREE1a1WlAoRJp3exLGJB63cQB';
+  static const String writeToken =
+      'hq-aCOYOzECZhLg04xREE1a1WlAoRJp3exLGJB63cQB';
 
   /// URL que la app nativa debe usar (se rellena al encontrar el servidor).
   static String activaUrl = cloudUrl;

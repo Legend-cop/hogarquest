@@ -6,7 +6,8 @@ class Castigo {
   final int usuarioId;
   final String motivo;
   final int puntos;
-  final String tipo; // 'tarea' | 'disciplina' (también acepta 'vencida'/'manual' antiguos)
+  final String
+  tipo; // 'tarea' | 'disciplina' (también acepta 'vencida'/'manual' antiguos)
   final int? tareaId;
   final DateTime fecha;
 
@@ -66,8 +67,8 @@ class Castigo {
       puntos: (map['puntos'] as int?) ?? 0,
       tipo: (map['tipo'] as String?) ?? 'disciplina',
       tareaId: map['tarea_id'] as int?,
-      fecha: DateTime.tryParse((map['fecha'] as String?) ?? '') ??
-          DateTime.now(),
+      fecha:
+          DateTime.tryParse((map['fecha'] as String?) ?? '') ?? DateTime.now(),
     );
   }
 }

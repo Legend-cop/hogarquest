@@ -11,7 +11,9 @@ import '../providers/app_provider.dart';
 import '../theme/app_theme.dart';
 import '../widgets/duo_widgets.dart';
 import '../widgets/empty_state.dart';
+import '../widgets/mascots.dart';
 import '../widgets/hq_design.dart';
+import '../widgets/icono3d.dart';
 import '../widgets/icons3d.dart';
 import '../models/reward.dart';
 import '../models/redemption.dart';
@@ -24,8 +26,8 @@ String _resolverFoto(String foto) {
   return '${ServerConfig.baseUrl}$foto';
 }
 
-class RewardsScreen extends StatelessWidget {
-  const RewardsScreen({super.key});
+class PremiosScreen extends StatelessWidget {
+  const PremiosScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -83,13 +85,15 @@ class _AdminRewardsViewState extends State<_AdminRewardsView> {
   void _nuevaRecompensa(BuildContext context) {
     showDialog(
       context: context,
-      builder: (_) => _RewardFormDialog(
-        onSaved: (data) => _crearRecompensa(context, data),
-      ),
+      builder: (_) =>
+          _RewardFormDialog(onSaved: (data) => _crearRecompensa(context, data)),
     );
   }
 
-  Future<void> _crearRecompensa(BuildContext context, Map<String, Object?> data) async {
+  Future<void> _crearRecompensa(
+    BuildContext context,
+    Map<String, Object?> data,
+  ) async {
     await widget.app.crearRecompensa(
       nombre: data['nombre'] as String? ?? '',
       descripcion: data['descripcion'] as String? ?? '',
@@ -102,22 +106,26 @@ class _AdminRewardsViewState extends State<_AdminRewardsView> {
   }
 
   void _editarRecompensa(BuildContext context, Reward reward) {
-      showDialog(
-        context: context,
-        builder: (_) => _RewardFormDialog(
-          initialData: {
-            'nombre': reward.nombre,
-            'descripcion': reward.descripcion,
-            'costoPuntos': reward.costoPuntos,
-            'foto': reward.foto,
-            'fotoLocal': reward.fotoLocal,
-          },
-          onSaved: (data) => _editarRecompensaGuardado(context, reward, data),
-        ),
-      );
+    showDialog(
+      context: context,
+      builder: (_) => _RewardFormDialog(
+        initialData: {
+          'nombre': reward.nombre,
+          'descripcion': reward.descripcion,
+          'costoPuntos': reward.costoPuntos,
+          'foto': reward.foto,
+          'fotoLocal': reward.fotoLocal,
+        },
+        onSaved: (data) => _editarRecompensaGuardado(context, reward, data),
+      ),
+    );
   }
 
-  Future<void> _editarRecompensaGuardado(BuildContext context, Reward reward, Map<String, Object?> data) async {
+  Future<void> _editarRecompensaGuardado(
+    BuildContext context,
+    Reward reward,
+    Map<String, Object?> data,
+  ) async {
     final recompensasEditada = Reward(
       id: reward.id,
       nombre: data['nombre'] as String? ?? reward.nombre,
@@ -138,17 +146,19 @@ class _AdminRewardsViewState extends State<_AdminRewardsView> {
         title: const Text('Eliminar recompensa'),
         content: Text('¿Estás seguro que deseas eliminar "${reward.nombre}"?'),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancelar'),
-          ),
-          TextButton(
-            onPressed: () async {
-              await widget.app.eliminarRecompensa(reward.id!);
-              if (context.mounted) Navigator.pop(context);
-              _cargarDatos();
-            },
-            child: const Text('Eliminar', style: TextStyle(color: Colors.red)),
+          DialogActions(
+            onCancel: () => Navigator.pop(context),
+            primary: DuoButton(
+              fullWidth: false,
+              label: 'Eliminar',
+              color: AppColors.rojo,
+              borderColor: AppColors.rojoOscuro,
+              onPressed: () async {
+                await widget.app.eliminarRecompensa(reward.id!);
+                if (context.mounted) Navigator.pop(context);
+                _cargarDatos();
+              },
+            ),
           ),
         ],
       ),
@@ -162,27 +172,24 @@ class _AdminRewardsViewState extends State<_AdminRewardsView> {
     return Column(
       children: [
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
-          child: PageTitle(
-            'Premios',
-            subtitle:
-                'Saldo: ${widget.app.usuarioActual?.puntos ?? 0} puntos',
-          ),
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+          child: ReferenciaTitulo('CANJEA TUS PUNTOS', 'Premios', icono: Icono3DTipo.regalo),
         ),
         Padding(
-          padding: const EdgeInsets.fromLTRB(12, 4, 12, 4),
+          padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
           child: Row(
             children: [
               Expanded(
                 child: DuoButton(
-                  label: 'Nueva recompensa',
+                  label: 'Nueva',
                   icon: Icons.add,
                   onPressed: () => _nuevaRecompensa(context),
                 ),
               ),
               const SizedBox(width: 10),
               DuoButton(
-                label: '📋 Historial',
+                label: 'Historial',
+                icon: Icons.history,
                 fullWidth: false,
                 onPressed: () => showDialog(
                   context: context,
@@ -195,9 +202,11 @@ class _AdminRewardsViewState extends State<_AdminRewardsView> {
         Expanded(
           child: _recompensas.isEmpty
               ? const EmptyState(
+                  mascota: MascotType.sushito,
                   icon: Icons.card_giftcard,
                   message: 'No hay recompensas disponibles',
-                  hint: 'Crea una recompensa para incentivar a los integrantes.',
+                  hint:
+                      'Crea una recompensa para incentivar a los integrantes.',
                 )
               : Center(
                   child: ConstrainedBox(
@@ -206,11 +215,11 @@ class _AdminRewardsViewState extends State<_AdminRewardsView> {
                       padding: const EdgeInsets.all(12),
                       gridDelegate:
                           const SliverGridDelegateWithMaxCrossAxisExtent(
-                        maxCrossAxisExtent: 260,
-                        mainAxisSpacing: 12,
-                        crossAxisSpacing: 12,
-                        childAspectRatio: 0.72,
-                      ),
+                            maxCrossAxisExtent: 260,
+                            mainAxisSpacing: 12,
+                            crossAxisSpacing: 12,
+                            childAspectRatio: 0.72,
+                          ),
                       itemCount: _recompensas.length,
                       itemBuilder: (context, i) {
                         final r = _recompensas[i];
@@ -248,7 +257,11 @@ class _OroChip extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(Icons.monetization_on, size: 14, color: AppColors.amarillo),
+          const Icon(
+            Icons.monetization_on,
+            size: 14,
+            color: AppColors.amarillo,
+          ),
           const SizedBox(width: 4),
           Text(
             '$pts pts',
@@ -320,7 +333,7 @@ class _RewardGridCardState extends State<_RewardGridCard> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final siempreVisible = kIsWeb
         ? (defaultTargetPlatform == TargetPlatform.android ||
-            defaultTargetPlatform == TargetPlatform.iOS)
+              defaultTargetPlatform == TargetPlatform.iOS)
         : true;
     final mostrar = siempreVisible || _hover;
 
@@ -337,8 +350,8 @@ class _RewardGridCardState extends State<_RewardGridCard> {
             color: _hover
                 ? AppColors.verde
                 : (isDark
-                    ? AppColors.grisMedio.withValues(alpha: 0.3)
-                    : AppColors.linea),
+                      ? AppColors.grisMedio.withValues(alpha: 0.3)
+                      : AppColors.linea),
             width: 2,
           ),
         ),
@@ -359,14 +372,20 @@ class _RewardGridCardState extends State<_RewardGridCard> {
                           url: _resolverFoto(r.foto),
                           local: r.fotoLocal,
                           size: 78,
-                          placeholder: const Icon(Icons.card_giftcard,
-                              color: AppColors.azul, size: 34),
+                          placeholder: const Icon(
+                            Icons.card_giftcard,
+                            color: AppColors.azul,
+                            size: 34,
+                          ),
                         ),
                       ),
                     )
                   : const Center(
-                      child: Icon(Icons.card_giftcard,
-                          color: AppColors.azul, size: 36),
+                      child: Icon(
+                        Icons.card_giftcard,
+                        color: AppColors.azul,
+                        size: 36,
+                      ),
                     ),
             ),
             const SizedBox(height: 8),
@@ -382,8 +401,7 @@ class _RewardGridCardState extends State<_RewardGridCard> {
                 r.descripcion,
                 maxLines: 3,
                 overflow: TextOverflow.ellipsis,
-                style:
-                    TextStyle(fontSize: 11, color: textoSuaveTema(context)),
+                style: TextStyle(fontSize: 11, color: textoSuaveTema(context)),
               ),
             ),
             const SizedBox(height: 6),
@@ -448,15 +466,18 @@ class _EntregaCanjesDialogState extends State<_EntregaCanjesDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final pendientes =
-        _canjes.where((c) => c.$1.estado == 'pendiente').toList();
+    final pendientes = _canjes
+        .where((c) => c.$1.estado == 'pendiente')
+        .toList();
     return AlertDialog(
       title: const Text('Entregar recompensas'),
       content: SizedBox(
         width: 420,
         child: pendientes.isEmpty
-            ? Text('No hay recompensas pendientes de entregar.',
-                style: TextStyle(color: textoSuaveTema(context)))
+            ? Text(
+                'No hay recompensas pendientes de entregar.',
+                style: TextStyle(color: textoSuaveTema(context)),
+              )
             : ListView.builder(
                 shrinkWrap: true,
                 itemCount: pendientes.length,
@@ -465,12 +486,17 @@ class _EntregaCanjesDialogState extends State<_EntregaCanjesDialog> {
                   return ListTile(
                     dense: true,
                     contentPadding: EdgeInsets.zero,
-                    leading: const Icon(Icons.card_giftcard,
-                        color: AppColors.azul),
-                    title: Text(c.$2.nombre,
-                        style: const TextStyle(fontWeight: FontWeight.w700)),
+                    leading: const Icon(
+                      Icons.card_giftcard,
+                      color: AppColors.azul,
+                    ),
+                    title: Text(
+                      c.$2.nombre,
+                      style: const TextStyle(fontWeight: FontWeight.w700),
+                    ),
                     subtitle: Text(
-                        '${c.$3.nombre} · ${c.$1.fecha.day}/${c.$1.fecha.month}'),
+                      '${c.$3.nombre} · ${c.$1.fecha.day}/${c.$1.fecha.month}',
+                    ),
                     trailing: DuoButton(
                       label: 'Entregar',
                       color: AppColors.verde,
@@ -484,9 +510,10 @@ class _EntregaCanjesDialogState extends State<_EntregaCanjesDialog> {
               ),
       ),
       actions: [
-        TextButton(
+        DuoButton(
+          fullWidth: false,
+          label: 'Cerrar',
           onPressed: () => Navigator.pop(context),
-          child: const Text('Cerrar'),
         ),
       ],
     );
@@ -519,7 +546,8 @@ class _RewardFormDialogState extends State<_RewardFormDialog> {
       final d = widget.initialData!;
       _nombreController.text = d['nombre'] as String? ?? '';
       _descripcionController.text = d['descripcion'] as String? ?? '';
-      _costoPuntosController.text = (d['costoPuntos'] as int?)?.toString() ?? '0';
+      _costoPuntosController.text =
+          (d['costoPuntos'] as int?)?.toString() ?? '0';
       _foto = d['foto'] as String? ?? '';
       _fotoLocal = d['fotoLocal'] as String? ?? '';
     }
@@ -544,7 +572,9 @@ class _RewardFormDialogState extends State<_RewardFormDialog> {
       if (url == null && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Foto guardada en este dispositivo. Se subirá al tener internet.'),
+            content: Text(
+              'Foto guardada en este dispositivo. Se subirá al tener internet.',
+            ),
           ),
         );
       }
@@ -556,9 +586,9 @@ class _RewardFormDialogState extends State<_RewardFormDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: Text(widget.initialData == null
-          ? 'Nueva recompensa'
-          : 'Editar recompensa'),
+      title: Text(
+        widget.initialData == null ? 'Nueva recompensa' : 'Editar recompensa',
+      ),
       content: SingleChildScrollView(
         child: Form(
           key: _formKey,
@@ -615,9 +645,9 @@ class _RewardFormDialogState extends State<_RewardFormDialog> {
                       icon: const Icon(Icons.clear, color: AppColors.rojo),
                       tooltip: 'Quitar foto',
                       onPressed: () => setState(() {
-                            _foto = '';
-                            _fotoLocal = '';
-                          }),
+                        _foto = '';
+                        _fotoLocal = '';
+                      }),
                     ),
                 ],
               ),
@@ -626,23 +656,23 @@ class _RewardFormDialogState extends State<_RewardFormDialog> {
         ),
       ),
       actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('Cancelar'),
-        ),
-        FilledButton(
-          onPressed: () {
-            if (!_formKey.currentState!.validate()) return;
-            final data = {
-              'nombre': _nombreController.text,
-              'descripcion': _descripcionController.text,
-              'costoPuntos': int.tryParse(_costoPuntosController.text) ?? 0,
-              'foto': _foto,
-              'fotoLocal': _fotoLocal,
-            };
-            widget.onSaved?.call(data);
-          },
-          child: const Text('Guardar'),
+        DialogActions(
+          onCancel: () => Navigator.pop(context),
+          primary: DuoButton(
+            fullWidth: false,
+            onPressed: () {
+              if (!_formKey.currentState!.validate()) return;
+              final data = {
+                'nombre': _nombreController.text,
+                'descripcion': _descripcionController.text,
+                'costoPuntos': int.tryParse(_costoPuntosController.text) ?? 0,
+                'foto': _foto,
+                'fotoLocal': _fotoLocal,
+              };
+              widget.onSaved?.call(data);
+            },
+            label: 'Guardar',
+          ),
         ),
       ],
     );
@@ -729,54 +759,64 @@ class _UserRewardsViewState extends State<_UserRewardsView> {
     return Column(
       children: [
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
-          child: PageTitle(
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+          child: ReferenciaTitulo(
+            'CANJEA TU ESFUERZO',
             'Premios',
-            actions: [
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(
-                  color: AppColors.amarilloFondo,
-                  borderRadius: BorderRadius.circular(999),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Bolt3D(size: 14, animar: false),
-                    const SizedBox(width: 4),
-                    Text(
-                      '${widget.user.puntos} XP',
-                      style: const TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w900,
-                        color: AppColors.amarilloOscuro,
+            icono: Icono3DTipo.regalo,
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: amarilloFondoTema(context),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Row(
+              children: [
+                Bolt3D(size: 30, animar: false),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'SALDO DISPONIBLE',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w800,
+                          color: AppColors.amarilloOscuro,
+                          letterSpacing: 0.5,
+                        ),
                       ),
-                    ),
-                  ],
+                      const SizedBox(height: 2),
+                      Text(
+                        '${widget.user.puntos} puntos',
+                        style: TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.w900,
+                          color: textoTema(context),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
         if (_bloqueado)
           const Padding(
-            padding: EdgeInsets.fromLTRB(16, 4, 16, 4),
-            child: CardBox(
-              color: AppColors.rojoFondo,
-              child: Text(
-                'Tienes tareas vencidas. Complétalas para poder canjear '
-                'recompensas.',
-                style: TextStyle(
-                  fontWeight: FontWeight.w800,
-                  color: AppColors.grisOscuro,
-                ),
-              ),
-            ),
+            padding: EdgeInsets.fromLTRB(20, 12, 20, 12),
+            child: _CanjesBloqueadosBanner(),
           ),
         Expanded(
           child: _recompensas.isEmpty
               ? const EmptyState(
+                  mascota: MascotType.gatito,
                   icon: Icons.card_giftcard,
                   message: 'No hay recompensas disponibles para canjear',
                   hint: 'Contacta al administrador para agregar recompensas.',
@@ -805,8 +845,9 @@ class _UserRewardsViewState extends State<_UserRewardsView> {
                                 for (final r in _recompensas)
                                   _UserRewardCard(
                                     reward: r,
-                                    jaCanjeado: _canjes
-                                        .any((c) => c.$2.id == r.id),
+                                    jaCanjeado: _canjes.any(
+                                      (c) => c.$2.id == r.id,
+                                    ),
                                     onCanjear: () => _canjearRecompensa(r),
                                   ),
                               ],
@@ -819,6 +860,38 @@ class _UserRewardsViewState extends State<_UserRewardsView> {
                 ),
         ),
       ],
+    );
+  }
+}
+
+/// Banner rosado de canjes bloqueado, idéntico a ChildPremiosScreen.
+class _CanjesBloqueadosBanner extends StatelessWidget {
+  const _CanjesBloqueadosBanner();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: rojoFondoTema(context),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: const Row(
+        children: [
+          Icon(Icons.lock_outline, color: Colors.redAccent),
+          SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              'Canjes bloqueados: Tienes tareas vencidas.',
+              style: TextStyle(
+                color: Colors.redAccent,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -859,20 +932,21 @@ class _UserRewardCard extends StatelessWidget {
                         local: r.fotoLocal,
                         size: 64,
                         placeholder: Icon(
-                            jaCanjeado ? Icons.check : Icons.card_giftcard,
-                            color: jaCanjeado
-                                ? AppColors.grisMedio
-                                : AppColors.verde,
-                            size: 30),
+                          jaCanjeado ? Icons.check : Icons.card_giftcard,
+                          color: jaCanjeado
+                              ? AppColors.grisMedio
+                              : AppColors.verde,
+                          size: 30,
+                        ),
                       ),
                     ),
                   )
                 : Center(
                     child: Icon(
-                        jaCanjeado ? Icons.check : Icons.card_giftcard,
-                        color:
-                            jaCanjeado ? AppColors.grisMedio : AppColors.verde,
-                        size: 32),
+                      jaCanjeado ? Icons.check : Icons.card_giftcard,
+                      color: jaCanjeado ? AppColors.grisMedio : AppColors.verde,
+                      size: 32,
+                    ),
                   ),
           ),
           const SizedBox(height: 8),
@@ -898,18 +972,22 @@ class _UserRewardCard extends StatelessWidget {
               if (jaCanjeado) ...[
                 const SizedBox(width: 6),
                 Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 3,
+                  ),
                   decoration: BoxDecoration(
-                    color: AppColors.verdeFondo,
+                    color: verdeFondoTema(context),
                     borderRadius: BorderRadius.circular(8),
                   ),
-                  child: const Text(
+                  child: Text(
                     'Canjeado',
                     style: TextStyle(
                       fontSize: 10,
                       fontWeight: FontWeight.w800,
-                      color: AppColors.verdeOscuro,
+                      color: esOscuro(context)
+                          ? AppColors.verde
+                          : AppColors.verdeOscuro,
                     ),
                   ),
                 ),
@@ -920,9 +998,16 @@ class _UserRewardCard extends StatelessWidget {
           const SizedBox(height: 8),
           _MiniBoton(
             label: jaCanjeado ? 'Canjeado' : 'Canjear',
-            color: jaCanjeado ? AppColors.grisOscuro : AppColors.verde,
-            borderColor:
-                jaCanjeado ? AppColors.grisOscuro : AppColors.verdeOscuro,
+            color: jaCanjeado
+                ? (esOscuro(context)
+                    ? AppColors.grisMedio
+                    : AppColors.grisOscuro)
+                : AppColors.verde,
+            borderColor: jaCanjeado
+                ? (esOscuro(context)
+                    ? AppColors.grisMedio
+                    : AppColors.grisOscuro)
+                : AppColors.verdeOscuro,
             onPressed: jaCanjeado ? null : onCanjear,
           ),
         ],
@@ -947,26 +1032,12 @@ class _MiniBoton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return FilledButton(
+    return DuoButton(
+      fullWidth: false,
       onPressed: onPressed,
-      style: FilledButton.styleFrom(
-        minimumSize: const Size(0, 44),
-        backgroundColor: color,
-        disabledBackgroundColor:
-            Theme.of(context).brightness == Brightness.dark
-                ? AppColors.grisMedio
-                : AppColors.linea,
-        disabledForegroundColor: textoSuaveTema(context),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      ),
-      child: Text(
-        label.toUpperCase(),
-        style: const TextStyle(
-          fontSize: 13,
-          fontWeight: FontWeight.w800,
-          letterSpacing: 0.5,
-        ),
-      ),
+      color: color,
+      borderColor: borderColor,
+      label: label,
     );
   }
 }
@@ -986,8 +1057,7 @@ class _MisCanjes extends StatelessWidget {
           padding: const EdgeInsets.only(bottom: 8),
           child: Text(
             'Mis canjes (${entre.length})',
-            style: const TextStyle(
-                fontSize: 18, fontWeight: FontWeight.w900),
+            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
           ),
         ),
         for (final c in entre)
@@ -997,19 +1067,26 @@ class _MisCanjes extends StatelessWidget {
                 CircleAvatar(
                   radius: 16,
                   backgroundColor: AppColors.amarillo.withValues(alpha: 0.2),
-                  child: const Icon(Icons.card_giftcard,
-                      color: AppColors.amarilloOscuro, size: 18),
+                  child: const Icon(
+                    Icons.card_giftcard,
+                    color: AppColors.amarilloOscuro,
+                    size: 18,
+                  ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(c.$2.nombre,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                              fontSize: 14, fontWeight: FontWeight.w900)),
+                      Text(
+                        c.$2.nombre,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
                       const SizedBox(height: 2),
                       Text(
                         '${c.$1.fecha.day}/${c.$1.fecha.month} · '
@@ -1021,19 +1098,23 @@ class _MisCanjes extends StatelessWidget {
                 ),
                 Chip(
                   label: Text(
-                      c.$1.estado == 'entregada'
-                          ? 'ENTREGADA'
-                          : 'PENDIENTE',
-                      style: TextStyle(
-                          color: c.$1.estado == 'entregada'
-                              ? AppColors.verdeOscuro
-                              : AppColors.rojo,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w800)),
+                    c.$1.estado == 'entregada' ? 'ENTREGADA' : 'PENDIENTE',
+                    style: TextStyle(
+                      color: c.$1.estado == 'entregada'
+                          ? (esOscuro(context)
+                              ? AppColors.verde
+                              : AppColors.verdeOscuro)
+                          : (esOscuro(context)
+                              ? Colors.redAccent
+                              : AppColors.rojo),
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
                   backgroundColor: (c.$1.estado == 'entregada'
-                          ? AppColors.verdeFondo
-                          : Colors.red)
-                      .withValues(alpha: 0.12),
+                          ? verdeFondoTema(context)
+                          : rojoFondoTema(context))
+                      .withValues(alpha: esOscuro(context) ? 0.35 : 0.12),
                 ),
               ],
             ),

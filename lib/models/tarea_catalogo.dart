@@ -7,6 +7,7 @@ class TareaCatalogo {
   final int puntos;
   final String categoria;
   final String dificultad;
+  final String icono;
 
   const TareaCatalogo({
     this.id,
@@ -14,6 +15,7 @@ class TareaCatalogo {
     required this.puntos,
     this.categoria = 'General',
     this.dificultad = 'media',
+    this.icono = '',
   });
 
   TareaCatalogo copyWith({
@@ -22,6 +24,7 @@ class TareaCatalogo {
     int? puntos,
     String? categoria,
     String? dificultad,
+    String? icono,
   }) {
     return TareaCatalogo(
       id: id ?? this.id,
@@ -29,6 +32,7 @@ class TareaCatalogo {
       puntos: puntos ?? this.puntos,
       categoria: categoria ?? this.categoria,
       dificultad: dificultad ?? this.dificultad,
+      icono: icono ?? this.icono,
     );
   }
 
@@ -39,6 +43,7 @@ class TareaCatalogo {
       'puntos': puntos,
       'categoria': categoria,
       'dificultad': dificultad,
+      'icono': icono,
     };
   }
 
@@ -49,6 +54,7 @@ class TareaCatalogo {
       puntos: (map['puntos'] as int?) ?? 0,
       categoria: (map['categoria'] as String?) ?? 'General',
       dificultad: (map['dificultad'] as String?) ?? 'media',
+      icono: (map['icono'] as String?) ?? '',
     );
   }
 }

@@ -1,3 +1,7 @@
+// Implementación web de la sincronización HTTP: solo se carga en compilaciones
+// web (export condicional en sync_client.dart), por eso usa dart:html.
+// ignore_for_file: avoid_web_libraries_in_flutter, deprecated_member_use
+
 import 'dart:convert';
 import 'dart:html' as html;
 
@@ -10,7 +14,10 @@ class SyncClient {
 
   Future<Map<String, dynamic>?> fetchDb() async {
     try {
-      final req = await html.HttpRequest.request('$_base/db-public', method: 'GET');
+      final req = await html.HttpRequest.request(
+        '$_base/db-public',
+        method: 'GET',
+      );
       final decoded = jsonDecode(req.responseText!);
       if (decoded is Map) {
         return Map<String, dynamic>.from(decoded);
@@ -19,7 +26,10 @@ class SyncClient {
     return null;
   }
 
-  Future<Map<String, dynamic>?> loginServerSide(String usuario, String password) async {
+  Future<Map<String, dynamic>?> loginServerSide(
+    String usuario,
+    String password,
+  ) async {
     try {
       final req = await html.HttpRequest.request(
         '$_base/login',
@@ -49,18 +59,20 @@ class SyncClient {
     } catch (_) {}
   }
 
-  Future<void> registrarFcmToken(int userId, String token) => _postJson(
-        '/register-token',
-        {'userId': userId, 'token': token},
-      );
+  Future<void> registrarFcmToken(int userId, String token) =>
+      _postJson('/register-token', {'userId': userId, 'token': token});
 
   Future<void> borrarFcmToken(int userId, String token) => _postJson(
-        '/register-token',
-        {'userId': userId, 'token': token, 'remove': true},
-      );
+    '/register-token',
+    {'userId': userId, 'token': token, 'remove': true},
+  );
 
-  Future<void> enviarPushFcm(int userId, String titulo, String cuerpo,
-      [Map<String, String>? data]) async {
+  Future<void> enviarPushFcm(
+    int userId,
+    String titulo,
+    String cuerpo, [
+    Map<String, String>? data,
+  ]) async {
     final payload = <String, dynamic>{
       'userId': userId,
       'title': titulo,

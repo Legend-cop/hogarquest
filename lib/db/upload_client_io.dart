@@ -11,11 +11,15 @@ class UploadClient {
   UploadClient() : _sync = SyncClient();
 
   /// Devuelve la URL relativa de la foto subida (ej: /fotos/xxx.jpg).
-  Future<String?> subirFoto(List<int> bytes, {String mime = 'image/jpeg'}) async {
+  Future<String?> subirFoto(
+    List<int> bytes, {
+    String mime = 'image/jpeg',
+  }) async {
     final base = await _sync.encontrarBase();
     if (base == null) return null;
     try {
-      final client = HttpClient()..connectionTimeout = const Duration(seconds: 10);
+      final client = HttpClient()
+        ..connectionTimeout = const Duration(seconds: 10);
       final req = await client.postUrl(Uri.parse('$base/api/upload'));
       req.headers.contentType = ContentType.parse(mime);
       req.headers.set('X-Write-Token', ServerConfig.writeToken);

@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 
 import '../theme/app_theme.dart';
+import 'playful_motion.dart';
 
-/// Botón estilo Duolingo: color plano con "borde inferior" grueso oscuro
-/// que da el efecto 3D chunky característico.
-class DuoButton extends StatelessWidget {
+/// Botón estilo Duolingo con respuesta elástica y profundidad al tocar.
+class DuoButton extends StatefulWidget {
   final String label;
   final VoidCallback? onPressed;
   final IconData? icon;
@@ -27,39 +27,42 @@ class DuoButton extends StatelessWidget {
   });
 
   @override
+  State<DuoButton> createState() => _DuoButtonState();
+}
+
+class _DuoButtonState extends State<DuoButton> {
+  bool _pressed = false;
+
+  @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final enabled = onPressed != null && !loading;
+    final enabled = widget.onPressed != null && !widget.loading;
     final bg = enabled
-        ? color
-        : (isDark
-            ? Colors.white10
-            : AppColors.linea);
-    final fg = enabled || loading ? Colors.white : textoSuaveTema(context);
-
-    final mainAxisSize =
-        (fullWidth && expanded) ? MainAxisSize.max : MainAxisSize.min;
-
+        ? widget.color
+        : (isDark ? Colors.white10 : AppColors.linea);
+    final fg = enabled || widget.loading
+        ? Colors.white
+        : textoSuaveTema(context);
+    final mainAxisSize = (widget.fullWidth && widget.expanded)
+        ? MainAxisSize.max
+        : MainAxisSize.min;
     final content = Row(
       mainAxisSize: mainAxisSize,
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        if (loading)
+        if (widget.loading)
           SizedBox(
             height: 20,
             width: 20,
-            child: CircularProgressIndicator(
-              strokeWidth: 3,
-              color: fg,
-            ),
+            child: CircularProgressIndicator(strokeWidth: 3, color: fg),
           )
         else ...[
-          if (icon != null) ...[
-            Icon(icon, color: fg, size: 22),
+          if (widget.icon != null) ...[
+            Icon(widget.icon, color: fg, size: 22),
             const SizedBox(width: 8),
           ],
           Text(
-            label.toUpperCase(),
+            widget.label.toUpperCase(),
             style: TextStyle(
               color: fg,
               fontSize: 15,
@@ -70,55 +73,59 @@ class DuoButton extends StatelessWidget {
         ],
       ],
     );
+    final radius = BorderRadius.circular(16);
 
-    final radius = BorderRadius.circular(14);
-
-    if (fullWidth) {
-      return SizedBox(
-        height: 48,
-        child: Material(
-          color: Colors.transparent,
-          child: InkWell(
-            onTap: enabled ? onPressed : null,
-            borderRadius: radius,
-            child: Container(
-              height: 48,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                color: bg,
-                borderRadius: radius,
-              ),
-              child: content,
-            ),
-          ),
-        ),
-      );
-    }
-
-    return SizedBox(
-      height: 44,
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: enabled ? onPressed : null,
-          borderRadius: radius,
-          child: Container(
-            height: 44,
-            padding: const EdgeInsets.symmetric(horizontal: 24),
+    Widget button(double height, EdgeInsetsGeometry padding) => Semantics(
+      button: true,
+      enabled: enabled,
+      child: GestureDetector(
+        onTapDown: enabled ? (_) => setState(() => _pressed = true) : null,
+        onTapCancel: enabled ? () => setState(() => _pressed = false) : null,
+        onTapUp: enabled
+            ? (_) {
+                setState(() => _pressed = false);
+                widget.onPressed?.call();
+              }
+            : null,
+        child: AnimatedScale(
+          scale: hqReduceMotion(context) || !_pressed ? 1 : 0.94,
+          duration: const Duration(milliseconds: 110),
+          curve: Curves.easeOut,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 110),
+            height: height,
+            padding: padding,
             alignment: Alignment.center,
+            transform: Matrix4.translationValues(0, _pressed ? 4 : 0, 0),
             decoration: BoxDecoration(
               color: bg,
               borderRadius: radius,
+              boxShadow: enabled && !_pressed
+                  ? [
+                      BoxShadow(
+                        color: widget.borderColor,
+                        offset: const Offset(0, 4),
+                      ),
+                    ]
+                  : const [],
             ),
             child: content,
           ),
         ),
       ),
     );
+
+    if (widget.fullWidth) {
+      return SizedBox(height: 48, child: button(44, EdgeInsets.zero));
+    }
+    return SizedBox(
+      height: 44,
+      child: button(40, const EdgeInsets.symmetric(horizontal: 24)),
+    );
   }
 }
 
-/// Tarjeta blanca estilo Duolingo: borde grueso gris claro + sombra inferior.
+/// Tarjeta blanca estilo Duolingo: borde grueso gris claro.
 class DuoCard extends StatelessWidget {
   final Widget child;
   final EdgeInsetsGeometry padding;
@@ -136,20 +143,24 @@ class DuoCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    return Padding(
-      padding: margin ?? EdgeInsets.zero,
-      child: Container(
-        decoration: BoxDecoration(
-          color: color ?? (isDark ? AppColors.superficieOscura : Colors.white),
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(
-            color: isDark
-                ? AppColors.grisMedio.withValues(alpha: 0.3)
-                : const Color(0xFFE5E5E5),
-            width: 2,
+    return PlayfulEntrance(
+      delayMs: 80,
+      child: Padding(
+        padding: margin ?? EdgeInsets.zero,
+        child: Container(
+          decoration: BoxDecoration(
+            color:
+                color ?? (isDark ? AppColors.superficieOscura : Colors.white),
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(
+              color: isDark
+                  ? AppColors.grisMedio.withValues(alpha: 0.3)
+                  : AppColors.linea,
+              width: 2,
+            ),
           ),
+          child: Padding(padding: padding, child: child),
         ),
-        child: Padding(padding: padding, child: child),
       ),
     );
   }
@@ -170,21 +181,24 @@ class DuoIconBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-        color: color,
-        borderRadius: BorderRadius.circular(size * 0.32),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x33000000),
-            offset: Offset(0, 3),
-            blurRadius: 0,
-          ),
-        ],
+    return PlayfulEntrance(
+      delayMs: 120,
+      child: Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          color: color,
+          borderRadius: BorderRadius.circular(size * 0.32),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x33000000),
+              offset: Offset(0, 3),
+              blurRadius: 0,
+            ),
+          ],
+        ),
+        child: Icon(icon, color: Colors.white, size: size * 0.55),
       ),
-      child: Icon(icon, color: Colors.white, size: size * 0.55),
     );
   }
 }

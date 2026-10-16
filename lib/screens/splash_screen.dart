@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../theme/app_theme.dart';
+import '../widgets/playful_motion.dart';
+import '../widgets/hq_logo.dart';
 
 /// Splash con animación de entrada (logo que "bota" + fade del texto).
 class SplashScreen extends StatefulWidget {
@@ -54,28 +56,53 @@ class _SplashScreenState extends State<SplashScreen>
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  ScaleTransition(
-                    scale: _escala,
-                    child: Container(
-                      width: 120,
-                      height: 120,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: Colors.white,
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.15),
-                            blurRadius: 20,
-                            offset: const Offset(0, 8),
+                  Stack(
+                    clipBehavior: Clip.none,
+                    alignment: Alignment.center,
+                    children: [
+                      const Positioned(
+                        left: -34,
+                        top: 4,
+                        child: Twinkle(color: AppColors.amarillo, size: 24),
+                      ),
+                      const Positioned(
+                        right: -40,
+                        bottom: 8,
+                        child: Twinkle(
+                          color: Colors.white,
+                          size: 18,
+                          delayMs: 380,
+                        ),
+                      ),
+                      ScaleTransition(
+                        scale: _escala,
+                        child: RotationTransition(
+                          turns: Tween<double>(begin: -0.035, end: 0).animate(
+                            CurvedAnimation(
+                              parent: _ctrl,
+                              curve: Curves.elasticOut,
+                            ),
                           ),
-                        ],
+                          child: Container(
+                            width: 120,
+                            height: 120,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: Colors.white,
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withValues(alpha: 0.15),
+                                  blurRadius: 20,
+                                  offset: const Offset(0, 8),
+                                ),
+                              ],
+                            ),
+                            padding: const EdgeInsets.all(12),
+                            child: const HqLogo(size: 96),
+                          ),
+                        ),
                       ),
-                      padding: const EdgeInsets.all(12),
-                      child: Image.asset(
-                        'assets/branding/hq_logo_1024.png',
-                        fit: BoxFit.contain,
-                      ),
-                    ),
+                    ],
                   ),
                   const SizedBox(height: 20),
                   FadeTransition(
@@ -99,7 +126,20 @@ class _SplashScreenState extends State<SplashScreen>
                     ),
                   ),
                   const SizedBox(height: 32),
-                  const CircularProgressIndicator(color: Colors.white),
+                  FadeTransition(
+                    opacity: _aparece,
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(99),
+                      child: const SizedBox(
+                        width: 58,
+                        child: LinearProgressIndicator(
+                          minHeight: 7,
+                          color: Colors.white,
+                          backgroundColor: Colors.white24,
+                        ),
+                      ),
+                    ),
+                  ),
                 ],
               ),
             ),

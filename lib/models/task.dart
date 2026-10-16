@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../widgets/icono3d.dart';
+
 class Task {
   final int? id;
   final String titulo;
@@ -111,6 +113,28 @@ class CategoriaTarea {
   };
 
   static int colorDe(String c) => _color[c] ?? 0xFF9E9E9E;
+
+  /// Icono 3D infantil de la categoría (avatares de tarea).
+  static Icono3DTipo icono3dDe(String c) {
+    switch (c) {
+      case 'Escuela':
+        return Icono3DTipo.birrete;
+      case 'Limpieza':
+        return Icono3DTipo.escoba;
+      case 'Fe':
+        return Icono3DTipo.libro;
+      case 'Responsabilidad':
+        return Icono3DTipo.apreton;
+      case 'Salud':
+        return Icono3DTipo.corazon;
+      case 'Orden':
+        return Icono3DTipo.checklist;
+      case 'Otro':
+        return Icono3DTipo.etiqueta;
+      default:
+        return Icono3DTipo.estrella;
+    }
+  }
 
   static IconData iconoDe(String c) {
     switch (c) {

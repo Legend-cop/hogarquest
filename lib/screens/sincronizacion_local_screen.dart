@@ -4,16 +4,17 @@ import 'package:flutter/material.dart';
 
 import '../sync/local_sync.dart';
 import '../theme/app_theme.dart';
+import '../widgets/duo_widgets.dart';
 
 /// Pantalla de estado y emparejamiento de la sincronización P2P local.
-class LocalSyncScreen extends StatefulWidget {
-  const LocalSyncScreen({super.key});
+class SincronizacionLocalScreen extends StatefulWidget {
+  const SincronizacionLocalScreen({super.key});
 
   @override
-  State<LocalSyncScreen> createState() => _LocalSyncScreenState();
+  State<SincronizacionLocalScreen> createState() => _SincronizacionLocalScreenState();
 }
 
-class _LocalSyncScreenState extends State<LocalSyncScreen> {
+class _SincronizacionLocalScreenState extends State<SincronizacionLocalScreen> {
   final _ipController = TextEditingController();
   Timer? _refresco;
   StreamSubscription<void>? _cambios;
@@ -59,7 +60,9 @@ class _LocalSyncScreenState extends State<LocalSyncScreen> {
         padding: const EdgeInsets.all(16),
         children: [
           Card(
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(14),
+            ),
             child: Padding(
               padding: const EdgeInsets.all(16),
               child: Column(
@@ -69,33 +72,54 @@ class _LocalSyncScreenState extends State<LocalSyncScreen> {
                     children: [
                       Icon(Icons.wifi_tethering, color: colorEstado),
                       const SizedBox(width: 8),
-                      Text('Estado: $estado',
-                          style: const TextStyle(
-                              fontWeight: FontWeight.w800, fontSize: 16)),
+                      Text(
+                        'Estado: $estado',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w800,
+                          fontSize: 16,
+                        ),
+                      ),
                       const Spacer(),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 4,
+                        ),
                         decoration: BoxDecoration(
                           color: colorEstado.withValues(alpha: 0.15),
                           borderRadius: BorderRadius.circular(20),
                         ),
-                        child: Text(estado,
-                            style: TextStyle(color: colorEstado, fontWeight: FontWeight.w700)),
+                        child: Text(
+                          estado,
+                          style: TextStyle(
+                            color: colorEstado,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
                       ),
                     ],
                   ),
                   const SizedBox(height: 12),
-                  Text('Código de hogar', style: TextStyle(color: textoSuaveTema(context))),
+                  Text(
+                    'Código de hogar',
+                    style: TextStyle(color: textoSuaveTema(context)),
+                  ),
                   SelectableText(
                     sync.householdCode ?? '—',
                     style: const TextStyle(
-                        fontSize: 22, fontWeight: FontWeight.w800, letterSpacing: 2),
+                      fontSize: 22,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 2,
+                    ),
                   ),
                   const SizedBox(height: 6),
                   Text(
                     'Los dispositivos de tu familia deben mostrar el mismo código '
                     'para sincronizarse sin internet.',
-                    style: TextStyle(color: textoSuaveTema(context), fontSize: 12),
+                    style: TextStyle(
+                      color: textoSuaveTema(context),
+                      fontSize: 12,
+                    ),
                   ),
                   const SizedBox(height: 12),
                   Text(
@@ -119,8 +143,10 @@ class _LocalSyncScreenState extends State<LocalSyncScreen> {
             ],
           ),
           const SizedBox(height: 16),
-          Text('Dispositivos en tu red',
-              style: Theme.of(context).textTheme.titleMedium),
+          Text(
+            'Dispositivos en tu red',
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
           const SizedBox(height: 8),
           if (peers.isEmpty)
             Padding(
@@ -132,19 +158,23 @@ class _LocalSyncScreenState extends State<LocalSyncScreen> {
               ),
             )
           else
-            ...peers.map((p) => ListTile(
-                  leading: const Icon(Icons.smartphone, color: AppColors.azul),
-                  title: Text(p.ip),
-                  subtitle: Text('puerto ${p.port} · ${_haceCuanto(p.lastSeen)}'),
-                  trailing: IconButton(
-                    icon: const Icon(Icons.close, color: AppColors.rojo),
-                    onPressed: () => sync.quitarPeer(p.ip),
-                  ),
-                )),
+            ...peers.map(
+              (p) => ListTile(
+                leading: const Icon(Icons.smartphone, color: AppColors.azul),
+                title: Text(p.ip),
+                subtitle: Text('puerto ${p.port} · ${_haceCuanto(p.lastSeen)}'),
+                trailing: IconButton(
+                  icon: const Icon(Icons.close, color: AppColors.rojo),
+                  onPressed: () => sync.quitarPeer(p.ip),
+                ),
+              ),
+            ),
           const SizedBox(height: 16),
           const Divider(),
-          Text('Agregar dispositivo manualmente',
-              style: Theme.of(context).textTheme.titleMedium),
+          Text(
+            'Agregar dispositivo manualmente',
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
           const SizedBox(height: 8),
           Row(
             children: [
@@ -160,7 +190,8 @@ class _LocalSyncScreenState extends State<LocalSyncScreen> {
                 ),
               ),
               const SizedBox(width: 12),
-              FilledButton(
+              DuoButton(
+                fullWidth: false,
                 onPressed: () {
                   final ip = _ipController.text.trim();
                   if (ip.isNotEmpty) {
@@ -171,10 +202,7 @@ class _LocalSyncScreenState extends State<LocalSyncScreen> {
                     );
                   }
                 },
-                style: FilledButton.styleFrom(
-                  minimumSize: const Size(0, 52),
-                ),
-                child: const Text('Agregar'),
+                label: 'Agregar',
               ),
             ],
           ),
@@ -186,8 +214,10 @@ class _LocalSyncScreenState extends State<LocalSyncScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('Acerca de Bluetooth',
-                      style: TextStyle(fontWeight: FontWeight.w800)),
+                  const Text(
+                    'Acerca de Bluetooth',
+                    style: TextStyle(fontWeight: FontWeight.w800),
+                  ),
                   const SizedBox(height: 6),
                   Text(
                     'El transporte Bluetooth como respaldo sin Wi-Fi está en '
@@ -196,7 +226,10 @@ class _LocalSyncScreenState extends State<LocalSyncScreen> {
                     'datos) y algunos requieren licencia comercial. Mientras '
                     'tanto, usa la misma Wi-Fi (o agrega la IP manualmente) para '
                     'sincronizar sin internet.',
-                    style: TextStyle(color: textoSuaveTema(context), fontSize: 13),
+                    style: TextStyle(
+                      color: textoSuaveTema(context),
+                      fontSize: 13,
+                    ),
                   ),
                 ],
               ),

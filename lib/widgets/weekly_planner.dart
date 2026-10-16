@@ -28,9 +28,14 @@ class WeeklyPlanner extends StatefulWidget {
   final Future<void> Function(Task tarea, User responsable) onReasignar;
   final void Function(Task tarea) onEditar;
   final void Function(Task tarea) onEliminar;
-  final Future<void> Function(String titulo, DateTime fecha,
-      {TareaCatalogo? plantilla}) onCrearRapida;
+  final Future<void> Function(
+    String titulo,
+    DateTime fecha, {
+    TareaCatalogo? plantilla,
+  })
+  onCrearRapida;
   final void Function(String titulo, DateTime fecha) onCrearLibre;
+
   /// Secciones extra ("Todos los días", "Inactivas") al pie del scroll.
   final List<Widget> extra;
 
@@ -58,8 +63,18 @@ class WeeklyPlanner extends StatefulWidget {
 
 class _WeeklyPlannerState extends State<WeeklyPlanner> {
   static const _meses = [
-    'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
-    'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre',
+    'Enero',
+    'Febrero',
+    'Marzo',
+    'Abril',
+    'Mayo',
+    'Junio',
+    'Julio',
+    'Agosto',
+    'Septiembre',
+    'Octubre',
+    'Noviembre',
+    'Diciembre',
   ];
 
   final Map<String, GlobalKey> _dayKeys = {};
@@ -68,13 +83,17 @@ class _WeeklyPlannerState extends State<WeeklyPlanner> {
   /// Domingo de la semana visible según el offset.
   DateTime get _inicioSemana {
     final hoy = DateTime.now();
-    final domingoActual = DateTime(hoy.year, hoy.month, hoy.day)
-        .subtract(Duration(days: hoy.weekday % 7));
+    final domingoActual = DateTime(
+      hoy.year,
+      hoy.month,
+      hoy.day,
+    ).subtract(Duration(days: hoy.weekday % 7));
     return domingoActual.add(Duration(days: widget.semanaOffset * 7));
   }
 
-  List<DateTime> get _fechas =>
-      [for (var i = 0; i < 7; i++) _inicioSemana.add(Duration(days: i))];
+  List<DateTime> get _fechas => [
+    for (var i = 0; i < 7; i++) _inicioSemana.add(Duration(days: i)),
+  ];
 
   String get _tituloSemana {
     final f = _fechas;
@@ -86,12 +105,24 @@ class _WeeklyPlannerState extends State<WeeklyPlanner> {
   }
 
   static String nombreDiaLargo(int weekday) => const [
-        'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo',
-      ][weekday - 1];
+    'Lunes',
+    'Martes',
+    'Miércoles',
+    'Jueves',
+    'Viernes',
+    'Sábado',
+    'Domingo',
+  ][weekday - 1];
 
   static String claveDia(DateTime f) => const [
-        'domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado',
-      ][f.weekday % 7];
+    'domingo',
+    'lunes',
+    'martes',
+    'miercoles',
+    'jueves',
+    'viernes',
+    'sabado',
+  ][f.weekday % 7];
 
   bool _esHoy(DateTime f) {
     final hoy = DateTime.now();
@@ -119,7 +150,8 @@ class _WeeklyPlannerState extends State<WeeklyPlanner> {
   bool _vencida(Task t, DateTime fecha) {
     if (!widget.pendientes.contains(t.id)) return false;
     final fl = t.fechaLimite;
-    final limite = fl != null &&
+    final limite =
+        fl != null &&
             fl.year == fecha.year &&
             fl.month == fecha.month &&
             fl.day == fecha.day
@@ -169,7 +201,8 @@ class _WeeklyPlannerState extends State<WeeklyPlanner> {
                         child: const EmptyState(
                           icon: Icons.calendar_view_week_outlined,
                           message: 'Aún no hay tareas activas.',
-                          hint: 'Crea una tarea con su día para planificar '
+                          hint:
+                              'Crea una tarea con su día para planificar '
                               'la semana.',
                         ),
                       ),
@@ -250,7 +283,9 @@ class _WeeklyPlannerState extends State<WeeklyPlanner> {
                       _tituloSemana,
                       textAlign: TextAlign.center,
                       style: const TextStyle(
-                          fontWeight: FontWeight.w800, fontSize: 14),
+                        fontWeight: FontWeight.w800,
+                        fontSize: 14,
+                      ),
                     ),
                     if (widget.semanaOffset != 0)
                       TextButton(
@@ -259,8 +294,10 @@ class _WeeklyPlannerState extends State<WeeklyPlanner> {
                           padding: const EdgeInsets.symmetric(horizontal: 8),
                         ),
                         onPressed: () => widget.onSemanaChanged(0),
-                        child: const Text('Volver a hoy',
-                            style: TextStyle(fontSize: 12)),
+                        child: const Text(
+                          'Volver a hoy',
+                          style: TextStyle(fontSize: 12),
+                        ),
                       ),
                   ],
                 ),
@@ -302,8 +339,11 @@ class _WeeklyPlannerState extends State<WeeklyPlanner> {
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(Icons.drag_indicator,
-                            size: 16, color: textoSuaveTema(context)),
+                        Icon(
+                          Icons.drag_indicator,
+                          size: 16,
+                          color: textoSuaveTema(context),
+                        ),
                         const SizedBox(width: 4),
                         Text(
                           'Mantén pulsado un avatar y arrástralo a una tarea',
@@ -333,15 +373,22 @@ class _WeeklyPlannerState extends State<WeeklyPlanner> {
 
     return Container(
       key: key,
-      margin: EdgeInsets.only(bottom: compacto ? 0 : 10, right: compacto ? 6 : 0),
+      margin: EdgeInsets.only(
+        bottom: compacto ? 0 : 10,
+        right: compacto ? 6 : 0,
+      ),
       padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
         color: isDark
-            ? Colors.white.withValues(alpha: 0.04)
+            ? (hoy
+                  ? AppColors.verdeFondoOscuro
+                  : Colors.white.withValues(alpha: 0.04))
             : (hoy ? AppColors.verdeFondo : Colors.white),
         borderRadius: BorderRadius.circular(14),
         border: Border.all(
-          color: hoy ? AppColors.verde : (isDark ? Colors.white24 : AppColors.linea),
+          color: hoy
+              ? AppColors.verde
+              : (isDark ? Colors.white24 : AppColors.linea),
           width: hoy ? 2.5 : 1.5,
         ),
         boxShadow: hoy
@@ -371,10 +418,7 @@ class _WeeklyPlannerState extends State<WeeklyPlanner> {
               child: Text(
                 'Sin tareas',
                 textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 11,
-                  color: textoSuaveTema(context),
-                ),
+                style: TextStyle(fontSize: 11, color: textoSuaveTema(context)),
               ),
             )
           else
@@ -403,8 +447,12 @@ class _WeeklyPlannerState extends State<WeeklyPlanner> {
     );
   }
 
-  Widget _cabeceraDia(DateTime fecha, int total,
-      {required bool hoy, required bool compacto}) {
+  Widget _cabeceraDia(
+    DateTime fecha,
+    int total, {
+    required bool hoy,
+    required bool compacto,
+  }) {
     return Row(
       children: [
         Container(
@@ -541,10 +589,12 @@ class _TaskCardPlannerState extends State<_TaskCardPlanner> {
     // En táctil los botones siempre visibles; en web/escritorio con hover.
     final siempreVisible = kIsWeb
         ? (defaultTargetPlatform == TargetPlatform.android ||
-            defaultTargetPlatform == TargetPlatform.iOS)
+              defaultTargetPlatform == TargetPlatform.iOS)
         : true;
     final mostrarAcciones = siempreVisible || _hover;
-    final colorTexto = widget.vencida ? textoSuaveTema(context) : textoTema(context);
+    final colorTexto = widget.vencida
+        ? textoSuaveTema(context)
+        : textoTema(context);
 
     return MouseRegion(
       onEnter: (_) => setState(() => _hover = true),
@@ -565,15 +615,15 @@ class _TaskCardPlannerState extends State<_TaskCardPlanner> {
               color: widget.vencida
                   ? AppColors.rojo.withValues(alpha: 0.08)
                   : (isDark
-                      ? Colors.white.withValues(alpha: 0.06)
-                      : Colors.white),
+                        ? Colors.white.withValues(alpha: 0.06)
+                        : Colors.white),
               borderRadius: BorderRadius.circular(10),
               border: Border.all(
                 color: arrastrando
                     ? AppColors.verde
                     : widget.vencida
-                        ? AppColors.rojo.withValues(alpha: 0.45)
-                        : (isDark ? Colors.white12 : AppColors.linea),
+                    ? AppColors.rojo.withValues(alpha: 0.45)
+                    : (isDark ? Colors.white12 : AppColors.linea),
                 width: arrastrando ? 2 : 1,
               ),
             ),
@@ -642,7 +692,9 @@ class _TaskCardPlannerState extends State<_TaskCardPlanner> {
                       const SizedBox(width: 4),
                       Container(
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 5, vertical: 1.5),
+                          horizontal: 5,
+                          vertical: 1.5,
+                        ),
                         decoration: BoxDecoration(
                           color: AppColors.rojo,
                           borderRadius: BorderRadius.circular(7),
@@ -731,8 +783,12 @@ class _QuickAdd extends StatefulWidget {
   final DateTime fecha;
   final List<TareaCatalogo> catalogo;
   final bool compacto;
-  final Future<void> Function(String titulo, DateTime fecha,
-      {TareaCatalogo? plantilla}) onCrear;
+  final Future<void> Function(
+    String titulo,
+    DateTime fecha, {
+    TareaCatalogo? plantilla,
+  })
+  onCrear;
   final void Function(String titulo, DateTime fecha) onCrearLibre;
 
   const _QuickAdd({
@@ -820,10 +876,14 @@ class _QuickAddState extends State<_QuickAdd> {
                   ? '+ Añadir…'
                   : '+ Añadir tarea en este día…',
               hintStyle: const TextStyle(fontSize: 11),
-              contentPadding:
-                  const EdgeInsets.symmetric(horizontal: 8, vertical: 7),
-              suffixIconConstraints:
-                  const BoxConstraints(maxWidth: 26, maxHeight: 26),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 8,
+                vertical: 7,
+              ),
+              suffixIconConstraints: const BoxConstraints(
+                maxWidth: 26,
+                maxHeight: 26,
+              ),
               suffixIcon: IconButton(
                 padding: EdgeInsets.zero,
                 iconSize: 17,
@@ -856,7 +916,10 @@ class _QuickAddState extends State<_QuickAdd> {
               borderRadius: BorderRadius.circular(10),
               color: Theme.of(context).colorScheme.surface,
               child: ConstrainedBox(
-                constraints: const BoxConstraints(maxHeight: 170, maxWidth: 240),
+                constraints: const BoxConstraints(
+                  maxHeight: 170,
+                  maxWidth: 240,
+                ),
                 child: ListView.builder(
                   padding: const EdgeInsets.symmetric(vertical: 4),
                   shrinkWrap: true,
@@ -867,7 +930,9 @@ class _QuickAddState extends State<_QuickAdd> {
                       onTap: () => onSelected(c),
                       child: Padding(
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 10, vertical: 7),
+                          horizontal: 10,
+                          vertical: 7,
+                        ),
                         child: Row(
                           children: [
                             Icon(
@@ -882,8 +947,9 @@ class _QuickAddState extends State<_QuickAdd> {
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: const TextStyle(
-                                    fontSize: 12.5,
-                                    fontWeight: FontWeight.w700),
+                                  fontSize: 12.5,
+                                  fontWeight: FontWeight.w700,
+                                ),
                               ),
                             ),
                             Text(

@@ -37,10 +37,11 @@ class NotificationService {
   }
 
   /// Guarda la hora del recordatorio (minutos del día) y la sincroniza.
-  Future<void> guardarHora(
-      {required AppProvider app,
-      required int userId,
-      required int minutos}) async {
+  Future<void> guardarHora({
+    required AppProvider app,
+    required int userId,
+    required int minutos,
+  }) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setInt('$_claveMinutos$userId', minutos);
     await prefs.setInt('$_claveHora$userId', minutos ~/ 60);
@@ -48,8 +49,10 @@ class NotificationService {
   }
 
   /// Envía la hora configurada y el offset UTC local al server.
-  Future<void> sincronizar(
-      {required AppProvider app, required int userId}) async {
+  Future<void> sincronizar({
+    required AppProvider app,
+    required int userId,
+  }) async {
     final minutos = await horaConfigurada(userId);
     final offset = DateTime.now().timeZoneOffset.inMinutes;
     await app.guardarRecordatorioEnServer(

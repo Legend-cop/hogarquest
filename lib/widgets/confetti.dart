@@ -27,11 +27,11 @@ class _ConfettiBurstState extends State<ConfettiBurst>
   final _random = Random();
 
   static const _colores = [
-    Color(0xFF58CC02),
+    Color(0xFF22C55E),
     Color(0xFFFFD900),
-    Color(0xFF1CB0F6),
-    Color(0xFFCE82FF),
-    Color(0xFFFF4B4B),
+    Color(0xFF38BDF8),
+    Color(0xFFA78BFA),
+    Color(0xFFFB7185),
   ];
 
   @override
@@ -72,7 +72,9 @@ class _ConfettiBurstState extends State<ConfettiBurst>
                         height: p.tamano,
                         decoration: BoxDecoration(
                           color: p.color,
-                          borderRadius: BorderRadius.circular(p.rounded ? p.tamano / 2 : 2),
+                          borderRadius: BorderRadius.circular(
+                            p.rounded ? p.tamano / 2 : 2,
+                          ),
                         ),
                       ),
                     ),
@@ -90,9 +92,8 @@ class _ConfettiBurstState extends State<ConfettiBurst>
 void lanzarConfeti(BuildContext context) {
   final overlay = Overlay.of(context);
   final entry = OverlayEntry(
-    builder: (_) => ConfettiBurst(
-      key: ValueKey(DateTime.now().microsecondsSinceEpoch),
-    ),
+    builder: (_) =>
+        ConfettiBurst(key: ValueKey(DateTime.now().microsecondsSinceEpoch)),
   );
   overlay.insert(entry);
   Future.delayed(const Duration(milliseconds: 1900), () {
@@ -110,12 +111,12 @@ class _Pieza {
   final bool rounded;
 
   _Pieza(Random random)
-      : x = random.nextDouble(),
-        alturaInicial = 40 + random.nextDouble() * 200,
-        rotacion = random.nextDouble() * 6,
-        velocidadRotacion = 2 + random.nextDouble() * 6,
-        tamano = 6 + random.nextDouble() * 8,
-        color = _ConfettiBurstState._colores[
-            random.nextInt(_ConfettiBurstState._colores.length)],
-        rounded = random.nextBool();
+    : x = random.nextDouble(),
+      alturaInicial = 40 + random.nextDouble() * 200,
+      rotacion = random.nextDouble() * 6,
+      velocidadRotacion = 2 + random.nextDouble() * 6,
+      tamano = 6 + random.nextDouble() * 8,
+      color = _ConfettiBurstState
+          ._colores[random.nextInt(_ConfettiBurstState._colores.length)],
+      rounded = random.nextBool();
 }

@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../providers/app_provider.dart';
 import '../theme/app_theme.dart';
 import '../widgets/duo_widgets.dart';
+import '../widgets/hq_logo.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -44,9 +45,9 @@ class _LoginScreenState extends State<LoginScreen> {
       debugPrint('Error al iniciar sesión: $e');
       if (mounted) {
         setState(() => _enviando = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error al iniciar sesión: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error al iniciar sesión: $e')));
       }
     }
   }
@@ -89,12 +90,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           ),
                         ],
                       ),
-                      child: Image.asset(
-                        'assets/branding/hq_logo_1024.png',
-                        width: 88,
-                        height: 88,
-                        fit: BoxFit.contain,
-                      ),
+                      child: const HqLogo(size: 88),
                     ),
                     const SizedBox(height: 24),
                     Text(
@@ -112,9 +108,10 @@ class _LoginScreenState extends State<LoginScreen> {
                       '¡Aprende, coopera y gana premios!',
                       textAlign: TextAlign.center,
                       style: TextStyle(
-                          color: textoSuaveTema(context),
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600),
+                        color: textoSuaveTema(context),
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                     const SizedBox(height: 36),
                     DuoCard(
@@ -138,9 +135,11 @@ class _LoginScreenState extends State<LoginScreen> {
                               labelText: 'Contraseña',
                               prefixIcon: const Icon(Icons.lock_outline),
                               suffixIcon: IconButton(
-                                icon: Icon(_ocultar
-                                    ? Icons.visibility_off
-                                    : Icons.visibility),
+                                icon: Icon(
+                                  _ocultar
+                                      ? Icons.visibility_off
+                                      : Icons.visibility,
+                                ),
                                 onPressed: () =>
                                     setState(() => _ocultar = !_ocultar),
                               ),
@@ -159,8 +158,11 @@ class _LoginScreenState extends State<LoginScreen> {
                               ),
                               child: Row(
                                 children: [
-                                  const Icon(Icons.error_outline,
-                                      color: AppColors.rojo, size: 22),
+                                  const Icon(
+                                    Icons.error_outline,
+                                    color: AppColors.rojo,
+                                    size: 22,
+                                  ),
                                   const SizedBox(width: 10),
                                   Expanded(
                                     child: Text(
@@ -193,18 +195,21 @@ class _LoginScreenState extends State<LoginScreen> {
                         Text(
                           '¿Olvidaste tu contraseña? ',
                           style: TextStyle(
-                              fontSize: 13, color: textoSuaveTema(context)),
-                        ),
-                          TextButton(
-                            onPressed: () => ScaffoldMessenger.of(context)
-                                .showSnackBar(
-                              const SnackBar(
-                                content: Text(
-                                    'Si eres el administrador, restablécela desde "Gestionar integrantes".'),
-                              ),
-                            ),
-                            child: const Text('Pide ayuda'),
+                            fontSize: 13,
+                            color: textoSuaveTema(context),
                           ),
+                        ),
+                        TextButton(
+                          onPressed: () =>
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text(
+                                    'Si eres el administrador, restablécela desde "Gestionar integrantes".',
+                                  ),
+                                ),
+                              ),
+                          child: const Text('Pide ayuda'),
+                        ),
                       ],
                     ),
                   ],

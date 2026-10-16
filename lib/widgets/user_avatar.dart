@@ -64,11 +64,13 @@ class UserAvatar extends StatefulWidget {
         .where((p) => p.isNotEmpty)
         .toList();
     if (partes.isEmpty) return '?';
-    final primero =
-        String.fromCharCodes(partes.first.runes.take(1)).toUpperCase();
+    final primero = String.fromCharCodes(
+      partes.first.runes.take(1),
+    ).toUpperCase();
     if (partes.length == 1) return primero;
-    final segundo =
-        String.fromCharCodes(partes.last.runes.take(1)).toUpperCase();
+    final segundo = String.fromCharCodes(
+      partes.last.runes.take(1),
+    ).toUpperCase();
     return '$primero$segundo';
   }
 

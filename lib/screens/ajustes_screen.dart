@@ -4,28 +4,33 @@ import 'dart:typed_data';
 import 'package:file_picker/file_picker.dart';
 import 'package:file_saver/file_saver.dart';
 import 'package:flutter/material.dart';
+
+import '../widgets/hq_design.dart';
 import 'package:provider/provider.dart';
 
 import '../providers/app_provider.dart';
 import '../providers/theme_controller.dart';
+import '../services/biometria_service.dart';
 import '../services/celebration_service.dart';
 import '../services/haptics_service.dart';
+import '../services/mascota_service.dart';
 import '../services/notification_service.dart';
 import '../theme/app_theme.dart';
-import 'bluetooth_sync_screen.dart';
-import 'local_sync_screen.dart';
+import '../widgets/duo_widgets.dart';
+import 'sincronizacion_bluetooth_screen.dart';
+import 'sincronizacion_local_screen.dart';
 
 /// Ajustes de la app: apariencia/sonido, recordatorio diario y (para el
 /// admin) administración avanzada. maxWidth 700 con tarjetas #1E1E1E
 /// en dark mode (blancas en light).
-class SettingsScreen extends StatefulWidget {
-  const SettingsScreen({super.key});
+class AjustesScreen extends StatefulWidget {
+  const AjustesScreen({super.key});
 
   @override
-  State<SettingsScreen> createState() => _SettingsScreenState();
+  State<AjustesScreen> createState() => _AjustesScreenState();
 }
 
-class _SettingsScreenState extends State<SettingsScreen> {
+class _AjustesScreenState extends State<AjustesScreen> {
   @override
   Widget build(BuildContext context) {
     final app = context.watch<AppProvider>();
@@ -95,23 +100,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ],
         ),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancelar'),
-          ),
-          FilledButton(
-            onPressed: () {
-              if (pin.text.length < 4 || pin.text != confirmar.text) {
-                ScaffoldMessenger.of(ctx).showSnackBar(
-                  const SnackBar(
-                    content: Text('Los PIN no coinciden o son muy cortos.'),
-                  ),
-                );
-                return;
-              }
-              Navigator.pop(ctx, pin.text);
-            },
-            child: const Text('Guardar'),
+          DialogActions(
+            onCancel: () => Navigator.pop(ctx),
+            primary: DuoButton(
+              fullWidth: false,
+              onPressed: () {
+                if (pin.text.length < 4 || pin.text != confirmar.text) {
+                  ScaffoldMessenger.of(ctx).showSnackBar(
+                    const SnackBar(
+                      content: Text('Los PIN no coinciden o son muy cortos.'),
+                    ),
+                  );
+                  return;
+                }
+                Navigator.pop(ctx, pin.text);
+              },
+              label: 'Guardar',
+            ),
           ),
         ],
       ),
@@ -140,15 +145,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
         mimeType: MimeType.other,
       );
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Respaldo descargado.')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Respaldo descargado.')));
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('No se pudo exportar: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('No se pudo exportar: $e')));
       }
     }
   }
@@ -177,13 +182,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
             'respaldo en este y otros dispositivos. ¿Continuar?',
           ),
           actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Cancelar'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('Restaurar'),
+            DialogActions(
+              onCancel: () => Navigator.pop(ctx, false),
+              primary: DuoButton(
+                fullWidth: false,
+                onPressed: () => Navigator.pop(ctx, true),
+                label: 'Restaurar',
+              ),
             ),
           ],
         ),
@@ -191,15 +196,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
       if (confirmar != true) return;
       await app.importarRespaldo(data);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Respaldo restaurado.')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Respaldo restaurado.')));
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('No se pudo restaurar: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('No se pudo restaurar: $e')));
       }
     }
   }
@@ -230,15 +235,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ],
         ),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancelar'),
-          ),
-          FilledButton(
-            onPressed: () =>
-                Navigator.pop(ctx, controller.text.trim() == 'REINICIAR'),
-            style: FilledButton.styleFrom(backgroundColor: AppColors.rojo),
-            child: const Text('Reiniciar'),
+          DialogActions(
+            onCancel: () => Navigator.pop(ctx, false),
+            primary: DuoButton(
+              fullWidth: false,
+              color: AppColors.rojo,
+              borderColor: AppColors.rojoOscuro,
+              onPressed: () =>
+                  Navigator.pop(ctx, controller.text.trim() == 'REINICIAR'),
+              label: 'Reiniciar',
+            ),
           ),
         ],
       ),
@@ -293,7 +299,10 @@ class _AjustesTarjeta extends StatelessWidget {
         ),
         boxShadow: const [
           BoxShadow(
-              color: Color(0x14000000), offset: Offset(0, 4), blurRadius: 0),
+            color: Color(0x14000000),
+            offset: Offset(0, 4),
+            blurRadius: 0,
+          ),
         ],
       ),
       child: Column(
@@ -364,13 +373,29 @@ class _AparienciaYSonidoState extends State<_AparienciaYSonido> {
           ),
           SwitchListTile(
             contentPadding: EdgeInsets.zero,
-            secondary:
-                const Icon(Icons.vibration, color: AppColors.verdeOscuro),
+            secondary: const Icon(
+              Icons.vibration,
+              color: AppColors.verdeOscuro,
+            ),
             title: const Text('Vibración'),
             subtitle: const Text('Retroalimentación táctil al tocar'),
             value: HapticsService.habilitado,
             onChanged: (v) async {
               await HapticsService.setHabilitado(v);
+              HapticsService.seleccion();
+              if (mounted) setState(() {});
+            },
+          ),
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            secondary: const Icon(Icons.pets, color: AppColors.rosa),
+            title: const Text('Mascota siempre visible'),
+            subtitle: const Text(
+              'Si se apaga, la mascota aparece y desaparece sola',
+            ),
+            value: MascotaService.siempreVisible.value,
+            onChanged: (v) async {
+              await MascotaService.setSiempreVisible(v);
               HapticsService.seleccion();
               if (mounted) setState(() {});
             },
@@ -393,14 +418,8 @@ class _AparienciaYSonidoState extends State<_AparienciaYSonido> {
             },
             child: const Column(
               children: [
-                RadioListTile(
-                  title: Text('Claro'),
-                  value: ThemeMode.light,
-                ),
-                RadioListTile(
-                  title: Text('Oscuro'),
-                  value: ThemeMode.dark,
-                ),
+                RadioListTile(title: Text('Claro'), value: ThemeMode.light),
+                RadioListTile(title: Text('Oscuro'), value: ThemeMode.dark),
                 RadioListTile(
                   title: Text('Según el sistema'),
                   value: ThemeMode.system,
@@ -459,10 +478,7 @@ class _RecordatorioAjustesState extends State<_RecordatorioAjustes> {
     if (userId == null) return;
     final picked = await showTimePicker(
       context: context,
-      initialTime: TimeOfDay(
-        hour: actual ~/ 60,
-        minute: actual % 60,
-      ),
+      initialTime: TimeOfDay(hour: actual ~/ 60, minute: actual % 60),
       helpText: 'Hora del recordatorio diario',
     );
     if (picked == null || !mounted) return;
@@ -474,9 +490,9 @@ class _RecordatorioAjustesState extends State<_RecordatorioAjustes> {
     );
     if (mounted) {
       setState(() => _minutos = minutos);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Recordatorio actualizado')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Recordatorio actualizado')));
     }
   }
 
@@ -520,10 +536,13 @@ class _RecordatorioAjustesState extends State<_RecordatorioAjustes> {
               backgroundColor: AppColors.amarillo.withValues(alpha: 0.2),
               child: const Icon(Icons.alarm, color: AppColors.amarillo),
             ),
-            title: const Text('Recordatorio diario',
-                style: TextStyle(fontWeight: FontWeight.w700)),
+            title: const Text(
+              'Recordatorio diario',
+              style: TextStyle(fontWeight: FontWeight.w700),
+            ),
             subtitle: Text(
-                'Notificación a las $horaTexto para tus tareas del día'),
+              'Notificación a las $horaTexto para tus tareas del día',
+            ),
             trailing: TextButton(
               onPressed: _elegirHora,
               child: const Text('Cambiar hora'),
@@ -533,15 +552,20 @@ class _RecordatorioAjustesState extends State<_RecordatorioAjustes> {
             const Divider(height: 1),
             Row(
               children: [
-                const Icon(Icons.notifications_off,
-                    color: AppColors.rojo, size: 20),
+                const Icon(
+                  Icons.notifications_off,
+                  color: AppColors.rojo,
+                  size: 20,
+                ),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
                     'Notificaciones bloqueadas. Actívalas desde los Ajustes '
                     'del sistema.',
-                    style:
-                        TextStyle(fontSize: 12, color: textoSuaveTema(context)),
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: textoSuaveTema(context),
+                    ),
                   ),
                 ),
                 TextButton(
@@ -587,18 +611,53 @@ class _AdministracionCard extends StatelessWidget {
             contentPadding: EdgeInsets.zero,
             leading: const Icon(Icons.pin, color: AppColors.azul),
             title: const Text('PIN de administrador'),
-            subtitle:
-                const Text('Protege el acceso al panel de administración.'),
+            subtitle: const Text(
+              'Protege el acceso al panel de administración.',
+            ),
             trailing: const Icon(Icons.chevron_right),
             onTap: onPin,
+          ),
+          ValueListenableBuilder<bool>(
+            valueListenable: BiometriaService.disponible,
+            builder: (context, disponible, _) {
+              if (!disponible) return const SizedBox.shrink();
+              return ValueListenableBuilder<bool>(
+                valueListenable: BiometriaService.activa,
+                builder: (context, activa, _) {
+                  return Column(
+                    children: [
+                      const Divider(height: 1),
+                      SwitchListTile(
+                        contentPadding: EdgeInsets.zero,
+                        secondary: const Icon(
+                          Icons.fingerprint,
+                          color: AppColors.azul,
+                        ),
+                        title: const Text('Desbloqueo biométrico'),
+                        subtitle: const Text(
+                          'Usa huella o rostro para entrar. El PIN sigue '
+                          'siendo el respaldo.',
+                        ),
+                        value: activa,
+                        onChanged: (v) async {
+                          await BiometriaService.setActiva(v);
+                          HapticsService.seleccion();
+                        },
+                      ),
+                    ],
+                  );
+                },
+              );
+            },
           ),
           const Divider(height: 1),
           ListTile(
             contentPadding: EdgeInsets.zero,
             leading: const Icon(Icons.download, color: AppColors.verdeOscuro),
             title: const Text('Exportar respaldo'),
-            subtitle:
-                const Text('Descarga una copia completa de la base de datos.'),
+            subtitle: const Text(
+              'Descarga una copia completa de la base de datos.',
+            ),
             trailing: const Icon(Icons.chevron_right),
             onTap: onExportar,
           ),
@@ -617,11 +676,12 @@ class _AdministracionCard extends StatelessWidget {
             leading: const Icon(Icons.wifi_tethering, color: AppColors.azul),
             title: const Text('Sincronización local'),
             subtitle: const Text(
-                'Sincroniza con otros dispositivos sin internet (misma Wi-Fi).'),
+              'Sincroniza con otros dispositivos sin internet (misma Wi-Fi).',
+            ),
             trailing: const Icon(Icons.chevron_right),
             onTap: () => Navigator.push(
               context,
-              MaterialPageRoute(builder: (_) => const LocalSyncScreen()),
+              MaterialPageRoute(builder: (_) => const SincronizacionLocalScreen()),
             ),
           ),
           const Divider(height: 1),
@@ -629,20 +689,23 @@ class _AdministracionCard extends StatelessWidget {
             contentPadding: EdgeInsets.zero,
             leading: const Icon(Icons.bluetooth, color: AppColors.azul),
             title: const Text('Sincronización por Bluetooth'),
-            subtitle:
-                const Text('Sincroniza sin internet (Bluetooth/Wi-Fi directo).'),
+            subtitle: const Text(
+              'Sincroniza sin internet (Bluetooth/Wi-Fi directo).',
+            ),
             trailing: const Icon(Icons.chevron_right),
             onTap: () => Navigator.push(
               context,
-              MaterialPageRoute(builder: (_) => const BluetoothSyncScreen()),
+              MaterialPageRoute(builder: (_) => const SincronizacionBluetoothScreen()),
             ),
           ),
           const Divider(height: 1),
           ListTile(
             contentPadding: EdgeInsets.zero,
             leading: const Icon(Icons.delete_forever, color: AppColors.rojo),
-            title: const Text('Reiniciar datos',
-                style: TextStyle(color: AppColors.rojo)),
+            title: const Text(
+              'Reiniciar datos',
+              style: TextStyle(color: AppColors.rojo),
+            ),
             subtitle: const Text('Borra TODOS los datos y empieza de cero.'),
             trailing: const Icon(Icons.chevron_right, color: AppColors.rojo),
             onTap: onReiniciar,

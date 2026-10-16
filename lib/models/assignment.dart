@@ -9,6 +9,11 @@ class Assignment {
   final DateTime? fechaAsignada;
   final DateTime? fechaAprobada;
 
+  /// uid del hijo que ROBÓ esta tarea (vencida) y se quedó sus puntos.
+  /// La fila sigue incompletada: el castigo automático del dueño aplica igual.
+  final int? robadaPor;
+  final DateTime? fechaRobo;
+
   const Assignment({
     this.id,
     required this.usuarioId,
@@ -19,6 +24,8 @@ class Assignment {
     this.fechaCompletada,
     this.fechaAsignada,
     this.fechaAprobada,
+    this.robadaPor,
+    this.fechaRobo,
   });
 
   Assignment copyWith({
@@ -31,6 +38,8 @@ class Assignment {
     DateTime? fechaCompletada,
     DateTime? fechaAsignada,
     DateTime? fechaAprobada,
+    int? robadaPor,
+    DateTime? fechaRobo,
   }) {
     return Assignment(
       id: id ?? this.id,
@@ -42,6 +51,8 @@ class Assignment {
       fechaCompletada: fechaCompletada ?? this.fechaCompletada,
       fechaAsignada: fechaAsignada ?? this.fechaAsignada,
       fechaAprobada: fechaAprobada ?? this.fechaAprobada,
+      robadaPor: robadaPor ?? this.robadaPor,
+      fechaRobo: fechaRobo ?? this.fechaRobo,
     );
   }
 
@@ -56,6 +67,8 @@ class Assignment {
       'fecha_completada': fechaCompletada?.toIso8601String(),
       'fecha_asignada': fechaAsignada?.toIso8601String(),
       'fecha_aprobada': fechaAprobada?.toIso8601String(),
+      'robada_por': robadaPor,
+      'fecha_robo': fechaRobo?.toIso8601String(),
     };
   }
 
@@ -75,6 +88,10 @@ class Assignment {
           : null,
       fechaAprobada: map['fecha_aprobada'] != null
           ? DateTime.tryParse(map['fecha_aprobada'] as String)
+          : null,
+      robadaPor: map['robada_por'] as int?,
+      fechaRobo: map['fecha_robo'] != null
+          ? DateTime.tryParse(map['fecha_robo'] as String)
           : null,
     );
   }

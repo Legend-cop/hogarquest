@@ -45,8 +45,9 @@ class LocalSyncService {
   String? get householdCode => _household;
 
   /// Dispositivos detectados en la red local (misma familia).
-  List<PeerInfo> get peersDetectados =>
-      _peers.values.map((p) => PeerInfo(ip: p.ip, port: p.port, lastSeen: p.lastSeen)).toList();
+  List<PeerInfo> get peersDetectados => _peers.values
+      .map((p) => PeerInfo(ip: p.ip, port: p.port, lastSeen: p.lastSeen))
+      .toList();
 
   DateTime? get ultimaSincronizacion => _ultimaSincronizacion;
 
@@ -137,7 +138,9 @@ class LocalSyncService {
   Future<void> _iniciarUdp() async {
     try {
       final socket = await RawDatagramSocket.bind(
-          InternetAddress.anyIPv4, _udpPort);
+        InternetAddress.anyIPv4,
+        _udpPort,
+      );
       socket.broadcastEnabled = true;
       socket.listen((event) {
         if (event == RawSocketEvent.read) {
@@ -215,8 +218,7 @@ class LocalSyncService {
   Future<void> _sincronizarConPeers() async {
     if (_db == null || _household == null) return;
     final ahora = DateTime.now();
-    _peers.removeWhere(
-        (_, p) => ahora.difference(p.lastSeen).inSeconds > 25);
+    _peers.removeWhere((_, p) => ahora.difference(p.lastSeen).inSeconds > 25);
     final copia = List<_Peer>.from(_peers.values);
     for (final p in copia) {
       await _sincronizarConPeer(p);

@@ -273,29 +273,140 @@ function mergeBox(listaA, listaB, byK) {
   return Array.from(res.values());
 }
 
+// Une las colecciones de un reto ganador con las del mismo registro del
+// otro lado (el que perdió el LWW). Devuelve el ganador si no había nada
+// nuevo, o un clono unido si se agregó contenido.
+function unirReto(v, retosA, retosB) {
+  if (!v || v.id == null) return v;
+  const a = retosA.get(v.id);
+  const b = retosB.get(v.id);
+  const otro = a !== v ? a : b !== v ? b : null;
+  if (!otro) return v;
+  let cambio = false;
+  const r = Object.assign({}, v);
+
+  for (const campo of ['cumplidos', 'aprobados']) {
+    const base = Array.isArray(v[campo]) ? v[campo] : [];
+    const otroArr = Array.isArray(otro[campo]) ? otro[campo] : [];
+    const faltan = otroArr.filter((x) => !base.includes(x));
+    if (faltan.length) {
+      r[campo] = base.concat(faltan);
+      cambio = true;
+    }
+  }
+
+  for (const campo of ['marcas', 'robados']) {
+    const base =
+      v[campo] && typeof v[campo] === 'object' && !Array.isArray(v[campo])
+        ? Object.assign({}, v[campo])
+        : {};
+    const otroMap =
+      otro[campo] && typeof otro[campo] === 'object' && !Array.isArray(otro[campo])
+        ? otro[campo]
+        : {};
+    let crecio = false;
+    for (const k of Object.keys(otroMap)) {
+      if (!(k in base)) {
+        base[k] = otroMap[k];
+        crecio = true;
+      } else if (campo === 'marcas') {
+        // Misma marca en dos dispositivos: queda la más antigua (quien
+        // realmente fue el primero).
+        const ta = Number(base[k]);
+        const tb = Number(otroMap[k]);
+        if (Number.isFinite(ta) && Number.isFinite(tb) && tb < ta) {
+          base[k] = otroMap[k];
+          crecio = true;
+        }
+      }
+    }
+    if (crecio) {
+      r[campo] = base;
+      cambio = true;
+    }
+  }
+
+  // Reto finalizado con carreras unidas: el ganador es la marca más antigua
+  // (el pago ya ocurrió en cada dispositivo; aquí solo se afina quién se
+  // muestra).
+  if (Number(r.finalizado) === 1 && r.marcas && typeof r.marcas === 'object') {
+    let mejor = null;
+    let mejorTs = null;
+    for (const k of Object.keys(r.marcas)) {
+      const uid = Number(k);
+      const tsM = Number(r.marcas[k]);
+      if (!Number.isFinite(uid) || !Number.isFinite(tsM)) continue;
+      if (mejorTs === null || tsM < mejorTs) {
+        mejorTs = tsM;
+        mejor = uid;
+      }
+    }
+    if (mejor !== null && r.ganador !== mejor) {
+      r.ganador = mejor;
+      cambio = true;
+    }
+  }
+
+  return cambio ? r : v;
+}
+
 function mergeIncoming(inc) {
   const out = Object.assign({}, EMPTY);
   for (const box of BOXES) {
     out[box] = mergeBox(db[box] || [], (inc && inc[box]) || [], box === 'meta');
   }
 
-  // Preservar password/salt del servidor cuando un cliente (ej. la web) empuja
-  // usuarios sin ellos porque no los descargó (endpoint /api/db-public).
+  // Guarda de credenciales: el servidor es la autoridad del par
+  // password+salt. Un empuje solo puede cambiar ese par si:
+  //  1) trae password y salt COMPLETOS (nunca se mezcla una mitad con la
+  //     otra: eso producía hashes inválidos y bloqueaba el login), y
+  //  2) trae un marcador de reset (password_updated_at) más reciente que el
+  //     guardado: es el flujo legítimo de "restablecer contraseña".
+  // Todo lo demás (app vieja que re-hashea al iniciar sesión, formularios
+  // que mandan texto plano, duplicados de hash, par vacío...) se RECHAZA y
+  // el servidor conserva su par. Sin esta guarda, un solo dispositivo con
+  // código viejo volvía a romper el login de la cuenta en TODOS lados.
   const existentes = new Map();
   for (const u of (db.usuarios || [])) if (u && u.id != null) existentes.set(u.id, u);
+  const vacio = (v) => v == null || v === '';
   if (out.usuarios) {
     out.usuarios = out.usuarios.map((u) => {
-      if (u && u.id != null && (u.password == null || u.salt == null)) {
-        const e = existentes.get(u.id);
-        if (e) {
-          const c = Object.assign({}, u);
-          if (c.password == null) c.password = e.password;
-          if (c.salt == null) c.salt = e.salt;
-          return c;
-        }
-      }
-      return u;
+      if (!u || u.id == null) return u;
+      const e = existentes.get(u.id);
+      if (!e) return u; // usuario nuevo: entra tal cual
+      const mismoPw = (u.password || '') === (e.password || '');
+      const mismoSalt = (u.salt || '') === (e.salt || '');
+      if (mismoPw && mismoSalt) return u;
+      const marcaI = Number(u.password_updated_at) || 0;
+      const marcaS = Number(e.password_updated_at) || 0;
+      if (!vacio(u.password) && !vacio(u.salt) && marcaI > marcaS) return u;
+      const c = Object.assign({}, u);
+      if (!vacio(e.password)) c.password = e.password;
+      else delete c.password;
+      if (!vacio(e.salt)) c.salt = e.salt;
+      else delete c.salt;
+      if (!vacio(e.password_updated_at)) c.password_updated_at = e.password_updated_at;
+      else delete c.password_updated_at;
+      return c;
     });
+  }
+
+  // Retos: además del LWW por registro, unir las colecciones de carrera
+  // (cumplidos/aprobados/marcas/robados) del registro perdedor: si dos
+  // hijos marcan o roban casi a la vez desde dispositivos distintos, la
+  // última escritura no debe borrar la otra. El pago lo hace la app; aquí
+  // solo no se pierden marcas. `updated_at` NO cambia (no re-sellar) para
+  // no alterar la semántica LWW ni los tombstones.
+  if (Array.isArray(out.retos)) {
+    const retosA = new Map();
+    for (const r of (Array.isArray(db.retos) ? db.retos : [])) {
+      if (r && r.id != null) retosA.set(r.id, r);
+    }
+    const retosB = new Map();
+    for (const r of (inc && Array.isArray(inc.retos) ? inc.retos : [])) {
+      if (r && r.id != null) retosB.set(r.id, r);
+    }
+    out.retos = out.retos.map((v) => unirReto(v, retosA, retosB));
   }
 
   // Unir tombstones de ambos lados (el más reciente por registro gana).

@@ -6,7 +6,9 @@ import '../theme/app_theme.dart';
 class ProgressRing extends StatelessWidget {
   final double progress; // 0.0 - 1.0
   final Color color;
-  final Color trackColor;
+
+  /// Pista; si es null se usa un gris tenue según el tema activo.
+  final Color? trackColor;
   final double strokeWidth;
   final Widget? child;
 
@@ -14,13 +16,15 @@ class ProgressRing extends StatelessWidget {
     super.key,
     required this.progress,
     this.color = AppColors.verde,
-    this.trackColor = AppColors.linea,
+    this.trackColor,
     this.strokeWidth = 10,
     this.child,
   });
 
   @override
   Widget build(BuildContext context) {
+    final track =
+        trackColor ?? (esOscuro(context) ? Colors.white12 : AppColors.linea);
     return SizedBox(
       width: 110,
       height: 110,
@@ -34,7 +38,7 @@ class ProgressRing extends StatelessWidget {
               value: progress,
               strokeWidth: strokeWidth,
               strokeCap: StrokeCap.round,
-              backgroundColor: trackColor,
+              backgroundColor: track,
               color: color,
             ),
           ),
@@ -49,19 +53,23 @@ class ProgressRing extends StatelessWidget {
 class SegmentedProgressBar extends StatelessWidget {
   final double progress; // 0.0 - 1.0
   final Color color;
-  final Color trackColor;
+
+  /// Pista; si es null se usa un gris tenue según el tema activo.
+  final Color? trackColor;
   final int segments;
 
   const SegmentedProgressBar({
     super.key,
     required this.progress,
     this.color = AppColors.amarillo,
-    this.trackColor = AppColors.linea,
+    this.trackColor,
     this.segments = 10,
   });
 
   @override
   Widget build(BuildContext context) {
+    final track =
+        trackColor ?? (esOscuro(context) ? Colors.white12 : AppColors.linea);
     return Row(
       children: [
         for (var i = 0; i < segments; i++)
@@ -71,9 +79,7 @@ class SegmentedProgressBar extends StatelessWidget {
               child: Container(
                 height: 16,
                 decoration: BoxDecoration(
-                  color: progress >= (i + 1) / segments
-                      ? color
-                      : trackColor,
+                  color: progress >= (i + 1) / segments ? color : track,
                   borderRadius: BorderRadius.circular(4),
                 ),
               ),

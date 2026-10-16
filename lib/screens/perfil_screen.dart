@@ -5,30 +5,30 @@ import '../db/photo_picker.dart';
 import '../db/photo_store.dart';
 import '../db/upload_client.dart';
 import '../providers/app_provider.dart';
-import 'settings_screen.dart';
+import 'ajustes_screen.dart';
 import '../theme/app_theme.dart';
 import '../widgets/duo_widgets.dart';
 import '../widgets/hq_design.dart';
+import '../widgets/icono3d.dart';
 import '../widgets/icons3d.dart';
+import '../widgets/insignia_parche.dart';
 import '../widgets/mascots.dart';
 import '../widgets/user_avatar.dart';
 import '../models/user.dart';
 import '../models/badge.dart' as badge_model;
 import '../models/assignment.dart';
 import '../models/castigo.dart';
-import '../models/redemption.dart';
-import '../models/reward.dart';
 import '../models/task.dart';
 import '../services/gamification_service.dart';
 
-class ProfileScreen extends StatefulWidget {
-  const ProfileScreen({super.key});
+class PerfilScreen extends StatefulWidget {
+  const PerfilScreen({super.key});
 
   @override
-  State<ProfileScreen> createState() => _ProfileScreenState();
+  State<PerfilScreen> createState() => _PerfilScreenState();
 }
 
-class _ProfileScreenState extends State<ProfileScreen> {
+class _PerfilScreenState extends State<PerfilScreen> {
   final _nombreController = TextEditingController();
   final _colorTemaController = TextEditingController();
   bool _editando = false;
@@ -53,18 +53,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
     });
   }
 
-  Future<void> _cargarLiga() async {
-    final app = context.read<AppProvider>();
-    final user = app.usuarioActual;
+  /// Liga del usuario: depende de sus puntos acumulados (escalera de 20).
+  void _cargarLiga() {
+    final user = context.read<AppProvider>().usuarioActual;
     if (user == null) return;
-    final ranking = await app.rankingSemanaAnterior();
-    if (!mounted) return;
-    final idx = ranking.indexWhere((e) => e.$1.id == user.id);
-    setState(() {
-      _liga = idx >= 0
-          ? GamificationService.ligaDe(idx + 1, ranking.length)
-          : 'Bronce';
-    });
+    setState(() => _liga = GamificationService.ligaDe(user.puntos));
   }
 
   @override
@@ -103,7 +96,45 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final user = app.usuarioActual;
     if (user == null) return;
     final actual = mascotaDeUser(user);
-    final nueva = await elegirMascotaSheet(context, actual);
+    // El admin elige entre sus 4 mascotas exclusivas (todas disponibles y
+    // sin requisitos); los integrantes usan el sistema de desbloqueo.
+    if (user.esAdmin) {
+      if (!mounted) return;
+      final nueva = await elegirMascotaSheet(
+        context,
+        actual,
+        desbloqueadas: mascotasSoloAdmin,
+        visibles: mascotasSoloAdmin,
+        nivel: 0,
+        puntos: 0,
+        tareas: 0,
+        insignias: 0,
+      );
+      if (nueva == null || nueva == actual || !mounted) return;
+      await app.editarUsuario(user.copyWith(mascota: nueva.name));
+      return;
+    }
+    final nivel = GamificationService.nivelPara(user.puntos);
+    final historial = await app.historialDe(user.id!);
+    final insignias = await app.insigniasDe(user.id!);
+    if (!mounted) return;
+    final tareas = historial.length;
+    final nInsignias = insignias.length;
+    final desbloqueadas = mascotasDesbloqueadas(
+      nivel: nivel,
+      puntos: user.puntos,
+      tareas: tareas,
+      insignias: nInsignias,
+    );
+    final nueva = await elegirMascotaSheet(
+      context,
+      actual,
+      desbloqueadas: desbloqueadas,
+      nivel: nivel,
+      puntos: user.puntos,
+      tareas: tareas,
+      insignias: nInsignias,
+    );
     if (nueva == null || nueva == actual || !mounted) return;
     await app.editarUsuario(user.copyWith(mascota: nueva.name));
   }
@@ -117,18 +148,33 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return Scaffold(
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _AvatarCard(
-                user: user,
-                onCambiarFoto: user.esAdmin ? _cambiarFoto : null,
-                editando: _editando,
-                onEditar: () => setState(() => _editando = true),
-                onAjustes: _irAjustes,
-                onCerrarSesion: () => _cerrarSesion(context),
-                onMascota: user.esAdmin ? null : _elegirMascota,
+              ReferenciaTitulo(
+                user.esAdmin
+                    ? 'TU CUARTEL GENERAL'
+                    : 'PERFIL DE ${user.nombre.toUpperCase()}',
+                'Mi perfil',
+                icono: Icono3DTipo.persona,
+              ),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: azulFondoTema(context),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: _AvatarCard(
+                  user: user,
+                  onCambiarFoto: user.esAdmin ? _cambiarFoto : null,
+                  editando: _editando,
+                  onEditar: () => setState(() => _editando = true),
+                  onAjustes: _irAjustes,
+                  onCerrarSesion: () => _cerrarSesion(context),
+                  onMascota: _elegirMascota,
+                ),
               ),
               const SizedBox(height: 16),
               if (_editando)
@@ -143,16 +189,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 _MetricasRow(user: user, liga: _liga),
               const SizedBox(height: 16),
               _MedalleroSection(user: user),
-              if (user.esAdmin) ...[
-                const SizedBox(height: 16),
-                const Text(
-                  'Canjes recientes',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
-                ),
-                const SizedBox(height: 8),
-                _RedemptionsSection(user: user),
-              ],
-              if (!_editando) ...[
+              if (!user.esAdmin && !_editando) ...[
                 const SizedBox(height: 16),
                 const Text(
                   'Castigos',
@@ -171,7 +208,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   void _irAjustes() {
     Navigator.push(
       context,
-      MaterialPageRoute(builder: (_) => const SettingsScreen()),
+      MaterialPageRoute(builder: (_) => const AjustesScreen()),
     );
   }
 
@@ -226,13 +263,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
         title: const Text('Cerrar sesión'),
         content: const Text('¿Seguro que quieres salir?'),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancelar'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Salir'),
+          DialogActions(
+            onCancel: () => Navigator.pop(ctx, false),
+            primary: DuoButton(
+              fullWidth: false,
+              color: AppColors.rojo,
+              borderColor: AppColors.rojoOscuro,
+              onPressed: () => Navigator.pop(ctx, true),
+              label: 'Salir',
+            ),
           ),
         ],
       ),
@@ -266,7 +305,7 @@ class _AvatarCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final subtitulo = user.esAdmin
-        ? 'Guardián del hogar'
+        ? 'Administrador del Hogar'
         : '${GamificationService.nombreNivel(user.nivel)} · ${user.edad} años';
     // Los niños llevan su mascota como avatar de perfil: es interactiva
     // (salta y habla al tocarla) y da más protagonismo a su compañero.
@@ -328,7 +367,7 @@ class _AvatarCard extends StatelessWidget {
                         ),
                     ],
                   )
-                : MascotWidget(mascota: mascota, size: 112),
+                : MascotWidget(mascota: mascota, size: 112, flotante: true),
           ),
         ),
         if (!user.esAdmin) ...[
@@ -394,23 +433,23 @@ class _BotonIcono extends StatelessWidget {
   final IconData icon;
   final VoidCallback onTap;
   final Color? color;
-  const _BotonIcono({
-    required this.icon,
-    required this.onTap,
-    this.color,
-  });
+  const _BotonIcono({required this.icon, required this.onTap, this.color});
 
   @override
   Widget build(BuildContext context) {
-    final c = color ?? AppColors.grisOscuro;
+    final c = color ?? textoTema(context);
     return IconButton(
       onPressed: onTap,
       icon: Icon(icon, size: 20),
       visualDensity: VisualDensity.compact,
       style: IconButton.styleFrom(
         foregroundColor: c,
-        backgroundColor: Colors.white,
-        side: BorderSide(color: color ?? AppColors.linea, width: 1.5),
+        backgroundColor: superficieTema(context),
+        side: BorderSide(
+          color: color ??
+              (esOscuro(context) ? Colors.white24 : AppColors.linea),
+          width: 1.5,
+        ),
         padding: EdgeInsets.zero,
         minimumSize: const Size(42, 42),
         maximumSize: const Size(42, 42),
@@ -436,22 +475,22 @@ class _MetricasRow extends StatelessWidget {
               'XP',
               '${user.puntos}',
               Icons.bolt,
-              AppColors.verdeFondo,
-              Bolt3D(size: 34)
+              verdeFondoTema(context),
+              Bolt3D(size: 34),
             ),
             (
               'Liga',
               liga,
               Icons.military_tech,
-              AppColors.amarilloFondo,
-              Medal3D(size: 34, tono: medalTonoDe(liga))
+              amarilloFondoTema(context),
+              Medal3D(size: 34, tono: medalTonoDe(liga)),
             ),
             (
               'Racha',
               '${user.racha}',
               Icons.local_fire_department,
-              AppColors.rojoFondo,
-              Flame3D(size: 34)
+              rojoFondoTema(context),
+              Flame3D(size: 34, racha: user.racha),
             ),
           ]
         : <(String, String, IconData, Color, Widget)>[
@@ -459,22 +498,22 @@ class _MetricasRow extends StatelessWidget {
               'XP',
               '${user.puntos}',
               Icons.bolt,
-              AppColors.verdeFondo,
-              Bolt3D(size: 34)
+              verdeFondoTema(context),
+              Bolt3D(size: 34),
             ),
             (
               'Racha',
               '${user.racha}',
               Icons.local_fire_department,
-              AppColors.rojoFondo,
-              Flame3D(size: 34)
+              rojoFondoTema(context),
+              Flame3D(size: 34, racha: user.racha),
             ),
             (
               'Liga',
               liga,
               Icons.military_tech,
-              AppColors.amarilloFondo,
-              Medal3D(size: 34, tono: medalTonoDe(liga))
+              amarilloFondoTema(context),
+              Medal3D(size: 34, tono: medalTonoDe(liga)),
             ),
           ];
     return Row(
@@ -482,9 +521,13 @@ class _MetricasRow extends StatelessWidget {
         for (var i = 0; i < items.length; i++) ...[
           if (i > 0) const SizedBox(width: 8),
           Expanded(
-            child: MetricCard(items[i].$1, items[i].$2, items[i].$3,
-                items[i].$4,
-                iconoWidget: items[i].$5),
+            child: MetricCard(
+              items[i].$1,
+              items[i].$2,
+              items[i].$3,
+              items[i].$4,
+              iconoWidget: items[i].$5,
+            ),
           ),
         ],
       ],
@@ -643,11 +686,6 @@ class _MedalleroSectionState extends State<_MedalleroSection> {
     }
   }
 
-  /// Icono 3D de la insignia por su nombre de icono (sin animación en el
-  /// grid para no saturar).
-  Widget _iconoInsignia(String nombre, {double size = 28}) =>
-      insignia3D(nombre, size: size, animar: false);
-
   @override
   Widget build(BuildContext context) {
     if (_cargando) {
@@ -659,7 +697,8 @@ class _MedalleroSectionState extends State<_MedalleroSection> {
         style: TextStyle(color: textoSuaveTema(context)),
       );
     }
-    final logradas = _detalle.where((d) => d.$4).length;
+    final logradas = _detalle.where((d) => d.$4).toList();
+    final faltantes = _detalle.where((d) => !d.$4).toList();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -667,7 +706,7 @@ class _MedalleroSectionState extends State<_MedalleroSection> {
           children: [
             Expanded(
               child: Text(
-                'Insignias ($logradas de ${_detalle.length})',
+                'Insignias (${logradas.length} de ${_detalle.length})',
                 style: const TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.w900,
@@ -678,146 +717,82 @@ class _MedalleroSectionState extends State<_MedalleroSection> {
             const SizedBox(width: 4),
           ],
         ),
-        const SizedBox(height: 8),
-        GridView.count(
-          crossAxisCount: 3,
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          mainAxisSpacing: 8,
-          crossAxisSpacing: 8,
-          children: [
-            for (final d in _detalle)
-              Opacity(
-                opacity: d.$4 ? 1 : 0.4,
-                child: CardBox(
-                  margin: EdgeInsets.zero,
-                  color: d.$4 ? AppColors.amarilloFondo : AppColors.fondo,
-                  padding: const EdgeInsets.all(8),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      _iconoInsignia(d.$1.icono, size: 28),
-                      const SizedBox(height: 4),
-                      Text(
-                        d.$1.nombre,
-                        textAlign: TextAlign.center,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-          ],
+        const SizedBox(height: 10),
+        // Dos carruseles horizontales: arriba las logradas, abajo las que
+        // faltan por completar (así el perfil no queda eterno de scroll).
+        _filaCarrusel(
+          titulo: 'Logradas',
+          items: logradas,
+          vacio: 'Aún no has ganado insignias. ¡Sigue así!',
+        ),
+        const SizedBox(height: 16),
+        _filaCarrusel(
+          titulo: 'Por conseguir',
+          items: faltantes,
+          vacio: '¡Ya las tienes todas! 🏆',
         ),
       ],
     );
   }
-}
 
-class _RedemptionsSection extends StatefulWidget {
-  final User user;
-  const _RedemptionsSection({required this.user});
-
-  @override
-  State<_RedemptionsSection> createState() => _RedemptionsSectionState();
-}
-
-class _RedemptionsSectionState extends State<_RedemptionsSection> {
-  List<(Redemption, Reward)> _canjes = [];
-  bool _cargando = true;
-
-  @override
-  void initState() {
-    super.initState();
-    _cargarDatos();
-  }
-
-  Future<void> _cargarDatos() async {
-    final app = context.read<AppProvider>();
-    final canjes = widget.user.id != null
-        ? await app.canjesDe(widget.user.id!)
-        : <(Redemption, Reward)>[];
-    if (mounted) {
-      setState(() {
-        _canjes = canjes;
-        _cargando = false;
-      });
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    if (_cargando) {
-      return const Center(child: CircularProgressIndicator());
-    }
-
-    if (_canjes.isEmpty) {
-      return Text(
-        'Aún no se ha canjeado ninguna recompensa.',
-        style: TextStyle(color: textoSuaveTema(context)),
-      );
-    }
-
+  /// Fila horizontal con scroll de parches de insignia (carrusel).
+  Widget _filaCarrusel({
+    required String titulo,
+    required List<(badge_model.Badge, int, int, bool)> items,
+    required String vacio,
+  }) {
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        for (final (canje, recompensa) in _canjes)
-          CardBox(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-            child: Row(
-              children: [
-                Container(
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(
-                    color: AppColors.verdeFondo,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: const Icon(
-                    Icons.card_giftcard,
-                    color: AppColors.verdeOscuro,
-                    size: 20,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        recompensa.nombre,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w800,
-                        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 2),
+          child: Text(
+            '$titulo (${items.length})',
+            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w900),
+          ),
+        ),
+        const SizedBox(height: 8),
+        if (items.isEmpty)
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 2),
+            child: Text(
+              vacio,
+              style: TextStyle(fontSize: 12, color: textoSuaveTema(context)),
+            ),
+          )
+        else
+          SizedBox(
+            height: 122,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              itemCount: items.length,
+              separatorBuilder: (_, _) => const SizedBox(width: 8),
+              itemBuilder: (context, i) {
+                final d = items[i];
+                return SizedBox(
+                  width: 92,
+                  child: CardBox(
+                    margin: EdgeInsets.zero,
+                    color: d.$4
+                        ? amarilloFondoTema(context)
+                        : superficieTema(context),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 8,
+                    ),
+                    child: Center(
+                      child: InsigniaParche(
+                        icono: d.$1.icono,
+                        nombre: d.$1.nombre,
+                        lograda: d.$4,
+                        actual: d.$2,
+                        meta: d.$3,
+                        size: 66,
                       ),
-                      const SizedBox(height: 2),
-                      Text(
-                        '${canje.fecha.day}/${canje.fecha.month}/${canje.fecha.year}',
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700,
-                          color: textoSuaveTema(context),
-                        ),
-                      ),
-                    ],
+                    ),
                   ),
-                ),
-                Text(
-                  '-${recompensa.costoPuntos} pts',
-                  style: const TextStyle(
-                    color: AppColors.rojo,
-                    fontWeight: FontWeight.w900,
-                    fontSize: 13,
-                  ),
-                ),
-              ],
+                );
+              },
             ),
           ),
       ],
@@ -838,6 +813,10 @@ class _CastigosSectionState extends State<_CastigosSection> {
   int _puntosSemana = 0;
   bool _cargando = true;
 
+  /// Filtro por días: 7, 30 o 0 = todo el historial.
+  int _dias = 7;
+  bool _expandido = false;
+
   @override
   void initState() {
     super.initState();
@@ -850,11 +829,23 @@ class _CastigosSectionState extends State<_CastigosSection> {
     final puntos = await app.puntosCastigadosRecientes(widget.userId);
     if (mounted) {
       setState(() {
-        _castigos = castigos.reversed.toList();
+        _castigos = castigos;
         _puntosSemana = puntos;
         _cargando = false;
       });
     }
+  }
+
+  /// Castigos del periodo seleccionado, del más reciente al más antiguo.
+  List<Castigo> get _filtrados {
+    final corte = _dias <= 0
+        ? null
+        : DateTime.now().subtract(Duration(days: _dias));
+    final lista = _castigos
+        .where((c) => corte == null || !c.fecha.isBefore(corte))
+        .toList();
+    lista.sort((a, b) => b.fecha.compareTo(a.fecha));
+    return lista;
   }
 
   @override
@@ -864,52 +855,108 @@ class _CastigosSectionState extends State<_CastigosSection> {
     }
 
     if (_castigos.isEmpty) {
-      return const CardBox(
-        color: AppColors.rojoFondo,
+      return CardBox(
+        color: rojoFondoTema(context),
         child: Text(
           'Sin castigos activos. ¡Sigue así, lo estás haciendo genial!',
           style: TextStyle(
             fontWeight: FontWeight.w900,
-            color: AppColors.grisOscuro,
+            color: textoTema(context),
           ),
         ),
       );
     }
 
-    final disciplina = _castigos.where((c) => c.esDisciplina).take(5).toList();
-    final tareas = _castigos.where((c) => c.esTarea).take(5).toList();
+    final lista = _filtrados;
+    final visibles = _expandido ? lista : lista.take(6).toList();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        // Filtro por días: evita que la lista alargue demasiado el perfil.
+        Wrap(
+          spacing: 8,
+          runSpacing: 6,
+          children: [
+            for (final (valor, etiqueta) in const [
+              (7, '7 días'),
+              (30, '30 días'),
+              (0, 'Todo'),
+            ])
+              ChoiceChip(
+                label: Text(etiqueta),
+                selected: _dias == valor,
+                onSelected: (_) => setState(() {
+                  _dias = valor;
+                  _expandido = false;
+                }),
+                selectedColor: rojoFondoTema(context),
+                labelStyle: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800,
+                  color: _dias == valor
+                      ? (esOscuro(context)
+                          ? Colors.redAccent
+                          : AppColors.rojo)
+                      : textoSuaveTema(context),
+                ),
+                visualDensity: VisualDensity.compact,
+                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+          ],
+        ),
         if (_puntosSemana > 0)
           Padding(
-            padding: const EdgeInsets.only(bottom: 8),
+            padding: const EdgeInsets.only(top: 8, bottom: 8),
             child: Chip(
               label: Text('-$_puntosSemana pts esta semana'),
-              backgroundColor: AppColors.rojoFondo,
-              labelStyle: const TextStyle(
-                color: AppColors.rojo,
+              backgroundColor: rojoFondoTema(context),
+              labelStyle: TextStyle(
+                color: esOscuro(context) ? Colors.redAccent : AppColors.rojo,
                 fontWeight: FontWeight.w800,
                 fontSize: 12,
               ),
               visualDensity: VisualDensity.compact,
               materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
             ),
-          ),
-        for (final c in [...tareas, ...disciplina])
+          )
+        else
+          const SizedBox(height: 8),
+        if (lista.isEmpty)
           CardBox(
-            color: AppColors.rojoFondo,
+            color: rojoFondoTema(context),
             child: Text(
-              '${c.motivo} · ${c.fecha.day}/${c.fecha.month} · '
-              '−${c.puntos} pts',
-              style: const TextStyle(
+              'Sin castigos en este periodo. 🎉',
+              style: TextStyle(
                 fontWeight: FontWeight.w900,
-                color: AppColors.grisOscuro,
+                color: textoTema(context),
               ),
             ),
-          ),
+          )
+        else ...[
+          for (final c in visibles)
+            CardBox(
+              color: rojoFondoTema(context),
+              child: Text(
+                '${c.motivo} · ${c.fecha.day}/${c.fecha.month} · '
+                '−${c.puntos} pts',
+                style: TextStyle(
+                  fontWeight: FontWeight.w900,
+                  color: textoTema(context),
+                ),
+              ),
+            ),
+          if (lista.length > 6)
+            TextButton(
+              onPressed: () => setState(() => _expandido = !_expandido),
+              child: Text(
+                _expandido
+                    ? 'Ver menos'
+                    : 'Ver los ${lista.length} castigos',
+                style: const TextStyle(fontWeight: FontWeight.w800),
+              ),
+            ),
+        ],
       ],
     );
   }
 }
-

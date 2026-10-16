@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math';
 
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
@@ -14,6 +15,7 @@ import '../db/upload_client.dart';
 import '../models/assignment.dart';
 import '../models/badge.dart';
 import '../models/castigo.dart';
+import '../models/logro.dart';
 import '../services/push_service.dart';
 import '../models/redemption.dart';
 import '../models/reto.dart';
@@ -78,8 +80,9 @@ class AppProvider extends ChangeNotifier {
     final user = await _db.getUserById(id);
     if (user != null) {
       _usuarioActual = user;
-      unawaited(NotificationService.instance
-          .sincronizar(app: this, userId: user.id!));
+      unawaited(
+        NotificationService.instance.sincronizar(app: this, userId: user.id!),
+      );
     }
   }
 
@@ -124,8 +127,9 @@ class AppProvider extends ChangeNotifier {
       for (final u in usuarios) {
         if (u.foto.isEmpty) continue;
         if (u.fotoLocal.isNotEmpty && PhotoStore.existe(u.fotoLocal)) continue;
-        final url =
-            u.foto.startsWith('http') ? u.foto : '${ServerConfig.baseUrl}${u.foto}';
+        final url = u.foto.startsWith('http')
+            ? u.foto
+            : '${ServerConfig.baseUrl}${u.foto}';
         try {
           final resp = await http.get(Uri.parse(url));
           if (resp.statusCode == 200 && resp.bodyBytes.isNotEmpty) {
@@ -144,11 +148,15 @@ class AppProvider extends ChangeNotifier {
   /// Sube al servidor las fotos que se agregaron sin conexión (tienen copia
   /// local pero aún no tienen URL remota) y actualiza el registro local.
   Future<void> _subirFotosPendientes() async {
-    if (kIsWeb) return; // en web las fotos se suben desde memoria, no de archivo
+    if (kIsWeb) {
+      return; // en web las fotos se suben desde memoria, no de archivo
+    }
     try {
       final recompensas = await listarRecompensas();
       for (final r in recompensas) {
-        if (r.fotoLocal.isNotEmpty && r.foto.isEmpty && PhotoStore.existe(r.fotoLocal)) {
+        if (r.fotoLocal.isNotEmpty &&
+            r.foto.isEmpty &&
+            PhotoStore.existe(r.fotoLocal)) {
           final bytes = await File(r.fotoLocal).readAsBytes();
           final url = await UploadClient().subirFoto(bytes);
           if (url != null) await editarRecompensa(r.copyWith(foto: url));
@@ -156,7 +164,9 @@ class AppProvider extends ChangeNotifier {
       }
       final usuarios = await listarUsuarios();
       for (final u in usuarios) {
-        if (u.fotoLocal.isNotEmpty && u.foto.isEmpty && PhotoStore.existe(u.fotoLocal)) {
+        if (u.fotoLocal.isNotEmpty &&
+            u.foto.isEmpty &&
+            PhotoStore.existe(u.fotoLocal)) {
           final bytes = await File(u.fotoLocal).readAsBytes();
           final url = await UploadClient().subirFoto(bytes);
           if (url != null) await editarUsuario(u.copyWith(foto: url));
@@ -178,8 +188,9 @@ class AppProvider extends ChangeNotifier {
     if (user == null) {
       _intentosFallidos++;
       if (_intentosFallidos >= _maxIntentos) {
-        _bloqueadoHasta =
-            DateTime.now().add(Duration(minutes: _bloqueoMinutos));
+        _bloqueadoHasta = DateTime.now().add(
+          Duration(minutes: _bloqueoMinutos),
+        );
       }
       _error = 'Usuario o contraseña incorrectos.';
       notifyListeners();
@@ -264,6 +275,7 @@ class AppProvider extends ChangeNotifier {
     _usuarios = usuarios;
     return usuarios;
   }
+
   Future<List<User>> listarIntegrantes({bool soloActivos = true}) =>
       _db.getIntegrantes(soloActivos: soloActivos);
 
@@ -419,22 +431,33 @@ class AppProvider extends ChangeNotifier {
       categoria: categoria,
     );
     final tareaId = await _db.insertTarea(tarea);
-    debugPrint('[crearTarea] tareaId=$tareaId titulo="$titulo" dia="$dia" integrantes=$integrantesIds');
+    debugPrint(
+      '[crearTarea] tareaId=$tareaId titulo="$titulo" dia="$dia" integrantes=$integrantesIds',
+    );
     for (final uid in integrantesIds) {
-      await _db.insertAsignacion(Assignment(
-        usuarioId: uid,
-        tareaId: tareaId,
-        fechaAsignada: DateTime.now(),
-      ));
-      debugPrint('[crearTarea] asignacion creada usuarioId=$uid tareaId=$tareaId');
+      await _db.insertAsignacion(
+        Assignment(
+          usuarioId: uid,
+          tareaId: tareaId,
+          fechaAsignada: DateTime.now(),
+        ),
+      );
+      debugPrint(
+        '[crearTarea] asignacion creada usuarioId=$uid tareaId=$tareaId',
+      );
       unawaited(_db.enviarPush(uid, 'Nueva tarea', titulo));
     }
     final verificacion = await _db.getAsignacionesPorTarea(tareaId);
-    debugPrint('[crearTarea] verificacion: ${verificacion.length} asignaciones para tarea $tareaId');
+    debugPrint(
+      '[crearTarea] verificacion: ${verificacion.length} asignaciones para tarea $tareaId',
+    );
     notifyListeners();
   }
 
-  Future<void> editarTarea(Task t, {List<int> integrantesIds = const []}) async {
+  Future<void> editarTarea(
+    Task t, {
+    List<int> integrantesIds = const [],
+  }) async {
     await _db.updateTarea(t);
     if (integrantesIds.isNotEmpty) {
       final asignacionesActuales = await _db.getAsignacionesPorTarea(t.id!);
@@ -444,11 +467,13 @@ class AppProvider extends ChangeNotifier {
         }
       }
       for (final uid in integrantesIds) {
-        await _db.insertAsignacion(Assignment(
-          usuarioId: uid,
-          tareaId: t.id!,
-          fechaAsignada: DateTime.now(),
-        ));
+        await _db.insertAsignacion(
+          Assignment(
+            usuarioId: uid,
+            tareaId: t.id!,
+            fechaAsignada: DateTime.now(),
+          ),
+        );
       }
     }
     notifyListeners();
@@ -463,10 +488,12 @@ class AppProvider extends ChangeNotifier {
         final user = await _db.getUserById(c.usuarioId);
         if (user != null) {
           final nuevos = user.puntos + c.puntos;
-          await _db.updateUsuario(user.copyWith(
-            puntos: nuevos,
-            nivel: GamificationService.nivelPara(nuevos),
-          ));
+          await _db.updateUsuario(
+            user.copyWith(
+              puntos: nuevos,
+              nivel: GamificationService.nivelPara(nuevos),
+            ),
+          );
           if (_usuarioActual?.id == c.usuarioId) {
             final u = await _db.getUserById(c.usuarioId);
             if (u != null) _usuarioActual = u;
@@ -499,9 +526,78 @@ class AppProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Tareas que otro hijo dejó vencidas (sin completar en su tiempo) y que
+  /// ya pueden robarse: sigue activa, de la semana actual y sin robar.
+  /// Mismas reglas de vencimiento que `aplicarCastigosVencidos`.
+  Future<List<(Task, Assignment, User)>> tareasRobables() async {
+    final yo = _usuarioActual?.id;
+    if (yo == null) return const [];
+    final pendientes = await _db.getAsignacionesPendientes();
+    final hoy = DateTime.now();
+    final inicio = hoy.subtract(Duration(days: hoy.weekday % 7));
+    final inicioDia = DateTime(inicio.year, inicio.month, inicio.day);
+    final result = <(Task, Assignment, User)>[];
+    for (final a in pendientes) {
+      // Lo tuyo no se roba; las ya robadas desaparecen de la lista.
+      if (a.usuarioId == yo || a.robadaPor != null) continue;
+      final t = await _db.getTareaById(a.tareaId);
+      if (t == null || !t.activa) continue;
+      final vence = _fechaVencimiento(t);
+      if (vence == null || !hoy.isAfter(vence)) continue;
+      final asignada = a.fechaAsignada;
+      if (asignada != null && asignada.isAfter(vence)) continue;
+      if (asignada != null && asignada.isBefore(inicioDia)) continue;
+      final dueno = await _db.getUserById(a.usuarioId);
+      if (dueno == null) continue;
+      result.add((t, a, dueno));
+    }
+    return result;
+  }
+
+  /// El usuario actual roba una tarea vencida: se queda `tarea.puntos`
+  /// al instante. La fila del dueño NO se marca completada, para que el
+  /// castigo automático normal siga aplicándose igual. Primero en robar,
+  /// gana. Nunca descuenta puntos.
+  Future<bool> robarTarea(int asignacionId) async {
+    final uid = _usuarioActual?.id;
+    if (uid == null) return false;
+    final robables = await tareasRobables();
+    final hit = robables
+        .where((r) => r.$2.id == asignacionId)
+        .firstOrNull;
+    if (hit == null) return false;
+    final (t, a, dueno) = hit;
+    final yo = await _db.getUserById(uid);
+    if (yo == null) return false;
+
+    await _db.updateAsignacion(
+      a.copyWith(robadaPor: uid, fechaRobo: DateTime.now()),
+    );
+    final nuevosPuntos = yo.puntos + t.puntos;
+    final nuevoNivel = GamificationService.nivelPara(nuevosPuntos);
+    await _db.updateUsuario(
+      yo.copyWith(puntos: nuevosPuntos, nivel: nuevoNivel),
+    );
+    if (_usuarioActual?.id == uid) {
+      _usuarioActual = yo.copyWith(puntos: nuevosPuntos, nivel: nuevoNivel);
+    }
+    unawaited(
+      _db.enviarPush(
+        dueno.id!,
+        'Te robaron una tarea',
+        '${yo.nombre} robó "${t.titulo}" y ganó ${t.puntos} puntos.',
+      ),
+    );
+    notifyListeners();
+    return true;
+  }
+
   Future<void> aprobarAsignacion(int asignacionId) async {
     final asignaciones = await _db.getAsignacionesPorAprobar();
-    final a = asignaciones.firstWhere((x) => x.id == asignacionId, orElse: () => Assignment(usuarioId: 0, tareaId: 0));
+    final a = asignaciones.firstWhere(
+      (x) => x.id == asignacionId,
+      orElse: () => Assignment(usuarioId: 0, tareaId: 0),
+    );
     if (a.id == null || a.aprobada) return;
 
     final tarea = await _db.getTareaById(a.tareaId);
@@ -518,17 +614,18 @@ class AppProvider extends ChangeNotifier {
         .toList();
     final racha = GamificationService.calcularRacha(fechas);
 
-    final nuevosPuntos = user.puntos + tarea.puntos + GamificationService.bonusRacha(racha);
+    final nuevosPuntos =
+        user.puntos + tarea.puntos + GamificationService.bonusRacha(racha);
     final nuevoNivel = GamificationService.nivelPara(nuevosPuntos);
 
-    await _db.updateUsuario(user.copyWith(
-      puntos: nuevosPuntos,
-      nivel: nuevoNivel,
-      racha: racha,
-    ));
+    await _db.updateUsuario(
+      user.copyWith(puntos: nuevosPuntos, nivel: nuevoNivel, racha: racha),
+    );
 
     final tareas = await _db.getTareas();
+    final catalogoInsignias = await _db.getInsignias();
     final ganadas = GamificationService.insigniasGanadas(
+      catalogo: catalogoInsignias,
       puntos: nuevosPuntos,
       racha: racha,
       aprobadas: historial,
@@ -540,19 +637,26 @@ class AppProvider extends ChangeNotifier {
     // Avisar al niño que su tarea fue aprobada (push, si el servidor tiene
     // FIREBASE_CREDENTIALS configurado). El niño también ve confeti en su
     // dispositivo cuando suben sus puntos.
-    unawaited(_db.enviarPush(
-      a.usuarioId,
-      '¡Tarea aprobada!',
-      'Ganaste ${tarea.puntos} puntos con "${tarea.titulo}".',
-    ));
+    unawaited(
+      _db.enviarPush(
+        a.usuarioId,
+        '¡Tarea aprobada!',
+        'Ganaste ${tarea.puntos} puntos con "${tarea.titulo}".',
+      ),
+    );
     notifyListeners();
   }
 
   Future<void> rechazarAsignacion(int asignacionId) async {
     final asignaciones = await _db.getAsignacionesPorAprobar();
-    final a = asignaciones.firstWhere((x) => x.id == asignacionId, orElse: () => Assignment(usuarioId: 0, tareaId: 0));
+    final a = asignaciones.firstWhere(
+      (x) => x.id == asignacionId,
+      orElse: () => Assignment(usuarioId: 0, tareaId: 0),
+    );
     if (a.id == null) return;
-    await _db.updateAsignacion(a.copyWith(completada: false, aprobada: false, fechaCompletada: null));
+    await _db.updateAsignacion(
+      a.copyWith(completada: false, aprobada: false, fechaCompletada: null),
+    );
     notifyListeners();
   }
 
@@ -571,8 +675,9 @@ class AppProvider extends ChangeNotifier {
   /// Tareas pendientes del usuario para el día de HOY (sin completar).
   Future<List<(Task, Assignment)>> tareasPendientesDeHoy(int usuarioId) async {
     final todo = await tareasConAsignacionDe(usuarioId);
-    final pendientes =
-        todo.where((t) => !t.$2.completada && _esDelDiaDeHoy(t.$1)).toList();
+    final pendientes = todo
+        .where((t) => !t.$2.completada && _esDelDiaDeHoy(t.$1))
+        .toList();
     return pendientes;
   }
 
@@ -606,13 +711,15 @@ class AppProvider extends ChangeNotifier {
     String foto = '',
     String fotoLocal = '',
   }) async {
-    await _db.insertRecompensa(Reward(
-      nombre: nombre,
-      descripcion: descripcion,
-      costoPuntos: costoPuntos,
-      foto: foto,
-      fotoLocal: fotoLocal,
-    ));
+    await _db.insertRecompensa(
+      Reward(
+        nombre: nombre,
+        descripcion: descripcion,
+        costoPuntos: costoPuntos,
+        foto: foto,
+        fotoLocal: fotoLocal,
+      ),
+    );
     notifyListeners();
   }
 
@@ -637,16 +744,25 @@ class AppProvider extends ChangeNotifier {
     }
     final nuevosPuntos = user.puntos - r.costoPuntos;
     final nuevoNivel = GamificationService.nivelPara(nuevosPuntos);
-    await _db.updateUsuario(user.copyWith(puntos: nuevosPuntos, nivel: nuevoNivel));
-    await _db.insertCanje(Redemption(
-      usuarioId: user.id!,
-      recompensaId: r.id!,
-      fecha: DateTime.now(),
-    ));
+    await _db.updateUsuario(
+      user.copyWith(puntos: nuevosPuntos, nivel: nuevoNivel),
+    );
+    await _db.insertCanje(
+      Redemption(
+        usuarioId: user.id!,
+        recompensaId: r.id!,
+        fecha: DateTime.now(),
+      ),
+    );
     final admins = (await _db.getUsuarios()).where((u) => u.esAdmin);
     for (final a in admins) {
-      unawaited(_db.enviarPush(
-          a.id!, 'Canje solicitado', '${user.nombre} canjeó: ${r.nombre}'));
+      unawaited(
+        _db.enviarPush(
+          a.id!,
+          'Canje solicitado',
+          '${user.nombre} canjeó: ${r.nombre}',
+        ),
+      );
     }
     _usuarioActual = user.copyWith(puntos: nuevosPuntos, nivel: nuevoNivel);
     notifyListeners();
@@ -688,8 +804,13 @@ class AppProvider extends ChangeNotifier {
     final c = canjes.where((x) => x.id == canjeId).firstOrNull;
     if (c == null) return;
     await _db.updateCanje(c.copyWith(estado: 'entregada'));
-    unawaited(_db.enviarPush(
-        c.usuarioId, 'Recompensa entregada', 'Tu canje fue entregado'));
+    unawaited(
+      _db.enviarPush(
+        c.usuarioId,
+        'Recompensa entregada',
+        'Tu canje fue entregado',
+      ),
+    );
     notifyListeners();
   }
 
@@ -703,27 +824,74 @@ class AppProvider extends ChangeNotifier {
   }
 
   Future<List<Badge>> listarInsignias() => _db.getInsignias();
-  Future<List<int>> insigniasDe(int usuarioId) => _db.getInsigniasDeUsuario(usuarioId);
+  Future<List<int>> insigniasDe(int usuarioId) =>
+      _db.getInsigniasDeUsuario(usuarioId);
+
+  Future<void> crearInsignia(Badge b) async {
+    await _db.insertInsignia(b);
+    notifyListeners();
+  }
+
+  Future<void> editarInsignia(Badge b) async {
+    await _db.updateInsignia(b);
+    notifyListeners();
+  }
+
+  Future<void> eliminarInsignia(int id) async {
+    await _db.deleteInsignia(id);
+    notifyListeners();
+  }
+
+  // ---------------------------------------------------------------
+  // LOGROS EN CAMINO (metas de progreso editables por el admin)
+  // ---------------------------------------------------------------
+  Future<List<Logro>> listarLogros() => _db.getLogros();
+
+  Future<void> crearLogro(Logro logro) async {
+    await _db.insertLogro(logro);
+    notifyListeners();
+  }
+
+  Future<void> editarLogro(Logro logro) async {
+    await _db.updateLogro(logro);
+    notifyListeners();
+  }
+
+  Future<void> eliminarLogro(int id) async {
+    await _db.deleteLogro(id);
+    notifyListeners();
+  }
 
   Future<Map<String, Object?>> estadisticas() => _db.getEstadisticas();
 
   /// Puntos aprobados por día (últimos `dias` días) de un integrante.
-  Future<List<(DateTime, int)>> puntosPorDia(int usuarioId,
-      {int dias = 7}) async {
+  Future<List<(DateTime, int)>> puntosPorDia(
+    int usuarioId, {
+    int dias = 7,
+  }) async {
     final hoy = DateTime.now();
-    final inicio = DateTime(hoy.year, hoy.month, hoy.day)
-        .subtract(Duration(days: dias - 1));
+    final inicio = DateTime(
+      hoy.year,
+      hoy.month,
+      hoy.day,
+    ).subtract(Duration(days: dias - 1));
     final fin = hoy.add(const Duration(days: 1));
-    final aps =
-        await _db.getAsignacionesAprobadasDeUsuarioEnRango(usuarioId, inicio, fin);
+    final aps = await _db.getAsignacionesAprobadasDeUsuarioEnRango(
+      usuarioId,
+      inicio,
+      fin,
+    );
     return _agruparPuntosPorDia(aps, dias: dias, inicio: inicio);
   }
 
   /// Puntos aprobados por día (últimos `dias` días) de TODA la familia.
   Future<List<(DateTime, int)>> puntosPorDiaGlobal({int dias = 7}) async {
     final hoy = DateTime.now();
-    final inicio = DateTime(hoy.year, hoy.month, hoy.day)
-        .subtract(Duration(days: dias - 1));
+    final inicio = DateTime(
+      hoy.year,
+      hoy.month,
+      hoy.day,
+    ).subtract(Duration(days: dias - 1));
     final fin = hoy.add(const Duration(days: 1));
     final aps = await _db.getAsignacionesAprobadasEnRango(inicio, fin);
     return _agruparPuntosPorDia(aps, dias: dias, inicio: inicio);
@@ -744,7 +912,10 @@ class AppProvider extends ChangeNotifier {
     }
     return [
       for (var i = 0; i < dias; i++)
-        (inicio.add(Duration(days: i)), porDia[inicio.add(Duration(days: i))] ?? 0),
+        (
+          inicio.add(Duration(days: i)),
+          porDia[inicio.add(Duration(days: i))] ?? 0,
+        ),
     ];
   }
 
@@ -757,7 +928,10 @@ class AppProvider extends ChangeNotifier {
     final fin = hoy.add(const Duration(days: 1));
 
     final aprobadas = await _db.getAsignacionesAprobadasDeUsuarioEnRango(
-        usuarioId, inicio, fin);
+      usuarioId,
+      inicio,
+      fin,
+    );
     // Una sola lectura de todas las tareas y búsqueda en memoria (evita
     // N consultas getTareaById, que escaneaban la caja una por una).
     final tareasPorId = {for (final t in await _db.getTareas()) t.id: t};
@@ -814,15 +988,21 @@ class AppProvider extends ChangeNotifier {
   bool _esDelDiaDeHoy(Task t) {
     if (t.dia.isEmpty) return true;
     const dias = [
-      'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado', 'domingo',
+      'lunes',
+      'martes',
+      'miercoles',
+      'jueves',
+      'viernes',
+      'sabado',
+      'domingo',
     ];
     final idx = dias.indexOf(t.dia);
-    return idx >= 0 && hoy_weekdayIdx == idx;
+    return idx >= 0 && hoyWeekdayIdx == idx;
   }
 
-  int get hoy_weekdayIdx => DateTime.now().weekday - 1;
+  int get hoyWeekdayIdx => DateTime.now().weekday - 1;
 
-Future<List<(User, int)>> ranking(String periodo) async {
+  Future<List<(User, int)>> ranking(String periodo) async {
     final usuarios = await _db.getIntegrantes();
     final hoy = DateTime.now();
     final inicio = periodo == 'semanal'
@@ -834,8 +1014,11 @@ Future<List<(User, int)>> ranking(String periodo) async {
     final retosPuntos = <int, int>{};
     for (final r in retos) {
       if (!r.finalizado) continue;
-      final inicioReto =
-          DateTime(r.fechaInicio.year, r.fechaInicio.month, r.fechaInicio.day);
+      final inicioReto = DateTime(
+        r.fechaInicio.year,
+        r.fechaInicio.month,
+        r.fechaInicio.day,
+      );
       if (inicioReto.isBefore(inicio) || inicioReto.isAfter(hoy)) continue;
       for (final uid in r.aprobados) {
         retosPuntos[uid] = (retosPuntos[uid] ?? 0) + r.puntos;
@@ -863,14 +1046,19 @@ Future<List<(User, int)>> ranking(String periodo) async {
   /// Neto (ganado − castigado) de cada integrante en un rango de fechas.
   /// Base derivada de las ligas y de la meta familiar (sin tablas nuevas).
   Future<List<(User, int, int)>> _netoEnRango(
-      DateTime inicio, DateTime fin) async {
+    DateTime inicio,
+    DateTime fin,
+  ) async {
     final usuarios = await _db.getIntegrantes();
     final retos = await _db.getRetos();
     final retosPuntos = <int, int>{};
     for (final r in retos) {
       if (!r.finalizado) continue;
-      final inicioReto =
-          DateTime(r.fechaInicio.year, r.fechaInicio.month, r.fechaInicio.day);
+      final inicioReto = DateTime(
+        r.fechaInicio.year,
+        r.fechaInicio.month,
+        r.fechaInicio.day,
+      );
       if (inicioReto.isBefore(inicio) || !inicioReto.isBefore(fin)) continue;
       for (final uid in r.aprobados) {
         retosPuntos[uid] = (retosPuntos[uid] ?? 0) + r.puntos;
@@ -879,7 +1067,10 @@ Future<List<(User, int)>> ranking(String periodo) async {
     final resultado = <(User, int, int)>[];
     for (final u in usuarios) {
       final aps = await _db.getAsignacionesAprobadasDeUsuarioEnRango(
-          u.id!, inicio, fin);
+        u.id!,
+        inicio,
+        fin,
+      );
       var pts = 0;
       for (final a in aps) {
         final t = await _db.getTareaById(a.tareaId);
@@ -900,8 +1091,7 @@ Future<List<(User, int)>> ranking(String periodo) async {
   /// bloqueo de la liga (se desbloquea tras la primera semana completa).
   Future<List<(User, int, int)>> rankingSemanaAnterior() async {
     final hoy = DateTime.now();
-    final inicioEsta =
-        hoy.subtract(Duration(days: hoy.weekday % 7));
+    final inicioEsta = hoy.subtract(Duration(days: hoy.weekday % 7));
     final fin = DateTime(inicioEsta.year, inicioEsta.month, inicioEsta.day);
     final inicio = fin.subtract(const Duration(days: 7));
     final base = await _netoEnRango(inicio, fin);
@@ -915,8 +1105,7 @@ Future<List<(User, int)>> ranking(String periodo) async {
   /// (para la meta familiar del panel de ligas).
   Future<int> puntosFamiliaSemana() async {
     final hoy = DateTime.now();
-    final inicio =
-        hoy.subtract(Duration(days: hoy.weekday % 7));
+    final inicio = hoy.subtract(Duration(days: hoy.weekday % 7));
     final base = await _netoEnRango(
       DateTime(inicio.year, inicio.month, inicio.day),
       hoy.add(const Duration(days: 1)),
@@ -948,8 +1137,7 @@ Future<List<(User, int)>> ranking(String periodo) async {
       final asignada = a.fechaAsignada;
       if (asignada != null && asignada.isAfter(vence)) continue;
       // Tampoco castigar asignaciones de semanas anteriores a la actual.
-      final inicio =
-          hoy.subtract(Duration(days: hoy.weekday % 7));
+      final inicio = hoy.subtract(Duration(days: hoy.weekday % 7));
       final inicioDia = DateTime(inicio.year, inicio.month, inicio.day);
       if (asignada != null && asignada.isBefore(inicioDia)) continue;
       final user = await _db.getUserById(a.usuarioId);
@@ -964,10 +1152,12 @@ Future<List<(User, int)>> ranking(String periodo) async {
       );
       await _db.insertCastigo(castigo);
       await _db.updateAsignacion(a.copyWith(castigada: true));
-      await _db.updateUsuario(user.copyWith(
-        puntos: user.puntos - _puntosCastigo(t),
-        nivel: GamificationService.nivelPara(user.puntos - _puntosCastigo(t)),
-      ));
+      await _db.updateUsuario(
+        user.copyWith(
+          puntos: user.puntos - _puntosCastigo(t),
+          nivel: GamificationService.nivelPara(user.puntos - _puntosCastigo(t)),
+        ),
+      );
       if (_usuarioActual?.id == a.usuarioId) {
         final u = await _db.getUserById(a.usuarioId);
         if (u != null) _usuarioActual = u;
@@ -987,17 +1177,21 @@ Future<List<(User, int)>> ranking(String periodo) async {
     final user = await _db.getUserById(usuarioId);
     if (user == null) return;
     final nuevosPuntos = user.puntos - puntos;
-    await _db.updateUsuario(user.copyWith(
-      puntos: nuevosPuntos,
-      nivel: GamificationService.nivelPara(nuevosPuntos),
-    ));
-    await _db.insertCastigo(Castigo(
-      usuarioId: usuarioId,
-      motivo: motivo,
-      puntos: puntos,
-      tipo: tipo,
-      fecha: DateTime.now(),
-    ));
+    await _db.updateUsuario(
+      user.copyWith(
+        puntos: nuevosPuntos,
+        nivel: GamificationService.nivelPara(nuevosPuntos),
+      ),
+    );
+    await _db.insertCastigo(
+      Castigo(
+        usuarioId: usuarioId,
+        motivo: motivo,
+        puntos: puntos,
+        tipo: tipo,
+        fecha: DateTime.now(),
+      ),
+    );
     unawaited(_db.enviarPush(usuarioId, 'Tienes un castigo', motivo));
     if (_usuarioActual?.id == usuarioId) {
       final u = await _db.getUserById(usuarioId);
@@ -1007,7 +1201,8 @@ Future<List<(User, int)>> ranking(String periodo) async {
   }
 
   Future<List<Castigo>> listarCastigos() => _db.getCastigos();
-  Future<List<Castigo>> castigosDe(int usuarioId) => _db.getCastigosDeUsuario(usuarioId);
+  Future<List<Castigo>> castigosDe(int usuarioId) =>
+      _db.getCastigosDeUsuario(usuarioId);
 
   Future<void> eliminarCastigo(int id) async {
     await _db.eliminarCastigo(id);
@@ -1038,13 +1233,17 @@ Future<List<(User, int)>> ranking(String periodo) async {
     required int puntos,
     String categoria = 'General',
     String dificultad = 'media',
+    String icono = '',
   }) async {
-    await _db.insertCatalogo(TareaCatalogo(
-      titulo: titulo,
-      puntos: puntos,
-      categoria: categoria,
-      dificultad: dificultad,
-    ));
+    await _db.insertCatalogo(
+      TareaCatalogo(
+        titulo: titulo,
+        puntos: puntos,
+        categoria: categoria,
+        dificultad: dificultad,
+        icono: icono,
+      ),
+    );
     notifyListeners();
   }
 
@@ -1091,19 +1290,46 @@ Future<List<(User, int)>> ranking(String periodo) async {
     required String descripcion,
     required int puntos,
     DateTime? fechaFin,
+    String modo = Reto.modoNormal,
+    DateTime? fechaLluvia,
+    DateTime? plazoIndividual,
   }) async {
     final hoy = DateTime.now();
-    final lunes =
-        hoy.subtract(Duration(days: hoy.weekday - 1));
+    final lunes = hoy.subtract(Duration(days: hoy.weekday - 1));
     final inicio = DateTime(lunes.year, lunes.month, lunes.day);
-    await _db.insertReto(Reto(
-      titulo: titulo,
-      descripcion: descripcion,
-      puntos: puntos,
-      fechaInicio: inicio,
-      fechaFin: fechaFin,
-    ));
+    var fin = fechaFin;
+    var diaLluvia = fechaLluvia;
+    if (modo == Reto.modoLluvia) {
+      // Día aleatorio de la semana (se puede re-sortear desde el diálogo).
+      // fechaInicio sigue siendo el lunes (ancla de la semana) y el reto
+      // vence al terminar el día sorteado.
+      diaLluvia ??= sortearDiaLluvia(inicio);
+      final d = DateTime(diaLluvia.year, diaLluvia.month, diaLluvia.day);
+      diaLluvia = d;
+      fin ??= DateTime(d.year, d.month, d.day, 23, 59, 59);
+    }
+    await _db.insertReto(
+      Reto(
+        titulo: titulo,
+        descripcion: descripcion,
+        puntos: puntos,
+        fechaInicio: inicio,
+        fechaFin: fin,
+        modo: modo,
+        fechaLluvia: diaLluvia,
+        plazoIndividual: plazoIndividual,
+      ),
+    );
     notifyListeners();
+  }
+
+  /// Sortea un día aleatorio (lunes..domingo) dentro de la semana de `base`
+  /// (o de hoy). Devuelve el día a las 00:00.
+  static DateTime sortearDiaLluvia([DateTime? base]) {
+    final hoy = base ?? DateTime.now();
+    final lunes = hoy.subtract(Duration(days: hoy.weekday - 1));
+    final inicio = DateTime(lunes.year, lunes.month, lunes.day);
+    return inicio.add(Duration(days: Random().nextInt(7)));
   }
 
   /// El admin edita un reto (título, descripción o puntos).
@@ -1120,40 +1346,126 @@ Future<List<(User, int)>> ranking(String periodo) async {
   }
 
   /// Un integrante marca que cumplió el reto de la semana.
+  /// - normal: solo registra la marca (la aprueba el admin).
+  /// - lluvia: solo en su día; el PRIMERO gana al instante y cierra el reto.
+  /// - frenesí: solo hasta "su tiempo"; después su slot queda para robar.
   Future<void> marcarRetoCumplido(Reto reto) async {
     final uid = _usuarioActual?.id;
     if (uid == null) return;
-    if (reto.cumplidos.contains(uid)) return;
-    await _db.updateReto(reto.copyWith(
-      cumplidos: [...reto.cumplidos, uid],
-    ));
+    if (reto.finalizado || reto.cumplidos.contains(uid)) return;
+    final ahora = DateTime.now();
+
+    if (reto.esLluvia) {
+      if (!reto.lluviaActiva(ahora)) return;
+      if (reto.ganador == null && reto.marcas.isEmpty) {
+        // ¡Fue el primero!: paga ya, pero el reto queda vigente el resto
+        // del día para que todos vean quién ganó (cierra solo al vencer).
+        final actualizado = reto.copyWith(
+          marcas: {uid: ahora.millisecondsSinceEpoch},
+          cumplidos: [...reto.cumplidos, uid],
+          ganador: uid,
+        );
+        await _db.updateReto(actualizado);
+        await _pagarReto(actualizado);
+        unawaited(
+          _db.enviarPush(
+            uid,
+            '¡Ganaste la lluvia!',
+            'Llegaste primero al reto "${reto.titulo}" y ganaste ${reto.puntos} puntos.',
+          ),
+        );
+      } else {
+        // Ya hay un ganador: solo registra el intento (no gana puntos).
+        await _db.updateReto(
+          reto.copyWith(
+            marcas: {...reto.marcas, uid: ahora.millisecondsSinceEpoch},
+          ),
+        );
+      }
+      notifyListeners();
+      return;
+    }
+
+    if (reto.esFrenesi && !reto.puedeMarcarFrenesi(ahora)) return;
+    await _db.updateReto(reto.copyWith(cumplidos: [...reto.cumplidos, uid]));
     notifyListeners();
   }
 
-  /// Otorga los puntos bonus del reto a quienes lo cumplieron y lo marca
-  /// finalizado. Usado tanto por la aprobación manual del admin como por el
-  /// vencimiento automático.
-  Future<void> _otorgarPuntosReto(Reto reto) async {
-    final cumplidos = reto.cumplidos;
-    for (final uid in cumplidos) {
+  /// El usuario actual roba el slot de `originalId` en un reto frenesí:
+  /// paga `reto.puntos` al ladrón al instante. Solo si el plazo individual
+  /// ya venció, el reto sigue vigente y el slot no fue robado. Nunca
+  /// descuenta puntos.
+  Future<bool> robarReto(Reto reto, int originalId) async {
+    final uid = _usuarioActual?.id;
+    if (uid == null || uid == originalId) return false;
+    if (!reto.slotRobable(originalId)) return false;
+    if (!DateTime.now().isAfter(reto.plazoEfectivo)) return false;
+    final dueno = await _db.getUserById(originalId);
+
+    final actualizado = reto.copyWith(
+      robados: {...reto.robados, originalId: uid},
+    );
+    await _db.updateReto(actualizado);
+    await _pagarReto(actualizado);
+    if (dueno != null) {
+      unawaited(
+        _db.enviarPush(
+          originalId,
+          'Te robaron el reto',
+          'Pasó tu tiempo en "${reto.titulo}" y ${_usuarioActual?.nombre ?? 'otro hijo'} se llevó sus ${reto.puntos} puntos.',
+        ),
+      );
+    }
+    notifyListeners();
+    return true;
+  }
+
+  /// Paga `reto.puntos` a los candidatos del reto según su modo (nunca a
+  /// quienes ya están en `aprobados`) y actualiza `aprobados`. Si `finalizar`,
+  /// cierra el reto. Nunca descuenta puntos.
+  Future<void> _pagarReto(Reto reto, {bool finalizar = false}) async {
+    final candidatos = <int>{};
+    if (reto.esLluvia) {
+      // En lluvia solo cobra el ganador (los demás intentos quedan en
+      // `marcas`, sin puntos).
+      if (reto.ganador != null) candidatos.add(reto.ganador!);
+    } else if (reto.esFrenesi) {
+      candidatos.addAll(reto.cumplidos);
+      candidatos.addAll(reto.robados.values);
+    } else {
+      candidatos.addAll(reto.cumplidos);
+    }
+    final pagados = {...reto.aprobados};
+    for (final uid in candidatos.difference(pagados)) {
       final user = await _db.getUserById(uid);
       if (user == null) continue;
       final nuevosPuntos = user.puntos + reto.puntos;
-      await _db.updateUsuario(user.copyWith(
-        puntos: nuevosPuntos,
-        nivel: GamificationService.nivelPara(nuevosPuntos),
-      ));
+      final nuevoNivel = GamificationService.nivelPara(nuevosPuntos);
+      await _db.updateUsuario(
+        user.copyWith(puntos: nuevosPuntos, nivel: nuevoNivel),
+      );
+      pagados.add(uid);
+      if (_usuarioActual?.id == uid) {
+        _usuarioActual = user.copyWith(puntos: nuevosPuntos, nivel: nuevoNivel);
+      }
     }
-    await _db.updateReto(reto.copyWith(
-      aprobados: cumplidos,
-      finalizado: true,
-    ));
+    await _db.updateReto(
+      reto.copyWith(aprobados: pagados.toList(), finalizado: finalizar || reto.finalizado),
+    );
   }
 
+  /// Otorga los puntos bonus del reto a sus candidatos y lo marca
+  /// finalizado. Usado tanto por la aprobación manual del admin como por el
+  /// vencimiento automático.
+  Future<void> _otorgarPuntosReto(Reto reto) => _pagarReto(reto, finalizar: true);
+
   /// El admin aprueba el reto: otorga los puntos bonus a quienes lo cumplieron.
+  /// Guarda doble pago: un reto ya finalizado no se vuelve a pagar (y
+  /// `_pagarReto` nunca repite a quienes ya están en `aprobados`).
   Future<void> aprobarReto(Reto reto) async {
+    if (reto.finalizado) return;
     await _otorgarPuntosReto(reto);
-    if (reto.cumplidos.isNotEmpty) notifyListeners();
+    notifyListeners();
   }
 
   /// Cierra automáticamente los retos vencidos: da los puntos a quienes ya lo
@@ -1184,10 +1496,12 @@ Future<List<(User, int)>> ranking(String periodo) async {
     final user = await _db.getUserById(castigo.usuarioId);
     if (user != null) {
       final nuevosPuntos = user.puntos + castigo.puntos;
-      await _db.updateUsuario(user.copyWith(
-        puntos: nuevosPuntos,
-        nivel: GamificationService.nivelPara(nuevosPuntos),
-      ));
+      await _db.updateUsuario(
+        user.copyWith(
+          puntos: nuevosPuntos,
+          nivel: GamificationService.nivelPara(nuevosPuntos),
+        ),
+      );
       if (_usuarioActual?.id == castigo.usuarioId) {
         final u = await _db.getUserById(castigo.usuarioId);
         if (u != null) _usuarioActual = u;
@@ -1211,8 +1525,7 @@ Future<List<(User, int)>> ranking(String periodo) async {
       final asignada = a.fechaAsignada;
       if (asignada != null && asignada.isAfter(vence)) continue;
       // Asignaciones de semanas anteriores no cuentan como vencidas.
-      final inicio =
-          hoy.subtract(Duration(days: hoy.weekday % 7));
+      final inicio = hoy.subtract(Duration(days: hoy.weekday % 7));
       final inicioDia = DateTime(inicio.year, inicio.month, inicio.day);
       if (asignada != null && asignada.isBefore(inicioDia)) continue;
       return true;
@@ -1242,7 +1555,13 @@ Future<List<(User, int)>> ranking(String periodo) async {
     if (t.dia.isEmpty) return null;
     // La semana empieza en domingo (día 0), igual que el plan semanal.
     const dias = [
-      'domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado',
+      'domingo',
+      'lunes',
+      'martes',
+      'miercoles',
+      'jueves',
+      'viernes',
+      'sabado',
     ];
     final idx = dias.indexOf(t.dia);
     if (idx < 0) return null;

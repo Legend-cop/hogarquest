@@ -2,10 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../providers/app_provider.dart';
+import '../services/biometria_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/duo_widgets.dart';
 
 /// Pantalla que pide el PIN al administrador justo después de iniciar sesión.
+/// Si el desbloqueo biométrico está activo primero intenta huella/rostro y
+/// el PIN queda siempre como respaldo.
 class PinGateScreen extends StatefulWidget {
   const PinGateScreen({super.key});
 
@@ -17,6 +20,27 @@ class _PinGateScreenState extends State<PinGateScreen> {
   final _pin = TextEditingController();
   bool _error = false;
   bool _enviando = false;
+  bool _bioIntentado = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _biometricoInicial());
+  }
+
+  /// Si la biometría está activa, intenta desbloquear sin mostrar el PIN.
+  Future<void> _biometricoInicial() async {
+    if (_bioIntentado) return;
+    _bioIntentado = true;
+    if (!BiometriaService.activa.value ||
+        !BiometriaService.disponible.value) {
+      return;
+    }
+    final ok = await BiometriaService.autenticar();
+    if (ok && mounted) {
+      context.read<AppProvider>().desbloquearAdmin();
+    }
+  }
 
   Future<void> _verificar() async {
     final app = context.read<AppProvider>();
@@ -66,8 +90,11 @@ class _PinGateScreenState extends State<PinGateScreen> {
                       color: AppColors.amarillo,
                       borderRadius: BorderRadius.circular(24),
                     ),
-                    child: const Icon(Icons.lock_outline,
-                        size: 40, color: Colors.white),
+                    child: const Icon(
+                      Icons.lock_outline,
+                      size: 40,
+                      color: Colors.white,
+                    ),
                   ),
                   const SizedBox(height: 18),
                   Text(
@@ -134,6 +161,20 @@ class _PinGateScreenState extends State<PinGateScreen> {
                     onPressed: _enviando ? null : _verificar,
                   ),
                   const SizedBox(height: 12),
+                  if (BiometriaService.activa.value &&
+                      BiometriaService.disponible.value)
+                    TextButton.icon(
+                      onPressed: _enviando
+                          ? null
+                          : () async {
+                              final ok = await BiometriaService.autenticar();
+                              if (ok && context.mounted) {
+                                context.read<AppProvider>().desbloquearAdmin();
+                              }
+                            },
+                      icon: const Icon(Icons.fingerprint),
+                      label: const Text('Usar huella o rostro'),
+                    ),
                   TextButton(
                     onPressed: () => app.logout(),
                     child: const Text('Salir'),

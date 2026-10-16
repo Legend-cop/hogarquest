@@ -56,7 +56,9 @@ class BluetoothSyncService {
         return;
       }
       await _activarUbicacion();
-      final userName = db.householdCode.isNotEmpty ? db.householdCode : 'HogarQuest';
+      final userName = db.householdCode.isNotEmpty
+          ? db.householdCode
+          : 'HogarQuest';
       await _nearby.startAdvertising(
         userName,
         Strategy.P2P_CLUSTER,
@@ -158,10 +160,7 @@ class BluetoothSyncService {
       return;
     }
     try {
-      _nearby.acceptConnection(
-        id,
-        onPayLoadRecieved: _onPayloadReceived,
-      );
+      _nearby.acceptConnection(id, onPayLoadRecieved: _onPayloadReceived);
     } catch (e) {
       debugPrint('BluetoothSync acceptConnection: $e');
     }

@@ -9,9 +9,6 @@ class BluetoothPeer {
   /// Momento en que se vio por última vez.
   final DateTime visto;
 
-  BluetoothPeer({
-    required this.id,
-    required this.nombre,
-    DateTime? visto,
-  }) : visto = visto ?? DateTime.now();
+  BluetoothPeer({required this.id, required this.nombre, DateTime? visto})
+    : visto = visto ?? DateTime.now();
 }

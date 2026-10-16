@@ -1,0 +1,15 @@
+Compiling lib\main.dart for the Web...                          
+Wasm dry run findings:
+Found incompatibilities with WebAssembly.
+
+package:hogarquest/db/upload_client_web.dart 2:1 - dart:html unsupported (0)
+package:hogarquest/db/sync_client_web.dart 2:1 - dart:html unsupported (0)
+package:hogarquest/db/photo_picker_web.dart 3:1 - dart:html unsupported (0)
+
+Consider addressing these issues to enable wasm builds. See docs for more info: https://docs.flutter.dev/platform-integration/web/wasm
+
+Use --no-wasm-dry-run to disable these warnings.
+Font asset "CupertinoIcons.ttf" was tree-shaken, reducing it from 257628 to 1472 bytes (99.4% reduction). Tree-shaking can be disabled by providing the --no-tree-shake-icons flag when building your app.
+Font asset "MaterialIcons-Regular.otf" was tree-shaken, reducing it from 1645184 to 20548 bytes (98.8% reduction). Tree-shaking can be disabled by providing the --no-tree-shake-icons flag when building your app.
+Compiling lib\main.dart for the Web...                            960,1s
+√ Built build\web

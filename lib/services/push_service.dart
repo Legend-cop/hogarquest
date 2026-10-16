@@ -32,7 +32,7 @@ class PushService {
   /// service workers, y el SDK de Firebase lanza `messaging/unsupported-browser`
   /// como promesa sin manejar ("Uncaught (in promise)" en la consola), así
   /// que comprobamos el soporte antes de tocar cualquier API de messaging.
-  Future<bool> _soportado() => _soporte ??=_comprobarSoporte();
+  Future<bool> _soportado() => _soporte ??= _comprobarSoporte();
 
   Future<bool> _comprobarSoporte() async {
     if (!kIsWeb) return true;
@@ -60,11 +60,7 @@ class PushService {
     }
 
     try {
-      await _messaging.requestPermission(
-        alert: true,
-        badge: true,
-        sound: true,
-      );
+      await _messaging.requestPermission(alert: true, badge: true, sound: true);
     } catch (e) {
       debugPrint('[Push] permiso de notificaciones no concedido: $e');
     }
@@ -120,8 +116,10 @@ class PushService {
   void _enPrimerPlano(RemoteMessage message) {
     if (!kIsWeb) {
       final n = message.notification;
-      NotificationService.instance
-          .mostrarInstantanea(n?.title, n?.body ?? message.data['body']);
+      NotificationService.instance.mostrarInstantanea(
+        n?.title,
+        n?.body ?? message.data['body'],
+      );
     }
   }
 
