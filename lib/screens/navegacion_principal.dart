@@ -364,15 +364,18 @@ class _NavegacionPrincipalState extends State<NavegacionPrincipal> {
     return Scaffold(
       body: Stack(
         children: [
-          Column(
-            children: [
-              context.select<AppProvider, bool>((p) => p.sinConexion)
-                  ? const _BannerSinConexion()
-                  : const SizedBox.shrink(),
-              Expanded(
-                child: PlayfulIndexedStack(index: _index, children: screens),
-              ),
-            ],
+          SafeArea(
+            bottom: false,
+            child: Column(
+              children: [
+                context.select<AppProvider, bool>((p) => p.sinConexion)
+                    ? const _BannerSinConexion()
+                    : const SizedBox.shrink(),
+                Expanded(
+                  child: PlayfulIndexedStack(index: _index, children: screens),
+                ),
+              ],
+            ),
           ),
           // Mascota compañera: intermitente por defecto (aparece y se va),
           // forzada a visible mientras hay consejo del globo, y fija si el

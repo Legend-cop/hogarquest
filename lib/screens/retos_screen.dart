@@ -370,32 +370,37 @@ class _NuevoRetoDialogState extends State<_NuevoRetoDialog> {
                 ),
               )
             else ...[
-              Wrap(
-                spacing: 6,
-                runSpacing: 6,
-                children: [
-                  ChoiceChip(
-                    label: const Text('Normal'),
-                    selected: _modo == Reto.modoNormal,
-                    onSelected: (_) =>
-                        setState(() => _modo = Reto.modoNormal),
-                  ),
-                  ChoiceChip(
-                    label: const Text('🌪 Lluvia'),
-                    selected: _modo == Reto.modoLluvia,
-                    onSelected: (_) {
-                      setState(() {
-                        _modo = Reto.modoLluvia;
-                        _diaLluvia ??= AppProvider.sortearDiaLluvia();
-                      });
-                    },
-                  ),
-                  ChoiceChip(
-                    label: const Text('🔥 Frenesí'),
-                    selected: _modo == Reto.modoFrenesi,
-                    onSelected: (_) => setState(() => _modo = Reto.modoFrenesi),
-                  ),
-                ],
+              SizedBox(
+                height: 40,
+                child: ListView(
+                  scrollDirection: Axis.horizontal,
+                  children: [
+                    ChoiceChip(
+                      label: const Text('Normal'),
+                      selected: _modo == Reto.modoNormal,
+                      onSelected: (_) =>
+                          setState(() => _modo = Reto.modoNormal),
+                    ),
+                    const SizedBox(width: 6),
+                    ChoiceChip(
+                      label: const Text('🌪 Lluvia'),
+                      selected: _modo == Reto.modoLluvia,
+                      onSelected: (_) {
+                        setState(() {
+                          _modo = Reto.modoLluvia;
+                          _diaLluvia ??= AppProvider.sortearDiaLluvia();
+                        });
+                      },
+                    ),
+                    const SizedBox(width: 6),
+                    ChoiceChip(
+                      label: const Text('🔥 Frenesí'),
+                      selected: _modo == Reto.modoFrenesi,
+                      onSelected: (_) =>
+                          setState(() => _modo = Reto.modoFrenesi),
+                    ),
+                  ],
+                ),
               ),
               const SizedBox(height: 6),
               Text(

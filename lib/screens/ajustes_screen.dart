@@ -74,30 +74,32 @@ class _AjustesScreenState extends State<AjustesScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('PIN de administrador'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text(
-              'Crea un PIN de 4 a 6 dígitos. Se pedirá cada vez que '
-              'inicies sesión como administrador.',
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: pin,
-              keyboardType: TextInputType.number,
-              maxLength: 6,
-              obscureText: true,
-              decoration: const InputDecoration(labelText: 'Nuevo PIN'),
-            ),
-            const SizedBox(height: 8),
-            TextField(
-              controller: confirmar,
-              keyboardType: TextInputType.number,
-              maxLength: 6,
-              obscureText: true,
-              decoration: const InputDecoration(labelText: 'Confirmar PIN'),
-            ),
-          ],
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'Crea un PIN de 4 a 6 dígitos. Se pedirá cada vez que '
+                'inicies sesión como administrador.',
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: pin,
+                keyboardType: TextInputType.number,
+                maxLength: 6,
+                obscureText: true,
+                decoration: const InputDecoration(labelText: 'Nuevo PIN'),
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: confirmar,
+                keyboardType: TextInputType.number,
+                maxLength: 6,
+                obscureText: true,
+                decoration: const InputDecoration(labelText: 'Confirmar PIN'),
+              ),
+            ],
+          ),
         ),
         actions: [
           DialogActions(

@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 import '../db/database_helper.dart';
 import 'peer_info.dart';
@@ -58,6 +59,14 @@ class LocalSyncService {
   /// Descubre pares en la misma red y sincroniza con ellos.
   Future<void> start(DatabaseHelper db) async {
     if (_running) return;
+    // Android 16+ exige permiso de red local para el beacon UDP.
+    if (!kIsWeb && Platform.isAndroid) {
+      try {
+        await Permission.accessLocalNetwork.request();
+      } catch (e) {
+        debugPrint('[LocalSync] permiso de red local: $e');
+      }
+    }
     _db = db;
     _household = db.householdCode;
     _running = true;

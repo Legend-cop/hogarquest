@@ -4,6 +4,8 @@
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
     <uses-permission android:name="android.permission.CHANGE_NETWORK_STATE"/>
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE"/>
+    <!-- Android 16+: acceso a la red local para la sincronización P2P (beacon UDP). -->
+    <uses-permission android:name="android.permission.ACCESS_LOCAL_NETWORK"/>
     <!-- Nearby Connections (sincronización Bluetooth / Wi-Fi sin internet) -->
     <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30"/>
     <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" android:maxSdkVersion="30"/>

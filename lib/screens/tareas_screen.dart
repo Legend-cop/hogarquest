@@ -102,19 +102,38 @@ class _TareasScreenState extends State<TareasScreen> {
     if (esAdmin) {
       return _AdminTasksList(tareas: _todasLasTareas, onRefresh: _cargarDatos);
     }
-    return PlayfulIndexedStack(
-      index: _pestana,
+    return Column(
       children: [
-        _IntegranteTasksList(
-          misTareas: _misTareas,
-          robables: _robables,
-          pestana: _pestana,
-          onTab: (i) => setState(() => _pestana = i),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+          child: const ReferenciaTitulo(
+            'SOLO TUS ENCARGOS',
+            'Mis tareas',
+            icono: Icono3DTipo.check,
+          ),
         ),
-        _HistorialTasksList(
-          historial: _historial,
-          pestana: _pestana,
-          onTab: (i) => setState(() => _pestana = i),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+          child: PillSegment(
+            index: _pestana,
+            onChanged: (i) => setState(() => _pestana = i),
+            items: const [
+              (icon: Icons.check_circle_outline, label: 'Pendientes'),
+              (icon: Icons.history, label: 'Historial'),
+            ],
+          ),
+        ),
+        Expanded(
+          child: PlayfulIndexedStack(
+            index: _pestana,
+            children: [
+              _IntegranteTasksList(
+                misTareas: _misTareas,
+                robables: _robables,
+              ),
+              _HistorialTasksList(historial: _historial),
+            ],
+          ),
         ),
       ],
     );
@@ -787,26 +806,31 @@ class _AdminTasksListState extends State<_AdminTasksList> {
                       ),
                     ],
                   ),
-                  // Filtro por integrante.
+                  // Filtro por integrante (carrusel horizontal).
                   if (_integrantes.isNotEmpty)
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 4,
-                      children: [
-                        ChoiceChip(
-                          label: const Text('Todos'),
-                          selected: _miembroId == null,
-                          onSelected: (_) => setState(() => _miembroId = null),
-                        ),
-                        for (final u in _integrantes)
+                    SizedBox(
+                      height: 40,
+                      child: ListView(
+                        scrollDirection: Axis.horizontal,
+                        children: [
                           ChoiceChip(
-                            avatar: UserAvatar(user: u, radius: 10),
-                            label: Text(_nombreCorto(u.nombre)),
-                            selected: _miembroId == u.id,
+                            label: const Text('Todos'),
+                            selected: _miembroId == null,
                             onSelected: (_) =>
-                                setState(() => _miembroId = u.id),
+                                setState(() => _miembroId = null),
                           ),
-                      ],
+                          for (final u in _integrantes) ...[
+                            const SizedBox(width: 8),
+                            ChoiceChip(
+                              avatar: UserAvatar(user: u, radius: 10),
+                              label: Text(_nombreCorto(u.nombre)),
+                              selected: _miembroId == u.id,
+                              onSelected: (_) =>
+                                  setState(() => _miembroId = u.id),
+                            ),
+                          ],
+                        ],
+                      ),
                     ),
                   const SizedBox(height: 8),
                   // Rejilla de 7 días (letras) estilo referencia.
@@ -2071,13 +2095,9 @@ class _AsignadosList extends StatelessWidget {
 class _IntegranteTasksList extends StatelessWidget {
   final List<(Task, Assignment)> misTareas;
   final List<(Task, Assignment, User)> robables;
-  final int pestana;
-  final ValueChanged<int> onTab;
   const _IntegranteTasksList({
     required this.misTareas,
     this.robables = const [],
-    required this.pestana,
-    required this.onTab,
   });
 
   static const _diasOrden = [
@@ -2114,15 +2134,6 @@ class _IntegranteTasksList extends StatelessWidget {
           physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.all(16),
           children: [
-            const ReferenciaTitulo('SOLO TUS ENCARGOS', 'Mis tareas', icono: Icono3DTipo.check),
-            PillSegment(
-              index: pestana,
-              onChanged: onTab,
-              items: const [
-                (icon: Icons.check_circle_outline, label: 'Pendientes'),
-                (icon: Icons.history, label: 'Historial'),
-              ],
-            ),
             const EmptyState(
               mascota: MascotType.chispita,
               icon: Icons.task_alt,
@@ -2158,15 +2169,6 @@ class _IntegranteTasksList extends StatelessWidget {
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.all(16),
         children: [
-          const ReferenciaTitulo('SOLO TUS ENCARGOS', 'Mis tareas', icono: Icono3DTipo.check),
-          PillSegment(
-            index: pestana,
-            onChanged: onTab,
-            items: const [
-              (icon: Icons.check_circle_outline, label: 'Pendientes'),
-              (icon: Icons.history, label: 'Historial'),
-            ],
-          ),
           for (final (i, t) in [...conDia, ...sinDia].indexed)
             PlayfulEntrance(
               delayMs: (i * 70).clamp(0, 560),
@@ -2972,13 +2974,7 @@ class _TaskFormDialogState extends State<_TaskFormDialog> {
 
 class _HistorialTasksList extends StatelessWidget {
   final List<(Task, Assignment)> historial;
-  final int pestana;
-  final ValueChanged<int> onTab;
-  const _HistorialTasksList({
-    required this.historial,
-    required this.pestana,
-    required this.onTab,
-  });
+  const _HistorialTasksList({required this.historial});
 
   @override
   Widget build(BuildContext context) {
@@ -2986,15 +2982,6 @@ class _HistorialTasksList extends StatelessWidget {
       physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.all(20),
       children: [
-        const ReferenciaTitulo('SOLO TUS ENCARGOS', 'Mis tareas', icono: Icono3DTipo.check),
-        PillSegment(
-          index: pestana,
-          onChanged: onTab,
-          items: const [
-            (icon: Icons.check_circle_outline, label: 'Pendientes'),
-            (icon: Icons.history, label: 'Historial'),
-          ],
-        ),
         if (historial.isEmpty)
           const EmptyState(
             mascota: MascotType.nubecita,
