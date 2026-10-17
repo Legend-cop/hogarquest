@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../providers/app_provider.dart';
+import '../services/biometria_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/duo_widgets.dart';
 import '../widgets/hq_logo.dart';
@@ -40,6 +41,44 @@ class _LoginScreenState extends State<LoginScreen> {
       final ok = await app.login(_usuario.text.trim(), _password.text);
       if (mounted && !ok) {
         setState(() => _enviando = false);
+      }
+      // Recordatorio biométrico tras el primer login de un niño.
+      if (mounted && ok) {
+        final u = app.usuarioActual;
+        if (u != null && !u.esAdmin) {
+          final sin = await BiometriaService.sinPreferencia(u.id!);
+          if (sin && BiometriaService.disponible.value && mounted) {
+            final activar = await showDialog<bool>(
+              context: context,
+              builder: (ctx) => AlertDialog(
+                title: const Text('¿Usar tu huella?'),
+                content: const Text(
+                  'Puedes entrar la próxima vez con tu huella o rostro, '
+                  'sin escribir la contraseña. Siempre podrás usar la '
+                  'contraseña como respaldo.',
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(ctx, false),
+                    child: const Text('No, gracias'),
+                  ),
+                  TextButton(
+                    onPressed: () => Navigator.pop(ctx, true),
+                    child: const Text('Sí, activar'),
+                  ),
+                ],
+              ),
+            );
+            if (activar == true) {
+              await BiometriaService.setActivaPara(u.id!, true);
+              // Evita que el gate se muestre en esta misma sesión.
+              if (mounted) context.read<AppProvider>().desbloquearNino();
+            } else if (activar == false) {
+              // Se marca como respondido para no volver a preguntar.
+              await BiometriaService.setActivaPara(u.id!, false);
+            }
+          }
+        }
       }
     } catch (e) {
       debugPrint('Error al iniciar sesión: $e');

@@ -13,6 +13,7 @@ import 'providers/app_provider.dart';
 import 'providers/theme_controller.dart';
 import 'screens/integrantes_screen.dart';
 import 'screens/navegacion_principal.dart';
+import 'screens/nino_gate_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/pin_gate_screen.dart';
 import 'screens/splash_screen.dart';
@@ -164,6 +165,14 @@ class _Root extends StatelessWidget {
     if (u == null) return const LoginScreen();
     if (u.esAdmin && u.pin.isNotEmpty && !app.adminDesbloqueado) {
       return const PinGateScreen();
+    }
+    // Niños con desbloqueo biométrico activo: piden huella/rostro antes
+    // de entrar (la contraseña es el respaldo vía "Entrar con contraseña").
+    if (!u.esAdmin &&
+        BiometriaService.activa.value &&
+        BiometriaService.disponible.value &&
+        !app.ninoDesbloqueado) {
+      return const NinoGateScreen();
     }
     return NavegacionPrincipal();
   }

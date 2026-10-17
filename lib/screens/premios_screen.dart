@@ -586,10 +586,12 @@ class _RewardFormDialogState extends State<_RewardFormDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
+      insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
       title: Text(
         widget.initialData == null ? 'Nueva recompensa' : 'Editar recompensa',
       ),
       content: SingleChildScrollView(
+        padding: const EdgeInsets.only(bottom: 16),
         child: Form(
           key: _formKey,
           child: Column(

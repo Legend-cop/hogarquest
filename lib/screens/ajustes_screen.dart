@@ -49,6 +49,8 @@ class _AjustesScreenState extends State<AjustesScreen> {
                 const _AparienciaYSonido(),
                 const SizedBox(height: 16),
                 const _RecordatorioAjustes(),
+                const SizedBox(height: 16),
+                const _SeguridadCard(),
                 if (esAdmin) ...[
                   const SizedBox(height: 16),
                   _AdministracionCard(
@@ -328,6 +330,46 @@ class _AjustesTarjeta extends StatelessWidget {
           child,
         ],
       ),
+    );
+  }
+}
+
+/// Tarjeta común (niños y admin): desbloqueo biométrico por usuario.
+class _SeguridadCard extends StatelessWidget {
+  const _SeguridadCard();
+
+  @override
+  Widget build(BuildContext context) {
+    final userId = context.watch<AppProvider>().usuarioActual?.id;
+    return ValueListenableBuilder<bool>(
+      valueListenable: BiometriaService.disponible,
+      builder: (context, disponible, _) {
+        if (!disponible || userId == null) return const SizedBox.shrink();
+        return ValueListenableBuilder<bool>(
+          valueListenable: BiometriaService.activa,
+          builder: (context, activa, _) {
+            return _AjustesTarjeta(
+              titulo: 'Seguridad',
+              icono: Icons.shield_outlined,
+              colorIcono: AppColors.azul,
+              child: SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                secondary: const Icon(Icons.fingerprint, color: AppColors.azul),
+                title: const Text('Desbloqueo biométrico'),
+                subtitle: const Text(
+                  'Usa huella o rostro para entrar. La contraseña (o el '
+                  'PIN) sigue siendo el respaldo.',
+                ),
+                value: activa,
+                onChanged: (v) async {
+                  await BiometriaService.setActivaPara(userId, v);
+                  HapticsService.seleccion();
+                },
+              ),
+            );
+          },
+        );
+      },
     );
   }
 }
@@ -618,39 +660,6 @@ class _AdministracionCard extends StatelessWidget {
             ),
             trailing: const Icon(Icons.chevron_right),
             onTap: onPin,
-          ),
-          ValueListenableBuilder<bool>(
-            valueListenable: BiometriaService.disponible,
-            builder: (context, disponible, _) {
-              if (!disponible) return const SizedBox.shrink();
-              return ValueListenableBuilder<bool>(
-                valueListenable: BiometriaService.activa,
-                builder: (context, activa, _) {
-                  return Column(
-                    children: [
-                      const Divider(height: 1),
-                      SwitchListTile(
-                        contentPadding: EdgeInsets.zero,
-                        secondary: const Icon(
-                          Icons.fingerprint,
-                          color: AppColors.azul,
-                        ),
-                        title: const Text('Desbloqueo biométrico'),
-                        subtitle: const Text(
-                          'Usa huella o rostro para entrar. El PIN sigue '
-                          'siendo el respaldo.',
-                        ),
-                        value: activa,
-                        onChanged: (v) async {
-                          await BiometriaService.setActiva(v);
-                          HapticsService.seleccion();
-                        },
-                      ),
-                    ],
-                  );
-                },
-              );
-            },
           ),
           const Divider(height: 1),
           ListTile(

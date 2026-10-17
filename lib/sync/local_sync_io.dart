@@ -151,12 +151,19 @@ class LocalSyncService {
         _udpPort,
       );
       socket.broadcastEnabled = true;
-      socket.listen((event) {
-        if (event == RawSocketEvent.read) {
-          final dg = socket.receive();
-          if (dg != null) _procesarBeacon(dg);
-        }
-      });
+      socket.listen(
+        (event) {
+          if (event == RawSocketEvent.read) {
+            final dg = socket.receive();
+            if (dg != null) _procesarBeacon(dg);
+          }
+        },
+        // Errores de red del socket (ej. EPERM sin Wi‑Fi o doze) llegan
+        // por el stream, no por el try/catch de send(); se tragan aquí
+        // para que no se conviertan en ventanita "Error detectado".
+        onError: (Object e) =>
+            debugPrint('[LocalSync] udp socket: $e'),
+      );
       _udp = socket;
       debugPrint('[LocalSync] socket UDP en puerto $_udpPort');
     } catch (_) {
@@ -200,6 +207,12 @@ class LocalSyncService {
   void _enviarBeacon() {
     final u = _udp;
     if (u == null) return;
+    // Sin interfaz de red activa (sin Wi‑Fi, solo datos móviles apagados,
+    // doze) el broadcast falla con EPERM; se omite y se reintenta luego.
+    if (_localIps.isEmpty) {
+      unawaited(_cargarIpsLocales());
+      return;
+    }
     final msg = jsonEncode({
       'type': 'hq-beacon',
       'household': _household,

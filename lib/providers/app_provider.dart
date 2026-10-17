@@ -16,6 +16,7 @@ import '../models/assignment.dart';
 import '../models/badge.dart';
 import '../models/castigo.dart';
 import '../models/logro.dart';
+import '../services/biometria_service.dart';
 import '../services/push_service.dart';
 import '../models/redemption.dart';
 import '../models/reto.dart';
@@ -37,12 +38,14 @@ class AppProvider extends ChangeNotifier {
   bool _errorInicializacion = false;
   bool _sinConexion = false;
   bool _adminDesbloqueado = false;
+  bool _ninoDesbloqueado = false;
 
   User? get usuarioActual => _usuarioActual;
   bool get cargando => _cargando;
   String? get error => _error;
   bool get huboErrorInicializacion => _errorInicializacion;
   bool get adminDesbloqueado => _adminDesbloqueado;
+  bool get ninoDesbloqueado => _ninoDesbloqueado;
   bool get sinConexion => _sinConexion;
   List<User> get listaUsuarios => _usuarios;
   List<User> _usuarios = [];
@@ -80,6 +83,9 @@ class AppProvider extends ChangeNotifier {
     final user = await _db.getUserById(id);
     if (user != null) {
       _usuarioActual = user;
+      _ninoDesbloqueado = false;
+      // Carga la preferencia biométrica del usuario restaurado.
+      unawaited(BiometriaService.cargarPara(user.id!));
       unawaited(
         NotificationService.instance.sincronizar(app: this, userId: user.id!),
       );
@@ -200,6 +206,10 @@ class AppProvider extends ChangeNotifier {
     _bloqueadoHasta = null;
     _usuarioActual = user;
     _adminDesbloqueado = false;
+    // Login explícito con contraseña: ya se autenticó, no se pide huella.
+    _ninoDesbloqueado = true;
+    // Carga la preferencia biométrica por usuario (para el gate al reabrir).
+    await BiometriaService.cargarPara(user.id!);
     final prefs = await SharedPreferences.getInstance();
     await prefs.setInt(_claveSesion, user.id!);
     notifyListeners();
@@ -247,6 +257,7 @@ class AppProvider extends ChangeNotifier {
     _usuarioActual = null;
     _error = null;
     _adminDesbloqueado = false;
+    _ninoDesbloqueado = false;
     notifyListeners();
     unawaited(_limpiarSesion());
     unawaited(_cleanupLogout());
@@ -324,6 +335,12 @@ class AppProvider extends ChangeNotifier {
   /// Marca la sesión de administrador como desbloqueada (tras el PIN).
   void desbloquearAdmin() {
     _adminDesbloqueado = true;
+    notifyListeners();
+  }
+
+  /// Marca la sesión de niño como desbloqueada (tras la biometría).
+  void desbloquearNino() {
+    _ninoDesbloqueado = true;
     notifyListeners();
   }
 
