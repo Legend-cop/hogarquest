@@ -186,9 +186,18 @@ class _SincronizacionLocalScreenState extends State<SincronizacionLocalScreen> {
                   'en tu Wi-Fi.',
                   style: TextStyle(fontSize: 12),
                 ),
-                trailing: TextButton(
-                  onPressed: openAppSettings,
-                  child: const Text('Ajustes'),
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextButton(
+                      onPressed: () => unawaited(sync.solicitarPermisoRed()),
+                      child: const Text('Permitir'),
+                    ),
+                    TextButton(
+                      onPressed: openAppSettings,
+                      child: const Text('Ajustes'),
+                    ),
+                  ],
                 ),
               ),
             ),

@@ -26,6 +26,8 @@ class LocalSyncService {
 
   void limpiarAlerta() {}
 
+  Future<void> solicitarPermisoRed() async {}
+
   DateTime? get ultimaSincronizacion => null;
 
   Stream<void> get onCambio => const Stream.empty();

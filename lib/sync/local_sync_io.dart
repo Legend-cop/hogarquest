@@ -3,10 +3,15 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
-import 'package:permission_handler/permission_handler.dart';
+import 'package:flutter/services.dart';
 
 import '../db/database_helper.dart';
 import 'peer_info.dart';
+
+/// Canal compartido con el código nativo (MainActivity.kt). Se usa porque
+/// permission_handler 11.4 no implementa ACCESS_LOCAL_NETWORK (devuelve
+/// "denegado" siempre, con un aviso falso en el que no hay nada que conceder).
+const MethodChannel _canalAjustes = MethodChannel('hogarquest/ajustes');
 
 /// Sincronización P2P local entre dispositivos de la misma familia, sin
 /// necesidad de internet. Cualquier dispositivo puede actuar como "hub":
@@ -78,6 +83,42 @@ class LocalSyncService {
     _notificar();
   }
 
+  /// Consulta (y si hace falta pide) el permiso de red local. En Android
+  /// anterior a 17 el permiso no existe: no hay nada que conceder y la red
+  /// funciona igual, así que no se marca como denegado.
+  Future<void> _verificarPermisoRed() async {
+    if (kIsWeb || !Platform.isAndroid) {
+      _permisoRedOk = true;
+      return;
+    }
+    try {
+      var estado = await _canalAjustes.invokeMethod<String>('estadoRedLocal');
+      if (estado == 'denegado') {
+        estado = await _canalAjustes.invokeMethod<String>('pedirRedLocal');
+      }
+      _permisoRedOk = estado != 'denegado';
+      if (!_permisoRedOk) {
+        debugPrint('[LocalSync] permiso de red local denegado');
+      }
+    } catch (e) {
+      // Si el canal falla, no se bloquea la sincronización por eso.
+      debugPrint('[LocalSync] permiso de red local: $e');
+      _permisoRedOk = true;
+    }
+  }
+
+  /// Pide el permiso de red local desde la UI (botón "Permitir") y notifica
+  /// el resultado a la pantalla.
+  Future<void> solicitarPermisoRed() async {
+    try {
+      final estado = await _canalAjustes.invokeMethod<String>('pedirRedLocal');
+      _permisoRedOk = estado != 'denegado';
+    } catch (e) {
+      debugPrint('[LocalSync] pedir permiso de red: $e');
+    }
+    _notificar();
+  }
+
   DateTime? get ultimaSincronizacion => _ultimaSincronizacion;
 
   void _notificar() {
@@ -87,21 +128,10 @@ class LocalSyncService {
   /// Descubre pares en la misma red y sincroniza con ellos.
   Future<void> start(DatabaseHelper db) async {
     if (_running) return;
-    // Android 16+ exige permiso de red local para el beacon UDP.
-    if (!kIsWeb && Platform.isAndroid) {
-      try {
-        final estado = await Permission.accessLocalNetwork.request();
-        _permisoRedOk = !estado.isDenied && !estado.isPermanentlyDenied;
-        if (!_permisoRedOk) {
-          debugPrint('[LocalSync] permiso de red local denegado');
-        }
-      } catch (e) {
-        debugPrint('[LocalSync] permiso de red local: $e');
-      }
-    }
     _db = db;
     _household = db.householdCode;
     _running = true;
+    await _verificarPermisoRed();
     await _cargarIpsLocales();
     await _iniciarHttp();
     await _iniciarUdp();
