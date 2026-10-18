@@ -43,11 +43,15 @@ class _SincronizacionBluetoothScreenState extends State<SincronizacionBluetoothS
       final apagado = await desactivarBluetooth();
       if (!apagado && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
+          SnackBar(
+            content: const Text(
               'La sincronización se detuvo. Android no permite que la app '
-              'apague el Bluetooth del celular automáticamente; apágalo '
-              'desde los ajustes rápidos si lo deseas.',
+              'apague el Bluetooth del celular; puedes apagarlo desde sus '
+              'ajustes.',
+            ),
+            action: SnackBarAction(
+              label: 'Ajustes',
+              onPressed: abrirAjustesBluetooth,
             ),
           ),
         );
@@ -100,26 +104,26 @@ class _SincronizacionBluetoothScreenState extends State<SincronizacionBluetoothS
                 ),
               ),
             const SizedBox(height: 20),
-            if (activo) ...[
-              DuoCard(
-                child: ListTile(
-                  leading: const Icon(Icons.key, color: AppColors.verdeOscuro),
-                  title: const Text('Código del hogar'),
-                  subtitle: const Text(
-                    'Comparte este código con los dispositivos que deben '
-                    'sincronizarse. Solo dispositivos con el mismo código '
-                    'intercambian datos.',
-                  ),
-                  trailing: Text(
-                    codigo,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w800,
-                      fontSize: 16,
-                    ),
+            DuoCard(
+              child: ListTile(
+                leading: const Icon(Icons.key, color: AppColors.verdeOscuro),
+                title: const Text('Código del hogar'),
+                subtitle: const Text(
+                  'Comparte este código con los dispositivos que deben '
+                  'sincronizarse. Solo dispositivos con el mismo código '
+                  'intercambian datos.',
+                ),
+                trailing: Text(
+                  codigo,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 16,
                   ),
                 ),
               ),
-              const SizedBox(height: 20),
+            ),
+            const SizedBox(height: 20),
+            if (activo) ...[
               DuoButton(
                 label: 'Sincronizar ahora',
                 icon: Icons.sync,
@@ -140,7 +144,10 @@ class _SincronizacionBluetoothScreenState extends State<SincronizacionBluetoothS
               SectionHeader(title: 'Dispositivos cercanos'),
               if (peers.isEmpty)
                 Text(
-                  'No se han detectado dispositivos.',
+                  'No se han detectado dispositivos todavía. El otro celular '
+                  'debe tener esta misma sincronización encendida, la '
+                  'ubicación activada y el mismo código de hogar; espera '
+                  'unos segundos a que aparezca.',
                   style: TextStyle(color: textoSuaveTema(context)),
                 )
               else

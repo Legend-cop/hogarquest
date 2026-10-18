@@ -8,6 +8,7 @@ import '../providers/app_provider.dart';
 import '../theme/app_theme.dart';
 import '../widgets/duo_widgets.dart';
 import '../widgets/empty_state.dart';
+import '../widgets/color_avatar_picker.dart';
 import '../widgets/mascots.dart';
 import '../widgets/user_avatar.dart';
 import 'detalle_integrante_screen.dart';
@@ -590,10 +591,7 @@ class _UsuarioFormDialogState extends State<_UsuarioFormDialog> {
                 onTap: _elegirFecha,
               ),
               const SizedBox(height: 12),
-              TextFormField(
-                controller: _colorTema,
-                decoration: const InputDecoration(labelText: 'Tema favorito'),
-              ),
+              ColorAvatarPicker(controller: _colorTema),
               const SizedBox(height: 12),
               DropdownButtonFormField<String>(
                 initialValue: _rol,

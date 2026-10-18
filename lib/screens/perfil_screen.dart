@@ -7,6 +7,7 @@ import '../db/upload_client.dart';
 import '../providers/app_provider.dart';
 import 'ajustes_screen.dart';
 import '../theme/app_theme.dart';
+import '../widgets/color_avatar_picker.dart';
 import '../widgets/duo_widgets.dart';
 import '../widgets/hq_design.dart';
 import '../widgets/icono3d.dart';
@@ -611,10 +612,7 @@ class _InfoCardState extends State<_InfoCard> {
               onTap: _elegirFecha,
             ),
             const SizedBox(height: 12),
-            TextField(
-              controller: widget.colorTemaController,
-              decoration: const InputDecoration(labelText: 'Tema favorito'),
-            ),
+            ColorAvatarPicker(controller: widget.colorTemaController),
             const SizedBox(height: 16),
             DuoButton(
               label: 'Guardar',

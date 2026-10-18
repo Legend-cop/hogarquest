@@ -23,6 +23,26 @@ class MainActivity : FlutterFragmentActivity() {
                             result.error("ERROR", e.message, null)
                         }
                     }
+                    "abrirAjustesUbicacion" -> {
+                        // Nearby Connections exige la ubicación del sistema
+                        // encendida para poder escanear dispositivos.
+                        try {
+                            startActivity(Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS))
+                            result.success(true)
+                        } catch (e: Exception) {
+                            result.error("ERROR", e.message, null)
+                        }
+                    }
+                    "abrirAjustesBluetooth" -> {
+                        // Android 12+ no deja que la app apague el Bluetooth,
+                        // así que se abren los ajustes para que el usuario lo haga.
+                        try {
+                            startActivity(Intent(Settings.ACTION_BLUETOOTH_SETTINGS))
+                            result.success(true)
+                        } catch (e: Exception) {
+                            result.error("ERROR", e.message, null)
+                        }
+                    }
                     "desactivarBluetooth" -> {
                         // Mejor-esfuerzo: en Android 12+ el sistema no permite
                         // que una app apague el Bluetooth del celular, por lo que

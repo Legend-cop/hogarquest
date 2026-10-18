@@ -24,6 +24,16 @@ Future<bool> desactivarBluetooth() async {
   }
 }
 
+/// Abre los ajustes del sistema donde el usuario puede apagar o encender el
+/// Bluetooth (Android 12+ no permite que la app lo haga por sí sola).
+Future<void> abrirAjustesBluetooth() async {
+  try {
+    await _channelAjustes.invokeMethod<void>('abrirAjustesBluetooth');
+  } catch (_) {
+    // Silencioso: el aviso del sistema sigue siendo la alternativa.
+  }
+}
+
 /// Sincronización P2P local sin internet usando Nearby Connections (Google).
 ///
 /// Funciona sobre Bluetooth y Wi-Fi punto a punto. Los dispositivos se anuncian
@@ -55,7 +65,7 @@ class BluetoothSyncService {
         mensaje.value = 'Permisos de Bluetooth/ubicación denegados';
         return;
       }
-      await _activarUbicacion();
+      if (!await _activarUbicacion()) return;
       final userName = db.householdCode.isNotEmpty
           ? db.householdCode
           : 'HogarQuest';
@@ -118,15 +128,22 @@ class BluetoothSyncService {
     }
   }
 
-  Future<void> _activarUbicacion() async {
+  /// Nearby Connections necesita la ubicación del sistema encendida para
+  /// escanear. Si está apagada se lleva al usuario a los ajustes de ubicación
+  /// (no a los de la app) y el servicio no continúa hasta que la active.
+  Future<bool> _activarUbicacion() async {
     try {
       final status = await Permission.location.serviceStatus;
       if (status != ServiceStatus.enabled) {
-        await openAppSettings();
+        mensaje.value =
+            'Activa la ubicación del celular para poder buscar dispositivos.';
+        await _channelAjustes.invokeMethod<void>('abrirAjustesUbicacion');
+        return false;
       }
     } catch (e) {
       debugPrint('BluetoothSync ubicacion: $e');
     }
+    return true;
   }
 
   void _onEndpointFound(String id, String name, String serviceId) {

@@ -1,8 +1,8 @@
 import 'dart:convert';
-import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:file_saver/file_saver.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../widgets/hq_design.dart';
@@ -51,6 +51,8 @@ class _AjustesScreenState extends State<AjustesScreen> {
                 const _RecordatorioAjustes(),
                 const SizedBox(height: 16),
                 const _SeguridadCard(),
+                const SizedBox(height: 16),
+                const _SincronizacionCard(),
                 if (esAdmin) ...[
                   const SizedBox(height: 16),
                   _AdministracionCard(
@@ -142,17 +144,30 @@ class _AjustesScreenState extends State<AjustesScreen> {
       final bytes = Uint8List.fromList(utf8.encode(json));
       final nombre =
           'hogarquest_respaldo_${DateTime.now().toIso8601String().substring(0, 10)}';
-      await FileSaver.instance.saveFile(
-        name: nombre,
-        bytes: bytes,
-        fileExtension: 'json',
-        mimeType: MimeType.other,
-      );
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('Respaldo descargado.')));
+      final String? ruta;
+      if (kIsWeb) {
+        ruta = await FileSaver.instance.saveFile(
+          name: nombre,
+          bytes: bytes,
+          fileExtension: 'json',
+          mimeType: MimeType.other,
+        );
+      } else {
+        // Móvil: el diálogo "Guardar como" del sistema deja elegir una
+        // carpeta visible (p. ej. Descargas). Guardar en la carpeta privada
+        // de la app no sirve: Android 11+ la oculta del explorador y por
+        // eso el respaldo no aparecía al restaurar.
+        ruta = await FileSaver.instance.saveAs(
+          name: nombre,
+          bytes: bytes,
+          fileExtension: 'json',
+          mimeType: MimeType.other,
+        );
       }
+      if (ruta == null || !mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Respaldo guardado: $nombre.json')),
+      );
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(
@@ -370,6 +385,53 @@ class _SeguridadCard extends StatelessWidget {
           },
         );
       },
+    );
+  }
+}
+
+/// Tarjeta común (niños y admin): sincronización entre dispositivos del
+/// mismo hogar (misma Wi-Fi o Bluetooth). Todos deben poder ver el código
+/// de hogar y encender su servicio para que la sincronización funcione.
+class _SincronizacionCard extends StatelessWidget {
+  const _SincronizacionCard();
+
+  @override
+  Widget build(BuildContext context) {
+    return _AjustesTarjeta(
+      titulo: 'Sincronización entre dispositivos',
+      icono: Icons.devices,
+      colorIcono: AppColors.verdeOscuro,
+      child: Column(
+        children: [
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            leading: const Icon(Icons.wifi_tethering, color: AppColors.azul),
+            title: const Text('Sincronización local'),
+            subtitle: const Text(
+              'Sincroniza con otros dispositivos sin internet (misma Wi-Fi).',
+            ),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const SincronizacionLocalScreen()),
+            ),
+          ),
+          const Divider(height: 1),
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            leading: const Icon(Icons.bluetooth, color: AppColors.azul),
+            title: const Text('Sincronización por Bluetooth'),
+            subtitle: const Text(
+              'Sincroniza sin internet (Bluetooth/Wi-Fi directo).',
+            ),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const SincronizacionBluetoothScreen()),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -629,7 +691,7 @@ class _RecordatorioAjustesState extends State<_RecordatorioAjustes> {
   }
 }
 
-/// Tarjeta 3 (solo admin): PIN, respaldos, sincronización y reinicio.
+/// Tarjeta 3 (solo admin): PIN, respaldos y reinicio.
 class _AdministracionCard extends StatelessWidget {
   final VoidCallback onPin;
   final VoidCallback onExportar;
@@ -680,34 +742,6 @@ class _AdministracionCard extends StatelessWidget {
             subtitle: const Text('Carga un respaldo previamente descargado.'),
             trailing: const Icon(Icons.chevron_right),
             onTap: onRestaurar,
-          ),
-          const Divider(height: 1),
-          ListTile(
-            contentPadding: EdgeInsets.zero,
-            leading: const Icon(Icons.wifi_tethering, color: AppColors.azul),
-            title: const Text('Sincronización local'),
-            subtitle: const Text(
-              'Sincroniza con otros dispositivos sin internet (misma Wi-Fi).',
-            ),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () => Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const SincronizacionLocalScreen()),
-            ),
-          ),
-          const Divider(height: 1),
-          ListTile(
-            contentPadding: EdgeInsets.zero,
-            leading: const Icon(Icons.bluetooth, color: AppColors.azul),
-            title: const Text('Sincronización por Bluetooth'),
-            subtitle: const Text(
-              'Sincroniza sin internet (Bluetooth/Wi-Fi directo).',
-            ),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () => Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const SincronizacionBluetoothScreen()),
-            ),
           ),
           const Divider(height: 1),
           ListTile(
