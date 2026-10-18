@@ -16,6 +16,16 @@ class LocalSyncService {
 
   List<PeerInfo> get peersDetectados => const [];
 
+  List<String> get ipsLocales => const [];
+
+  List<String> get vecinosAjenos => const [];
+
+  String? get ultimaAlerta => null;
+
+  bool get permisoRedOk => true;
+
+  void limpiarAlerta() {}
+
   DateTime? get ultimaSincronizacion => null;
 
   Stream<void> get onCambio => const Stream.empty();

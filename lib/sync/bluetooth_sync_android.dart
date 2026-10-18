@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
@@ -55,7 +56,11 @@ class BluetoothSyncService {
   bool get disponible => true;
 
   final Set<String> _conectados = {};
+  final Set<String> _enIntento = {};
+  final Map<String, int> _reintentos = {};
   final Map<String, String> _nombres = {};
+  final Random _rand = Random();
+  bool _descubriendo = false;
 
   Future<void> start(DatabaseHelper db) async {
     _db = db;
@@ -66,28 +71,35 @@ class BluetoothSyncService {
         return;
       }
       if (!await _activarUbicacion()) return;
-      final userName = db.householdCode.isNotEmpty
-          ? db.householdCode
-          : 'HogarQuest';
       await _nearby.startAdvertising(
-        userName,
+        _nombreServicio(),
         Strategy.P2P_CLUSTER,
         onConnectionInitiated: _onConnectionInitiated,
         onConnectionResult: _onConnectionResult,
         onDisconnected: _onDisconnected,
       );
-      await _nearby.startDiscovery(
-        userName,
-        Strategy.P2P_CLUSTER,
-        onEndpointFound: _onEndpointFound,
-        onEndpointLost: _onEndpointLost,
-      );
+      await _iniciarDiscovery();
       activo.value = true;
       mensaje.value = 'Buscando dispositivos cercanos…';
     } catch (e) {
       mensaje.value = 'No se pudo iniciar: $e';
       debugPrint('BluetoothSync start: $e');
     }
+  }
+
+  String _nombreServicio() {
+    final c = _db?.householdCode;
+    return (c != null && c.isNotEmpty) ? c : 'HogarQuest';
+  }
+
+  Future<void> _iniciarDiscovery() async {
+    await _nearby.startDiscovery(
+      _nombreServicio(),
+      Strategy.P2P_CLUSTER,
+      onEndpointFound: _onEndpointFound,
+      onEndpointLost: _onEndpointLost,
+    );
+    _descubriendo = true;
   }
 
   Future<void> stop() async {
@@ -98,7 +110,10 @@ class BluetoothSyncService {
     } catch (e) {
       debugPrint('BluetoothSync stop: $e');
     }
+    _descubriendo = false;
     _conectados.clear();
+    _enIntento.clear();
+    _reintentos.clear();
     _nombres.clear();
     activo.value = false;
     mensaje.value = 'Inactivo';
@@ -146,56 +161,157 @@ class BluetoothSyncService {
     return true;
   }
 
-  void _onEndpointFound(String id, String name, String serviceId) {
+  Future<void> _onEndpointFound(String id, String name, String serviceId) async {
     _nombres[id] = name;
     _actualizarPeers();
     // Solo nos conectamos con dispositivos del mismo hogar.
     if (name != _db?.householdCode) return;
+    await _conectar(id, name);
+  }
+
+  /// Pide la conexión con jitter. Si ambos celulares lo hacen al mismo
+  /// tiempo, Nearby falla uno con 8012 (STATUS_ENDPOINT_IO_ERROR), el error
+  /// "simultaneous connection clash" documentado por Google; el tiempo
+  /// aleatorio hace que uno llegue primero y el otro reciba la conexión
+  /// entrante.
+  Future<void> _conectar(String id, String nombre) async {
+    if (_conectados.contains(id) || _enIntento.contains(id)) return;
+    if ((_reintentos[id] ?? 0) >= 3) return;
+    _enIntento.add(id);
     try {
-      _nearby.requestConnection(
-        _db?.householdCode ?? 'HogarQuest',
+      await Future.delayed(Duration(milliseconds: 700 + _rand.nextInt(1600)));
+      if (!_nombres.containsKey(id) || _conectados.contains(id)) return;
+      await _nearby.requestConnection(
+        _nombreServicio(),
         id,
         onConnectionInitiated: _onConnectionInitiated,
         onConnectionResult: _onConnectionResult,
         onDisconnected: _onDisconnected,
       );
+      mensaje.value = 'Conectando con $nombre…';
     } catch (e) {
       debugPrint('BluetoothSync requestConnection: $e');
+      if (!_conectados.contains(id)) unawaited(_reintentar(id, nombre));
+    } finally {
+      _enIntento.remove(id);
+    }
+  }
+
+  /// Reintento con el remedio documentado por Google para 8012: detener
+  /// discovery, esperar 3 s y volver a intentar (máximo 3 veces por endpoint).
+  Future<void> _reintentar(String id, String nombre) async {
+    final intento = (_reintentos[id] ?? 0) + 1;
+    _reintentos[id] = intento;
+    if (intento >= 3) {
+      mensaje.value =
+          'No se pudo conectar con $nombre. Acércate un poco y vuelve a '
+          'intentarlo.';
+      await _reanudarDiscovery();
+      return;
+    }
+    mensaje.value = 'Reintentando conexión con $nombre (intento $intento de 3)…';
+    try {
+      await _nearby.stopDiscovery();
+      _descubriendo = false;
+    } catch (_) {}
+    await Future.delayed(const Duration(seconds: 3));
+    if (!activo.value || _conectados.contains(id)) return;
+    if (!_nombres.containsKey(id)) {
+      _reintentos.remove(id);
+      await _reanudarDiscovery();
+      return;
+    }
+    await _conectar(id, nombre);
+    await _reanudarDiscovery();
+  }
+
+  /// Reanuda discovery si quedó detenido y no hay conexiones activas.
+  Future<void> _reanudarDiscovery() async {
+    if (!activo.value || _conectados.isNotEmpty || _descubriendo) return;
+    try {
+      await _iniciarDiscovery();
+    } catch (e) {
+      debugPrint('BluetoothSync reanudar discovery: $e');
     }
   }
 
   void _onEndpointLost(String? id) {
-    if (id != null) _nombres.remove(id);
+    if (id != null) {
+      _nombres.remove(id);
+      _enIntento.remove(id);
+      _reintentos.remove(id);
+    }
     _actualizarPeers();
   }
 
-  void _onConnectionInitiated(String id, ConnectionInfo info) {
+  Future<void> _onConnectionInitiated(String id, ConnectionInfo info) async {
     if (info.endpointName != _db?.householdCode) {
       try {
-        _nearby.rejectConnection(id);
+        await _nearby.rejectConnection(id);
       } catch (_) {}
       return;
     }
+    // Si mientras esperábamos nuestra petición llegó una conexión entrante
+    // del mismo endpoint, se atiende esta (carrera resuelta sin error).
+    _enIntento.remove(id);
     try {
-      _nearby.acceptConnection(id, onPayLoadRecieved: _onPayloadReceived);
+      await _nearby.acceptConnection(id, onPayLoadRecieved: _onPayloadReceived);
     } catch (e) {
       debugPrint('BluetoothSync acceptConnection: $e');
     }
   }
 
   void _onConnectionResult(String id, Status status) {
+    _enIntento.remove(id);
+    final nombre = _nombres[id] ?? 'el otro celular';
     if (status == Status.CONNECTED) {
+      _reintentos.remove(id);
       _conectados.add(id);
       mensaje.value = 'Conectado con ${_conectados.length} dispositivo(s)';
+      unawaited(_actualizarDiscovery());
       _enviarDb(id);
     } else {
       _conectados.remove(id);
+      if (status == Status.REJECTED) {
+        _reintentos.remove(id);
+        mensaje.value = '$nombre rechazó la conexión.';
+      } else {
+        mensaje.value = 'La conexión con $nombre falló.';
+        if (_nombres.containsKey(id) && activo.value) {
+          unawaited(_reintentar(id, nombre));
+        }
+      }
+      _actualizarPeers();
     }
   }
 
   void _onDisconnected(String id) {
     _conectados.remove(id);
+    _enIntento.remove(id);
+    _reintentos.remove(id);
     _actualizarPeers();
+    mensaje.value = _conectados.isEmpty
+        ? 'Buscando dispositivos cercanos…'
+        : 'Conectado con ${_conectados.length} dispositivo(s)';
+    unawaited(_actualizarDiscovery());
+  }
+
+  /// Google recomienda evitar discovery mientras hay conexiones activas
+  /// (compite por ancho de banda y provoca caídas/IO_ERROR). El advertising
+  /// sigue corriendo, así que otros celulares aún pueden encontrarnos y
+  /// conectarse a nosotros; al quedar sin conexiones se reanuda.
+  Future<void> _actualizarDiscovery() async {
+    if (!activo.value) return;
+    try {
+      if (_conectados.isNotEmpty && _descubriendo) {
+        await _nearby.stopDiscovery();
+        _descubriendo = false;
+      } else if (_conectados.isEmpty && !_descubriendo) {
+        await _iniciarDiscovery();
+      }
+    } catch (e) {
+      debugPrint('BluetoothSync discovery toggle: $e');
+    }
   }
 
   void _onPayloadReceived(String id, Payload payload) {
@@ -222,7 +338,14 @@ class BluetoothSyncService {
     try {
       final data = db.exportarParaP2P();
       final bytes = Uint8List.fromList(utf8.encode(jsonEncode(data)));
-      unawaited(_nearby.sendBytesPayload(endpointId, bytes));
+      // onError atrapa el error async: sin esto la excepción subiría al
+      // handler global y abriría la ventanita "Error detectado".
+      unawaited(
+        _nearby.sendBytesPayload(endpointId, bytes).then<void>(
+          (_) {},
+          onError: (Object e) => debugPrint('BluetoothSync send: $e'),
+        ),
+      );
     } catch (e) {
       debugPrint('BluetoothSync send: $e');
     }

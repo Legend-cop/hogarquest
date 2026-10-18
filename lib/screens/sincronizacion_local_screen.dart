@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 import '../sync/local_sync.dart';
 import '../theme/app_theme.dart';
@@ -122,6 +123,23 @@ class _SincronizacionLocalScreenState extends State<SincronizacionLocalScreen> {
                     ),
                   ),
                   const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Icon(Icons.wifi, size: 16, color: textoSuaveTema(context)),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          'Tu IP: ${sync.ipsLocales.isEmpty ? 'sin conexión de red' : sync.ipsLocales.join(', ')}',
+                          style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
                   Text(
                     'Última sincronización: ${_haceCuanto(sync.ultimaSincronizacion)}',
                     style: const TextStyle(fontWeight: FontWeight.w600),
@@ -130,6 +148,50 @@ class _SincronizacionLocalScreenState extends State<SincronizacionLocalScreen> {
               ),
             ),
           ),
+          if (sync.ultimaAlerta != null)
+            Card(
+              color: Colors.amber.withValues(alpha: 0.25),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: ListTile(
+                leading: const Icon(
+                  Icons.warning_amber_rounded,
+                  color: Colors.orange,
+                ),
+                title: Text(
+                  sync.ultimaAlerta!,
+                  style: const TextStyle(fontSize: 13),
+                ),
+                trailing: IconButton(
+                  icon: const Icon(Icons.close),
+                  onPressed: sync.limpiarAlerta,
+                ),
+              ),
+            ),
+          if (!sync.permisoRedOk)
+            Card(
+              color: AppColors.rojo.withValues(alpha: 0.12),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: ListTile(
+                leading: const Icon(Icons.wifi_off, color: AppColors.rojo),
+                title: const Text(
+                  'Permiso de red local denegado',
+                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
+                ),
+                subtitle: const Text(
+                  'Sin este permiso la app no puede ver otros dispositivos '
+                  'en tu Wi-Fi.',
+                  style: TextStyle(fontSize: 12),
+                ),
+                trailing: TextButton(
+                  onPressed: openAppSettings,
+                  child: const Text('Ajustes'),
+                ),
+              ),
+            ),
           const SizedBox(height: 16),
           Row(
             children: [
@@ -152,8 +214,13 @@ class _SincronizacionLocalScreenState extends State<SincronizacionLocalScreen> {
             Padding(
               padding: EdgeInsets.symmetric(vertical: 12),
               child: Text(
-                'Ninguno detectado todavía. Asegúrate de que los dispositivos '
-                'estén en la misma Wi-Fi. Puedes agregar uno manualmente abajo.',
+                'Ninguno detectado todavía. Revisa que:\n'
+                '• Ambos estén en la misma Wi-Fi (no datos móviles).\n'
+                '• La app esté abierta en el otro celular.\n'
+                '• Ambos tengan el mismo código de hogar.\n'
+                'Si tu IP y la del otro celular comparten los primeros tres '
+                'números (ej. 192.168.1.x) pero aún no aparece, agrega su IP '
+                'manualmente abajo.',
                 style: TextStyle(color: textoSuaveTema(context)),
               ),
             )
@@ -220,12 +287,10 @@ class _SincronizacionLocalScreenState extends State<SincronizacionLocalScreen> {
                   ),
                   const SizedBox(height: 6),
                   Text(
-                    'El transporte Bluetooth como respaldo sin Wi-Fi está en '
-                    'evaluación: los plugins BLE estándar de Flutter son solo '
-                    'clientes (no pueden actuar de servidor para intercambiar '
-                    'datos) y algunos requieren licencia comercial. Mientras '
-                    'tanto, usa la misma Wi-Fi (o agrega la IP manualmente) para '
-                    'sincronizar sin internet.',
+                    'Si no hay Wi-Fi compartida, usa la "Sincronización por '
+                    'Bluetooth" desde Ajustes → Sincronización entre '
+                    'dispositivos: funciona sin internet entre celulares '
+                    'cercanos con el mismo código de hogar.',
                     style: TextStyle(
                       color: textoSuaveTema(context),
                       fontSize: 13,
