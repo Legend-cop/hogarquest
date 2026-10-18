@@ -128,18 +128,72 @@ class NotificationService {
   }
 
   /// Envía la hora configurada del recordatorio y el offset UTC local al
-  /// server, para que él programe el push diario.
+  /// server, para que él programe el push diario. También programa el
+  /// respaldo local: si a la hora configurada no hay internet, el sistema
+  /// operativo muestra la notificación de todos modos.
   Future<void> sincronizar({
     required AppProvider app,
     required int userId,
   }) async {
     final minutos = await horaConfigurada(userId);
     final offset = DateTime.now().timeZoneOffset.inMinutes;
+    await _programarRecordatorioLocal(app, userId, minutos);
     await app.guardarRecordatorioEnServer(
       userId: userId,
       minutos: minutos,
       offset: offset,
     );
+  }
+
+  /// Id único de la notificación diaria de recordatorio (por usuario).
+  static int _idRecordatorio(int userId) => 700000 + userId;
+
+  /// Respaldo local del recordatorio diario: notificación repetida todos los
+  /// días a la hora configurada, sin depender del server ni de internet.
+  Future<void> _programarRecordatorioLocal(
+    AppProvider app,
+    int userId,
+    int minutos,
+  ) async {
+    try {
+      if (kIsWeb) return;
+      await init();
+      final ahora = tz.TZDateTime.now(tz.local);
+      var cuando = tz.TZDateTime(
+        tz.local,
+        ahora.year,
+        ahora.month,
+        ahora.day,
+        minutos ~/ 60,
+        minutos % 60,
+      );
+      if (!cuando.isAfter(ahora)) {
+        cuando = cuando.add(const Duration(days: 1));
+      }
+      final esAdmin = app.usuarioActual?.esAdmin ?? false;
+      await _plugin.zonedSchedule(
+        _idRecordatorio(userId),
+        esAdmin ? 'HogarQuest: tareas por revisar' : 'HogarQuest: tus tareas de hoy',
+        esAdmin
+            ? 'Revisa las tareas que tu familia completó.'
+            : '¿Ya completaste tus tareas? Entra y gana puntos.',
+        cuando,
+        const NotificationDetails(
+          android: AndroidNotificationDetails(
+            'hq_recordatorio',
+            'Recordatorio diario',
+            channelDescription: 'Aviso diario de tareas pendientes',
+            importance: Importance.high,
+            priority: Priority.high,
+          ),
+        ),
+        androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+        matchDateTimeComponents: DateTimeComponents.time,
+      );
+    } catch (_) {
+      // Best-effort: si el sistema rechaza la alarma exacta, el push del
+      // server sigue siendo el respaldo.
+    }
   }
 
   /// Cancela todos los recordatorios programados localmente (versiones viejas).
