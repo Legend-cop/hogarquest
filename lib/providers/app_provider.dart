@@ -1389,18 +1389,22 @@ class AppProvider extends ChangeNotifier {
     var fin = fechaFin;
     var diaLluvia = fechaLluvia;
     var plazo = plazoIndividual;
+    var vinicio = ventanaInicio;
+    var vfin = ventanaFin;
     if (modo == Reto.modoLluvia) {
       // Día aleatorio de la semana (se puede re-sortear desde el diálogo).
-      // fechaInicio sigue siendo el lunes (ancla de la semana) y el reto
-      // vence al terminar el día sorteado.
+      // fechaInicio sigue siendo el lunes (ancla de la semana); la lluvia
+      // corre en su ventana horaria y vence al terminarla.
       diaLluvia ??= sortearDiaLluvia(inicio);
       final d = DateTime(diaLluvia.year, diaLluvia.month, diaLluvia.day);
       diaLluvia = d;
-      fin ??= DateTime(d.year, d.month, d.day, 23, 59, 59);
+      vinicio ??= DateTime(d.year, d.month, d.day, 16);
+      vfin ??= DateTime(d.year, d.month, d.day, 18);
+      fin ??= vfin;
     }
     if (modo == Reto.modoFrenesi) {
       // Compatibilidad: plazoIndividual (legacy) = fin de la ventana.
-      plazo ??= ventanaFin;
+      plazo ??= vfin;
     }
     final creado = Reto(
       titulo: titulo,
@@ -1411,8 +1415,10 @@ class AppProvider extends ChangeNotifier {
       modo: modo,
       fechaLluvia: diaLluvia,
       plazoIndividual: plazo,
-      ventanaInicio: modo == Reto.modoFrenesi ? ventanaInicio : null,
-      ventanaFin: modo == Reto.modoFrenesi ? ventanaFin : null,
+      ventanaInicio:
+          (modo == Reto.modoFrenesi || modo == Reto.modoLluvia) ? vinicio : null,
+      ventanaFin:
+          (modo == Reto.modoFrenesi || modo == Reto.modoLluvia) ? vfin : null,
       multiplicador: modo == Reto.modoFrenesi ? multiplicador : 1,
     );
     final id = await _db.insertReto(creado);
@@ -1500,6 +1506,98 @@ class AppProvider extends ChangeNotifier {
     if (!reto.esLluvia && reto.vencido(ahora)) return;
     await _db.updateReto(reto.copyWith(cumplidos: [...reto.cumplidos, uid]));
     notifyListeners();
+  }
+
+  /// Tareas del día de la lluvia que NADIE tiene asignadas: el "pozo" que
+  /// se abre durante la ventana. El primero en tomarla cobra al instante.
+  Future<List<Task>> tareasPozoLluvia(Reto reto) async {
+    if (!reto.esLluvia) return const [];
+    final fin = reto.finLluvia;
+    if (fin == null) return const [];
+    const nombres = [
+      'domingo',
+      'lunes',
+      'martes',
+      'miercoles',
+      'jueves',
+      'viernes',
+      'sabado',
+    ];
+    final dia = nombres[fin.weekday % 7];
+    final tareas = await _db.getTareas();
+    final result = <Task>[];
+    for (final t in tareas) {
+      if (!t.activa) continue;
+      final esDelDia = t.dia == dia ||
+          (t.fechaLimite != null &&
+              t.fechaLimite!.year == fin.year &&
+              t.fechaLimite!.month == fin.month &&
+              t.fechaLimite!.day == fin.day);
+      if (!esDelDia) continue;
+      final asignadas = await _db.getAsignacionesPorTarea(t.id!);
+      if (asignadas.isNotEmpty) continue;
+      result.add(t);
+    }
+    return result;
+  }
+
+  /// El usuario actual toma una tarea del pozo de la lluvia: queda
+  /// completada y aprobada al instante y cobra `tarea.puntos` sin esperar
+  /// al admin. La tarea desaparece del pozo (ya tiene asignación).
+  Future<bool> tomarDelPozo(Reto reto, int tareaId) async {
+    final uid = _usuarioActual?.id;
+    if (uid == null) return false;
+    final ahora = DateTime.now();
+    if (!reto.lluviaEnVentana(ahora)) return false;
+    final pozo = await tareasPozoLluvia(reto);
+    if (!pozo.any((t) => t.id == tareaId)) return false;
+    final tarea = pozo.firstWhere((t) => t.id == tareaId);
+    final yo = await _db.getUserById(uid);
+    if (yo == null) return false;
+
+    await _db.insertAsignacion(
+      Assignment(
+        usuarioId: uid,
+        tareaId: tareaId,
+        completada: true,
+        aprobada: true,
+        fechaAsignada: ahora,
+        fechaCompletada: ahora,
+        fechaAprobada: ahora,
+      ),
+    );
+    final nuevosPuntos = yo.puntos + tarea.puntos;
+    final nuevoNivel = GamificationService.nivelPara(nuevosPuntos);
+    await _db.updateUsuario(
+      yo.copyWith(puntos: nuevosPuntos, nivel: nuevoNivel),
+    );
+    if (_usuarioActual?.id == uid) {
+      _usuarioActual = yo.copyWith(puntos: nuevosPuntos, nivel: nuevoNivel);
+    }
+
+    // Registra la marca (la más antigua = primera en llegar) y el
+    // acumulado: al cerrar la ventana, el mayor acumulado gana el bonus.
+    final marcas = {...reto.marcas};
+    marcas.putIfAbsent(uid, () => ahora.millisecondsSinceEpoch);
+    final acumulados = {...reto.acumulados};
+    acumulados[uid] = (acumulados[uid] ?? 0) + tarea.puntos;
+    final actualizado = await _db
+        .getRetos()
+        .then(
+          (lista) => lista.firstWhere((r) => r.id == reto.id, orElse: () => reto),
+        );
+    await _db.updateReto(
+      actualizado.copyWith(marcas: marcas, acumulados: acumulados),
+    );
+    unawaited(
+      _db.enviarPush(
+        uid,
+        '¡Lluvia de tareas!',
+        'Tomaste "${tarea.titulo}" y ganaste ${tarea.puntos} puntos.',
+      ),
+    );
+    notifyListeners();
+    return true;
   }
 
   /// El usuario actual roba el slot de `originalId` en un reto frenesí:
@@ -1653,7 +1751,21 @@ class AppProvider extends ChangeNotifier {
       if (r.finalizado) continue;
       final vencido = r.vencido(hoy) || !r.perteneceASemana(hoy);
       if (!vencido) continue;
-      await _otorgarPuntosReto(r);
+      var paraPagar = r;
+      if (r.esLluvia && r.ganador == null && r.acumulados.isNotEmpty) {
+        // La lluvia cerró sin botón de "¡Lo cumplí!": gana el que más
+        // puntos acumuló tomando del pozo (empate: quien llegó primero).
+        final orden = [...r.acumulados.entries]
+          ..sort((a, b) {
+            if (a.value != b.value) return b.value.compareTo(a.value);
+            final ta = r.marcas[a.key] ?? 9007199254740991;
+            final tb = r.marcas[b.key] ?? 9007199254740991;
+            return ta.compareTo(tb);
+          });
+        paraPagar = r.copyWith(ganador: orden.first.key);
+        await _db.updateReto(paraPagar);
+      }
+      await _otorgarPuntosReto(paraPagar);
       huboCambio = true;
     }
     if (huboCambio && notificar) notifyListeners();

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../models/reto.dart';
+import '../models/task.dart';
 import '../models/user.dart';
 import '../providers/app_provider.dart';
 import '../services/celebration_service.dart';
@@ -53,6 +54,7 @@ class RetosScreen extends StatefulWidget {
 class _RetosScreenState extends State<RetosScreen> {
   List<Reto> _retos = const [];
   List<User> _integrantes = const [];
+  final Map<int, List<Task>> _pozosLluvia = {};
   bool _cargando = true;
   late AppProvider _provider;
 
@@ -82,10 +84,21 @@ class _RetosScreenState extends State<RetosScreen> {
       app.retosDeLaSemana(),
       app.listarIntegrantes(),
     ]);
+    final retos = results[0] as List<Reto>;
+    // El pozo de tareas de cada lluvia (solo para el niño: lo usa al tomar).
+    final pozos = <int, List<Task>>{};
+    for (final r in retos) {
+      if (r.esLluvia && r.id != null) {
+        pozos[r.id!] = await app.tareasPozoLluvia(r);
+      }
+    }
     if (!mounted) return;
     setState(() {
-      _retos = results[0] as List<Reto>;
+      _retos = retos;
       _integrantes = results[1] as List<User>;
+      _pozosLluvia
+        ..clear()
+        ..addAll(pozos);
       _cargando = false;
     });
   }
@@ -127,7 +140,12 @@ class _RetosScreenState extends State<RetosScreen> {
                 for (final reto in retos)
                   esAdmin
                       ? _RetoCardAdmin(reto: reto, total: total)
-                      : _RetoCardChild(reto: reto, total: total, user: user),
+                      : _RetoCardChild(
+                          reto: reto,
+                          total: total,
+                          user: user,
+                          pozo: _pozosLluvia[reto.id] ?? const [],
+                        ),
                 const SizedBox(height: 8),
                 if (esAdmin)
                   DuoButton(
@@ -322,6 +340,11 @@ class _NuevoRetoDialogState extends State<_NuevoRetoDialog> {
       } else {
         _ventanaFin = completo;
       }
+      // En lluvia el día elegido en la ventana ES el día sorteado.
+      if (_modo == Reto.modoLluvia) {
+        final ref = esInicio ? _ventanaInicio! : _ventanaFin!;
+        _diaLluvia = DateTime(ref.year, ref.month, ref.day);
+      }
     });
   }
 
@@ -437,6 +460,20 @@ class _NuevoRetoDialogState extends State<_NuevoRetoDialog> {
                         setState(() {
                           _modo = Reto.modoLluvia;
                           _diaLluvia ??= AppProvider.sortearDiaLluvia();
+                          // Ventana por defecto sobre el día sorteado.
+                          final d = _diaLluvia!;
+                          _ventanaInicio ??= DateTime(
+                            d.year,
+                            d.month,
+                            d.day,
+                            16,
+                          );
+                          _ventanaFin ??= DateTime(
+                            d.year,
+                            d.month,
+                            d.day,
+                            18,
+                          );
                         });
                       },
                     ),
@@ -472,31 +509,106 @@ class _NuevoRetoDialogState extends State<_NuevoRetoDialog> {
                   vertical: 8,
                 ),
                 color: azulFondoTema(context),
-                child: Row(
+                child: Column(
                   children: [
-                    const Icon(
-                      Icons.casino_rounded,
-                      size: 20,
-                      color: AppColors.azul,
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        'Lluvia el ${_nombreDia(_diaLluvia ?? DateTime.now())}',
-                        style: const TextStyle(
-                          fontSize: 12.5,
-                          fontWeight: FontWeight.w800,
+                    Row(
+                      children: [
+                        const Icon(
+                          Icons.casino_rounded,
+                          size: 20,
+                          color: AppColors.azul,
                         ),
-                      ),
-                    ),
-                    if (_editableModo)
-                      TextButton(
-                        onPressed: () => setState(
-                          () => _diaLluvia = AppProvider.sortearDiaLluvia(),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Lluvia el ${_nombreDia(_diaLluvia ?? DateTime.now())}',
+                            style: const TextStyle(
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
                         ),
-                        child: const Text('Re-sortear'),
-                      ),
+                        if (_editableModo)
+                          TextButton(
+                            onPressed: () {
+                              setState(() {
+                                _diaLluvia = AppProvider.sortearDiaLluvia();
+                                final d = _diaLluvia!;
+                                _ventanaInicio = DateTime(
+                                  d.year,
+                                  d.month,
+                                  d.day,
+                                  _ventanaInicio?.hour ?? 16,
+                                );
+                                _ventanaFin = DateTime(
+                                  d.year,
+                                  d.month,
+                                  d.day,
+                                  _ventanaFin?.hour ?? 18,
+                                );
+                              });
+                            },
+                            child: const Text('Re-sortear'),
+                          ),
+                      ],
+                    ),
+                    Row(
+                      children: [
+                        const Icon(
+                          Icons.play_arrow_rounded,
+                          size: 18,
+                          color: AppColors.azul,
+                        ),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            'Abre: ${_formatoFecha(_ventanaInicio ?? _hoy16)}',
+                            style: const TextStyle(
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                        TextButton(
+                          onPressed: () => _elegirVentana(esInicio: true),
+                          child: const Text('Cambiar'),
+                        ),
+                      ],
+                    ),
+                    Row(
+                      children: [
+                        const Icon(
+                          Icons.stop_rounded,
+                          size: 18,
+                          color: AppColors.rojo,
+                        ),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            'Cierra: ${_formatoFecha(_ventanaFin ?? _hoy18)}',
+                            style: const TextStyle(
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                        TextButton(
+                          onPressed: () => _elegirVentana(esInicio: false),
+                          child: const Text('Cambiar'),
+                        ),
+                      ],
+                    ),
                   ],
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'El pozo abre en la ventana: los hijos toman tareas sin '
+                'asignar y cobran al instante. El mayor acumulado gana el bonus.',
+                style: TextStyle(
+                  fontSize: 11.5,
+                  height: 1.35,
+                  color: textoSuaveTema(context),
                 ),
               ),
             ] else if (_modo == Reto.modoFrenesi) ...[
@@ -637,28 +749,32 @@ class _NuevoRetoDialogState extends State<_NuevoRetoDialog> {
                   titulo: titulo,
                   descripcion: descripcion,
                   puntos: pts,
-                  // En lluvia el vencimiento es automático: el día sorteado.
+                  // En lluvia el vencimiento es automático: el cierre de la
+                  // ventana.
                   fechaFin: _modo == Reto.modoLluvia ? null : _fechaFin,
                   modo: _modo,
                   fechaLluvia: _diaLluvia,
                   plazoIndividual: _modo == Reto.modoFrenesi
                       ? _ventanaFin
                       : null,
-                  ventanaInicio: _modo == Reto.modoFrenesi
+                  ventanaInicio: _modo == Reto.modoLluvia
                       ? (_ventanaInicio ?? _hoy16)
-                      : null,
-                  ventanaFin: _modo == Reto.modoFrenesi
+                      : _modo == Reto.modoFrenesi
+                          ? (_ventanaInicio ?? _hoy16)
+                          : null,
+                  ventanaFin: _modo == Reto.modoLluvia
                       ? (_ventanaFin ?? _hoy18)
-                      : null,
+                      : _modo == Reto.modoFrenesi
+                          ? (_ventanaFin ?? _hoy18)
+                          : null,
                   multiplicador: _multiplicador,
                 );
               } else {
                 var finEdicion = _fechaFin;
                 if (_modo == Reto.modoLluvia) {
-                  final d = _diaLluvia ??
-                      inicial.fechaLluvia ??
+                  finEdicion = _ventanaFin ??
+                      inicial.ventanaFin ??
                       DateTime.now();
-                  finEdicion = DateTime(d.year, d.month, d.day, 23, 59, 59);
                 }
                 await app.editarReto(
                   inicial.copyWith(
@@ -671,12 +787,12 @@ class _NuevoRetoDialogState extends State<_NuevoRetoDialog> {
                     plazoIndividual: _modo == Reto.modoFrenesi
                         ? (_ventanaFin ?? _plazoIndividual)
                         : null,
-                    ventanaInicio: _modo == Reto.modoFrenesi
-                        ? (_ventanaInicio ?? _hoy16)
-                        : null,
-                    ventanaFin: _modo == Reto.modoFrenesi
-                        ? (_ventanaFin ?? _hoy18)
-                        : null,
+                    ventanaInicio: _modo == Reto.modoNormal
+                        ? null
+                        : (_ventanaInicio ?? _hoy16),
+                    ventanaFin: _modo == Reto.modoNormal
+                        ? null
+                        : (_ventanaFin ?? _hoy18),
                     multiplicador:
                         _modo == Reto.modoFrenesi ? _multiplicador : 1,
                   ),
@@ -1332,10 +1448,12 @@ class _RetoCardChild extends StatelessWidget {
   final Reto reto;
   final int total;
   final User user;
+  final List<Task> pozo;
   const _RetoCardChild({
     required this.reto,
     required this.total,
     required this.user,
+    this.pozo = const [],
   });
 
   Future<void> _robarSlot(
@@ -1465,17 +1583,23 @@ class _RetoCardChild extends StatelessWidget {
                 ),
               ],
             )
-          else if (reto.esLluvia && !reto.lluviaActiva(ahora))
+          else if (reto.esLluvia && reto.lluviaEnVentana(ahora))
+            _PozoLluvia(reto: reto, pozo: pozo, user: user)
+          else if (reto.esLluvia && !reto.lluviaEnVentana(ahora))
             Row(
               children: [
-                const Icon(Icons.casino_rounded, size: 18, color: AppColors.azul),
+                const Icon(
+                  Icons.water_drop_outlined,
+                  size: 18,
+                  color: AppColors.azul,
+                ),
                 const SizedBox(width: 6),
                 Expanded(
                   child: Text(
-                    reto.fechaLluvia != null
-                        ? 'La lluvia es el ${_nombreDia(reto.fechaLluvia!)} — '
-                              'el primero en marcar gana al instante.'
-                        : 'Lluvia de día aleatorio: sé el primero en marcar.',
+                    reto.lluviaActiva(ahora)
+                        ? 'La lluvia de hoy ya pasó — mira quién ganó.'
+                        : 'La lluvia es el ${_nombreDia(reto.fechaLluvia ?? ahora)}: '
+                              'el pozo abre en su ventana.',
                     style: TextStyle(
                       fontSize: 12.5,
                       fontWeight: FontWeight.w700,
@@ -1483,6 +1607,9 @@ class _RetoCardChild extends StatelessWidget {
                     ),
                   ),
                 ),
+                if (!reto.lluviaActiva(ahora) &&
+                    (reto.inicioLluvia?.isAfter(ahora) ?? false))
+                  ContadorRegresivo(hasta: reto.inicioLluvia!, compacto: true),
               ],
             )
           else if (loCumpli)
@@ -1512,11 +1639,9 @@ class _RetoCardChild extends StatelessWidget {
                 ),
               ],
             )
-          else
+          else if (!reto.esLluvia)
             DuoButton(
-              label: reto.esLluvia
-                  ? '¡Lo cumplí! (sé el primero)'
-                  : '¡Lo cumplí!',
+              label: '¡Lo cumplí!',
               icon: Icons.verified,
               onPressed: () => app.marcarRetoCumplido(reto),
             ),
@@ -1607,6 +1732,124 @@ class _MarcadoChip extends StatelessWidget {
             ),
           ),
         ),
+      ],
+    );
+  }
+}
+
+/// "🌧 Pozo de tareas": durante la ventana de la lluvia, las tareas del día
+/// sin asignar están aquí. El primero en tomarla cobra al instante y la
+/// tarea desaparece del pozo.
+class _PozoLluvia extends StatelessWidget {
+  final Reto reto;
+  final List<Task> pozo;
+  final User user;
+  const _PozoLluvia({
+    required this.reto,
+    required this.pozo,
+    required this.user,
+  });
+
+  Future<void> _tomar(BuildContext context, Task tarea) async {
+    final app = context.read<AppProvider>();
+    final ok = await app.tomarDelPozo(reto, tarea.id!);
+    if (!ok || !context.mounted) return;
+    lanzarConfeti(context);
+    unawaited(CelebrationService.instance.success());
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          backgroundColor: AppColors.azul,
+          content: Text(
+            '¡Tomaste "${tarea.titulo}"! +${tarea.puntos} pts',
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final fin = reto.finLluvia ?? reto.plazoEfectivo;
+    final restante = fin.difference(DateTime.now());
+    final urgente = !restante.isNegative && restante.inMinutes <= 5;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            const Text('🌧', style: TextStyle(fontSize: 18)),
+            const SizedBox(width: 6),
+            Text(
+              'Pozo de tareas',
+              style: TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w900,
+                color: textoTema(context),
+              ),
+            ),
+            const SizedBox(width: 8),
+            ContadorRegresivo(
+              hasta: fin,
+              compacto: true,
+              color: urgente ? Colors.white : AppColors.azul,
+              fondo: urgente ? AppColors.rojo : AppColors.azulFondo,
+            ),
+          ],
+        ),
+        const SizedBox(height: 4),
+        Text(
+          'Toma una tarea y cobra sus puntos al instante. ¡El mayor '
+          'acumulado gana +${reto.puntos} pts al cerrar!',
+          style: TextStyle(
+            fontSize: 11.5,
+            height: 1.35,
+            color: textoSuaveTema(context),
+          ),
+        ),
+        const SizedBox(height: 8),
+        if (pozo.isEmpty)
+          Text(
+            'El pozo está vacío: no quedan tareas sin tomar. 🌵',
+            style: TextStyle(
+              fontSize: 12.5,
+              fontWeight: FontWeight.w700,
+              color: textoSuaveTema(context),
+            ),
+          )
+        else
+          for (final t in pozo)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: Row(
+                children: [
+                  Icono3D(
+                    tipo: Icono3DTipo.porNombre(t.icono),
+                    size: 22,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      t.titulo,
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w700,
+                        color: textoTema(context),
+                      ),
+                    ),
+                  ),
+                  DuoButton(
+                    fullWidth: false,
+                    label: '¡La hago! +${t.puntos}',
+                    onPressed: () => _tomar(context, t),
+                  ),
+                ],
+              ),
+            ),
       ],
     );
   }

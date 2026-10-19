@@ -127,6 +127,34 @@ class Reto {
     return d.year == ahora.year && d.month == ahora.month && d.day == ahora.day;
   }
 
+  /// Inicio efectivo de la lluvia (ventanaInicio, o el día sorteado 00:00).
+  DateTime? get inicioLluvia {
+    final v = ventanaInicio;
+    if (v != null) return v;
+    final d = fechaLluvia;
+    if (d == null) return null;
+    return DateTime(d.year, d.month, d.day, 0);
+  }
+
+  /// Fin efectivo de la lluvia (ventanaFin, o el día sorteado 23:59:59).
+  DateTime? get finLluvia {
+    final v = ventanaFin;
+    if (v != null) return v;
+    final d = fechaLluvia;
+    if (d == null) return null;
+    return DateTime(d.year, d.month, d.day, 23, 59, 59);
+  }
+
+  /// True si la ventana de la lluvia está corriendo AHORA: el pozo de
+  /// tareas está abierto y quien toma una cobra al instante.
+  bool lluviaEnVentana(DateTime ahora) {
+    if (!esLluvia || finalizado) return false;
+    final i = inicioLluvia;
+    final f = finLluvia;
+    if (i == null || f == null) return false;
+    return !ahora.isBefore(i) && !ahora.isAfter(f);
+  }
+
   /// En frenesí: ¿el hijo todavía puede marcar "¡Lo cumplí!"? Solo dentro
   /// de la ventana (si tiene) y antes de "su tiempo".
   bool puedeMarcarFrenesi(DateTime ahora) {

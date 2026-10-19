@@ -24,6 +24,7 @@ import '../models/task.dart';
 import '../models/assignment.dart';
 import '../models/reto.dart';
 import '../models/user.dart';
+import 'navegacion_principal.dart' show ControlPestanas;
 import 'retos_screen.dart' show RetosAdminInline;
 
 class TareasScreen extends StatefulWidget {
@@ -42,6 +43,7 @@ class _TareasScreenState extends State<TareasScreen> {
   List<Task> _todasLasTareas = [];
   User? _usuarioActual;
   Reto? _frenesiActivo;
+  Reto? _lluviaHoy;
   late AppProvider _provider;
 
   @override
@@ -83,12 +85,23 @@ class _TareasScreenState extends State<TareasScreen> {
         final hist = await app.historialDe(user.id!);
         final rob = await app.tareasRobables();
         final frenesi = await app.retoFrenesiActivo();
+        final retos = await app.retosDeLaSemana();
+        final ahora = DateTime.now();
+        Reto? lluviaHoy;
+        for (final r in retos) {
+          if (r.esLluvia &&
+              (r.lluviaEnVentana(ahora) || r.lluviaActiva(ahora))) {
+            lluviaHoy = r;
+            break;
+          }
+        }
         if (!mounted) return;
         setState(() {
           _misTareas = mis;
           _historial = hist;
           _robables = rob;
           _frenesiActivo = frenesi;
+          _lluviaHoy = lluviaHoy;
         });
       }
     } finally {
@@ -136,6 +149,7 @@ class _TareasScreenState extends State<TareasScreen> {
                 misTareas: _misTareas,
                 robables: _robables,
                 frenesiActivo: _frenesiActivo,
+                lluviaHoy: _lluviaHoy,
               ),
               _HistorialTasksList(historial: _historial),
             ],
@@ -2348,10 +2362,12 @@ class _IntegranteTasksList extends StatelessWidget {
   final List<(Task, Assignment)> misTareas;
   final List<(Task, Assignment, User)> robables;
   final Reto? frenesiActivo;
+  final Reto? lluviaHoy;
   const _IntegranteTasksList({
     required this.misTareas,
     this.robables = const [],
     this.frenesiActivo,
+    this.lluviaHoy,
   });
 
   static const _diasOrden = [
@@ -2388,6 +2404,11 @@ class _IntegranteTasksList extends StatelessWidget {
           physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.all(16),
           children: [
+            if (lluviaHoy != null &&
+                lluviaHoy!.lluviaEnVentana(DateTime.now())) ...[
+              _BannerLluvia(reto: lluviaHoy!),
+              const SizedBox(height: 10),
+            ],
             if (frenesiActivo != null &&
                 frenesiActivo!.ventanaFrenesiActiva(DateTime.now())) ...[
               _BannerFrenesi(reto: frenesiActivo!),
@@ -2428,6 +2449,10 @@ class _IntegranteTasksList extends StatelessWidget {
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.all(16),
         children: [
+          if (lluviaHoy != null && lluviaHoy!.lluviaEnVentana(DateTime.now())) ...[
+            _BannerLluvia(reto: lluviaHoy!),
+            const SizedBox(height: 10),
+          ],
           if (frenesiActivo != null &&
               frenesiActivo!.ventanaFrenesiActiva(DateTime.now())) ...[
             _BannerFrenesi(reto: frenesiActivo!),
@@ -2555,6 +2580,72 @@ class _IntegranteTasksList extends StatelessWidget {
     final f = fl.toLocal();
     final now = DateTime.now();
     return f.year == now.year && f.month == now.month && f.day == now.day;
+  }
+}
+
+/// Banner "🌧 lluvia de tareas" mientras corre la ventana del reto de
+/// lluvia: invita a abrir Retos y tomar del pozo. Tocar salta a Retos.
+class _BannerLluvia extends StatelessWidget {
+  final Reto reto;
+  const _BannerLluvia({required this.reto});
+
+  @override
+  Widget build(BuildContext context) {
+    final fin = reto.finLluvia ?? reto.plazoEfectivo;
+    final restante = fin.difference(DateTime.now());
+    final urgente = !restante.isNegative && restante.inMinutes <= 5;
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(20),
+        onTap: () => ControlPestanas.index.value = 2,
+        child: Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              colors: [AppColors.azul, AppColors.azulOscuro],
+            ),
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Row(
+            children: [
+              const Text('🌧', style: TextStyle(fontSize: 26)),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      '¡Lluvia de tareas!',
+                      style: TextStyle(
+                        fontSize: 14.5,
+                        fontWeight: FontWeight.w900,
+                        color: Colors.white,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Hay tareas en el pozo: tómalas y cobra al instante. '
+                      'Toca para abrir.',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: urgente ? Colors.white : Colors.white70,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              ContadorRegresivo(
+                hasta: fin,
+                color: Colors.white,
+                fondo: urgente ? AppColors.rojo : Colors.black26,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }
 
