@@ -166,10 +166,6 @@ class _AdminTasksListState extends State<_AdminTasksList> {
   /// barrera modal para poder arrastrar tarjetas del libro a los días.
   bool _libroAbierto = false;
 
-  /// true cuando el sheet móvil del libro se cerró solo al iniciar un
-  /// arrastre (para dejar ver los chips de día); se reabre al soltar.
-  bool _libroCerradoPorArrastre = false;
-
   /// Tween fijo: si se recreara en cada build, el panel re-animaría su
   /// entrada en cada rebuild (poll de 20 s, recargas, etc.).
   final Tween<double> _panelTween = Tween(begin: 1, end: 0);
@@ -649,9 +645,11 @@ class _AdminTasksListState extends State<_AdminTasksList> {
     _mostrarLibroMovil();
   }
 
-  /// Bottom sheet del libro (pantallas <700 px).
+  /// Bottom sheet del libro (pantallas <700 px). Lleva una tira de los 7
+  /// días DEDENTRO (destinos de arrastre): no se puede cerrar el sheet
+  /// durante un arrastre porque cualquier navegación en Flutter cancela los
+  /// punteros activos (navigator.dart → _cancelActivePointers, issue #4770).
   void _mostrarLibroMovil() {
-    _libroCerradoPorArrastre = false;
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -664,27 +662,15 @@ class _AdminTasksListState extends State<_AdminTasksList> {
           onNuevo: _nuevaEntradaCatalogo,
           onUsar: (c) =>
               _usarEntradaCatalogo(c, dia: _claveDeFecha(_fechas[_indiceSel])),
-          onDragIniciado: _cerrarLibroParaArrastre,
-          onDragCancelado: _reabrirLibroSiCerrado,
+          diasInternos: true,
+          letrasDia: _letrasDia,
+          onSoltarEnDia: (c, i) => _usarEntradaCatalogo(
+            c,
+            dia: _claveDeFecha(_fechas[i]),
+          ),
         ),
       ),
     );
-  }
-
-  /// Al iniciar un arrastre desde el sheet: lo cerramos para dejar ver los
-  /// chips de día (Flutter mantiene el drag vivo aunque se desmonte el
-  /// Draggable: drag_target.dart conserva el reconocedor con drag activo).
-  void _cerrarLibroParaArrastre() {
-    if (_libroCerradoPorArrastre) return;
-    _libroCerradoPorArrastre = true;
-    Navigator.of(context).pop();
-  }
-
-  /// Si el libro se cerró para un arrastre, lo vuelve a abrir (al soltar en
-  /// zona vacía, o antes del formulario al acertar un día).
-  void _reabrirLibroSiCerrado() {
-    if (!_libroCerradoPorArrastre) return;
-    _mostrarLibroMovil();
   }
 
   /// Añadir una entrada del catálogo como tarea: abre el formulario
@@ -902,16 +888,11 @@ class _AdminTasksListState extends State<_AdminTasksList> {
                             padding: const EdgeInsets.all(2),
                             child: DragTarget<TareaCatalogo>(
                               onWillAcceptWithDetails: (_) => true,
-                              onAcceptWithDetails: (d) {
-                                // Móvil: el sheet se cerró al arrastrar;
-                                // reabrirlo ANTES del formulario para que el
-                                // diálogo quede encima del libro.
-                                _reabrirLibroSiCerrado();
-                                _usarEntradaCatalogo(
-                                  d.data,
-                                  dia: _claveDeFecha(_fechas[i]),
-                                );
-                              },
+                              onAcceptWithDetails: (d) =>
+                                  _usarEntradaCatalogo(
+                                d.data,
+                                dia: _claveDeFecha(_fechas[i]),
+                              ),
                               builder: (context, candidatos, rechazados) {
                                 final sobre = candidatos.isNotEmpty;
                                 return ChoiceChip(
@@ -1484,12 +1465,16 @@ class _LibroTareas extends StatelessWidget {
   /// Cierra el panel lateral (cuando no vive en una ruta con Navigator).
   final VoidCallback? onCerrar;
 
-  /// Sheet móvil: al iniciar un arrastre se cierra el libro para dejar ver
-  /// los chips de día (Flutter conserva el drag al desmontar el Draggable).
-  final VoidCallback? onDragIniciado;
+  /// Sheet móvil: muestra una tira con los 7 días dentro del libro como
+  /// destinos de arrastre (no se puede cerrar el sheet durante un drag:
+  /// Flutter cancela los punteros activos en cualquier navegación).
+  final bool diasInternos;
 
-  /// Sheet móvil: el arrastre se soltó sin acertar ningún día → reabrir.
-  final VoidCallback? onDragCancelado;
+  /// Letras de los días para la tira interna (D…S).
+  final List<String>? letrasDia;
+
+  /// Suelto una tarjeta en la tira interna → formulario de ese día.
+  final void Function(TareaCatalogo entrada, int diaIndex)? onSoltarEnDia;
 
   const _LibroTareas({
     required this.catalogo,
@@ -1497,8 +1482,9 @@ class _LibroTareas extends StatelessWidget {
     required this.onNuevo,
     this.onUsar,
     this.onCerrar,
-    this.onDragIniciado,
-    this.onDragCancelado,
+    this.diasInternos = false,
+    this.letrasDia,
+    this.onSoltarEnDia,
   });
 
   @override
@@ -1535,6 +1521,64 @@ class _LibroTareas extends StatelessWidget {
           ),
         ),
         const Divider(height: 1),
+        // Tira interna de 7 días (solo sheet móvil): destinos de arrastre
+        // siempre visibles — el sheet nunca se cierra durante el drag.
+        if (diasInternos && onSoltarEnDia != null) ...[
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Arrastra una tarjeta a un día:',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: textoSuaveTema(context),
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Row(
+                  children: [
+                    for (var i = 0; i < 7; i++)
+                      Expanded(
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 2),
+                          child: DragTarget<TareaCatalogo>(
+                            onWillAcceptWithDetails: (_) => true,
+                            onAcceptWithDetails: (d) =>
+                                onSoltarEnDia!(d.data, i),
+                            builder: (context, candidatos, rechazados) {
+                              final sobre = candidatos.isNotEmpty;
+                              final letras = letrasDia ??
+                                  const ['D', 'L', 'M', 'X', 'J', 'V', 'S'];
+                              return ChoiceChip(
+                                label: Text(
+                                  i < letras.length ? letras[i] : '',
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                                selected: false,
+                                visualDensity: VisualDensity.compact,
+                                side: BorderSide(
+                                  color: sobre
+                                      ? AppColors.verde
+                                      : Colors.transparent,
+                                  width: 2,
+                                ),
+                              );
+                            },
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const Divider(height: 1),
+        ],
         Expanded(
           child: RefreshIndicator(
             onRefresh: onChanged,
@@ -1573,8 +1617,6 @@ class _LibroTareas extends StatelessWidget {
                           entrada: c,
                           onChanged: onChanged,
                           onUsar: onUsar,
-                          onDragIniciado: onDragIniciado,
-                          onDragCancelado: onDragCancelado,
                         ),
                     ],
                   ),
@@ -1639,18 +1681,10 @@ class _CatalogoCard extends StatelessWidget {
   final Future<void> Function() onChanged;
   final void Function(TareaCatalogo entrada)? onUsar;
 
-  /// Sheet móvil: cerrar el libro al empezar el arrastre…
-  final VoidCallback? onDragIniciado;
-
-  /// …y reabrirlo si el arrastre se cancela sin soltar sobre un día.
-  final VoidCallback? onDragCancelado;
-
   const _CatalogoCard({
     required this.entrada,
     required this.onChanged,
     this.onUsar,
-    this.onDragIniciado,
-    this.onDragCancelado,
   });
 
   @override
@@ -1717,14 +1751,11 @@ class _CatalogoCard extends StatelessWidget {
     );
 
     // Arrastrar la tarjeta del libro sobre un día para abrir el formulario
-    // prellenado de ese día. En el sheet móvil, al iniciar el arrastre el
-    // libro se cierra solo (los chips de día quedan libres) y se reabre
-    // al soltar si no se acertó ningún día.
+    // prellenado de ese día (chips de la pantalla en paneles >= 700, o la
+    // tira interna D…S en el sheet móvil).
     return LongPressDraggable<TareaCatalogo>(
       data: entrada,
       hapticFeedbackOnStart: true,
-      onDragStarted: onDragIniciado,
-      onDraggableCanceled: (_, _) => onDragCancelado?.call(),
       feedback: Material(
         color: Colors.transparent,
         child: Container(
