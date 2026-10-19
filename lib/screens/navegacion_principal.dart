@@ -9,6 +9,7 @@ import '../providers/app_provider.dart';
 import '../services/celebration_service.dart';
 import '../services/mascota_service.dart';
 import '../theme/app_theme.dart';
+import '../widgets/aviso_robo.dart';
 import '../widgets/confetti.dart';
 import '../widgets/hq_logo.dart';
 import '../widgets/icono3d.dart';
@@ -72,7 +73,18 @@ class _NavegacionPrincipalState extends State<NavegacionPrincipal> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _programarGlobo();
       _programarCicloMascota();
+      _avisarRobosPendientes();
     });
+  }
+
+  /// Al abrir la app, si alguien le robó una tarea o un reto desde la última
+  /// visita, el niño ve el diálogo animado "¡Te robaron!".
+  Future<void> _avisarRobosPendientes() async {
+    final u = _provider.usuarioActual;
+    if (u == null || u.esAdmin) return;
+    final avisos = await _provider.robosNoVistos();
+    if (!mounted || avisos.isEmpty) return;
+    await mostrarAvisoRobo(context, avisos);
   }
 
   @override

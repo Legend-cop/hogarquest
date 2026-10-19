@@ -13,6 +13,7 @@ import '../sync/local_sync.dart';
 import '../db/server_config.dart';
 import '../db/upload_client.dart';
 import '../models/assignment.dart';
+import '../models/aviso_robo.dart';
 import '../models/badge.dart';
 import '../models/castigo.dart';
 import '../models/logro.dart';
@@ -116,6 +117,7 @@ class AppProvider extends ChangeNotifier {
         if (!_db.sinConexion) {
           unawaited(_subirFotosPendientes());
           unawaited(_cachearFotosMiembros());
+          unawaited(_cachearFotosRecompensas());
         }
         notifyListeners();
       } while (_recargaRemotaPendiente);
@@ -148,6 +150,34 @@ class AppProvider extends ChangeNotifier {
       }
     } catch (e) {
       debugPrint('Error al cachear fotos de miembros: $e');
+    }
+  }
+
+  /// Descarga y guarda localmente la foto de cada recompensa que tenga URL
+  /// remota pero aún no tenga copia local, para que se vean sin internet y
+  /// no parpadeen al icono por defecto al recargar.
+  Future<void> _cachearFotosRecompensas() async {
+    if (kIsWeb) return; // en web no hay almacenamiento local de fotos
+    try {
+      final recompensas = await listarRecompensas();
+      for (final r in recompensas) {
+        if (r.foto.isEmpty) continue;
+        if (r.fotoLocal.isNotEmpty && PhotoStore.existe(r.fotoLocal)) continue;
+        final url = r.foto.startsWith('http')
+            ? r.foto
+            : '${ServerConfig.baseUrl}${r.foto}';
+        try {
+          final resp = await http.get(Uri.parse(url));
+          if (resp.statusCode == 200 && resp.bodyBytes.isNotEmpty) {
+            final local = await PhotoStore.guardarBytes(resp.bodyBytes);
+            await editarRecompensa(r.copyWith(fotoLocal: local));
+          }
+        } catch (_) {
+          // Se reintenta en la próxima sincronización.
+        }
+      }
+    } catch (e) {
+      debugPrint('Error al cachear fotos de recompensas: $e');
     }
   }
 
@@ -426,7 +456,7 @@ class AppProvider extends ChangeNotifier {
     return result;
   }
 
-  Future<void> crearTarea({
+  Future<Task> crearTarea({
     required String titulo,
     String descripcion = '',
     required int puntos,
@@ -471,6 +501,7 @@ class AppProvider extends ChangeNotifier {
       '[crearTarea] verificacion: ${verificacion.length} asignaciones para tarea $tareaId',
     );
     notifyListeners();
+    return tarea.copyWith(id: tareaId);
   }
 
   Future<void> editarTarea(
@@ -1342,13 +1373,24 @@ class AppProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Sortea un día aleatorio (lunes..domingo) dentro de la semana de `base`
-  /// (o de hoy). Devuelve el día a las 00:00.
+  /// Sortea un día aleatorio dentro de la semana de hoy, excluyendo los días
+  /// ya pasados (si no, el reto se autodestruiría al crearse por vencido).
+  /// Devuelve el día a las 00:00.
   static DateTime sortearDiaLluvia([DateTime? base]) {
-    final hoy = base ?? DateTime.now();
-    final lunes = hoy.subtract(Duration(days: hoy.weekday - 1));
+    final ref = base ?? DateTime.now();
+    final lunes = ref.subtract(Duration(days: ref.weekday - 1));
     final inicio = DateTime(lunes.year, lunes.month, lunes.day);
-    return inicio.add(Duration(days: Random().nextInt(7)));
+    final hoy = DateTime.now();
+    final diasRestantes =
+        inicio.add(const Duration(days: 7)).difference(hoy).inDays + 1;
+    if (diasRestantes <= 0) return hoy;
+    final maxDias = diasRestantes > 7 ? 7 : diasRestantes;
+    final offset = Random().nextInt(maxDias);
+    final elegido = inicio.add(Duration(days: offset));
+    final d = DateTime(elegido.year, elegido.month, elegido.day);
+    return d.isBefore(DateTime(hoy.year, hoy.month, hoy.day))
+        ? DateTime(hoy.year, hoy.month, hoy.day)
+        : d;
   }
 
   /// El admin edita un reto (título, descripción o puntos).
@@ -1406,6 +1448,9 @@ class AppProvider extends ChangeNotifier {
     }
 
     if (reto.esFrenesi && !reto.puedeMarcarFrenesi(ahora)) return;
+    // Modo normal/frenesí: no se puede marcar un reto ya vencido (antes
+    // competía contra el cierre automático y el cobro se perdía).
+    if (!reto.esLluvia && reto.vencido(ahora)) return;
     await _db.updateReto(reto.copyWith(cumplidos: [...reto.cumplidos, uid]));
     notifyListeners();
   }
@@ -1437,6 +1482,70 @@ class AppProvider extends ChangeNotifier {
     }
     notifyListeners();
     return true;
+  }
+
+  /// Robos que el usuario actual aún no ha visto en pantalla: tareas suyas
+  /// robadas (con fecha posterior a la última vez que vio el aviso) y slots
+  /// de reto frenesí que le robaron. La consulta los marca como vistos para
+  /// no repetir el diálogo en cada arranque.
+  Future<List<AvisoRobo>> robosNoVistos() async {
+    final uid = _usuarioActual?.id;
+    if (uid == null) return const [];
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final tsVisto = prefs.getInt('hq_robo_vista_$uid') ?? 0;
+      final claveRetos = 'hq_reto_robos_vista_$uid';
+      final retosVistos =
+          (prefs.getStringList(claveRetos) ?? const <String>[]).toSet();
+      final ahora = DateTime.now();
+      final avisos = <AvisoRobo>[];
+
+      final asignaciones = await _db.getAsignacionesDeUsuario(uid);
+      for (final a in asignaciones) {
+        final fechaRobo = a.fechaRobo;
+        if (a.robadaPor == null || fechaRobo == null) continue;
+        if (fechaRobo.millisecondsSinceEpoch <= tsVisto) continue;
+        final ladron = await _db.getUserById(a.robadaPor!);
+        final tarea = await _db.getTareaById(a.tareaId);
+        if (ladron == null || tarea == null) continue;
+        avisos.add(
+          AvisoRobo(
+            ladron: ladron.nombre,
+            titulo: tarea.titulo,
+            puntos: tarea.puntos,
+          ),
+        );
+      }
+
+      final retos = await _db.getRetos();
+      for (final r in retos) {
+        final ladronUid = r.robados[uid];
+        if (ladronUid == null || retosVistos.contains('${r.id}')) continue;
+        final ladron = await _db.getUserById(ladronUid);
+        if (ladron == null) continue;
+        avisos.add(
+          AvisoRobo(
+            ladron: ladron.nombre,
+            titulo: r.titulo,
+            puntos: r.puntos,
+            esReto: true,
+          ),
+        );
+        retosVistos.add('${r.id}');
+      }
+
+      if (avisos.isNotEmpty) {
+        await prefs.setInt(
+          'hq_robo_vista_$uid',
+          ahora.millisecondsSinceEpoch,
+        );
+        await prefs.setStringList(claveRetos, retosVistos.toList());
+      }
+      return avisos;
+    } catch (e) {
+      debugPrint('Error al detectar robos pendientes: $e');
+      return const [];
+    }
   }
 
   /// Paga `reto.puntos` a los candidatos del reto según su modo (nunca a

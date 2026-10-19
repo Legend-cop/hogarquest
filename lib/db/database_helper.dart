@@ -324,11 +324,13 @@ class DatabaseHelper {
           // preservamos la foto_local local para que la imagen no desaparezca
           // ni parpadee al sincronizar.
           final ganador = Map<String, dynamic>.from(remoto);
-          if (boxName == _boxUsuarios) {
+          if (boxName == _boxUsuarios || boxName == _boxRecompensas) {
             final flLocal = local?['foto_local'];
             if (flLocal != null && '$flLocal'.isNotEmpty) {
               ganador['foto_local'] = flLocal;
             }
+          }
+          if (boxName == _boxUsuarios) {
             // /api/db-public no envía password/salt (por seguridad). El par
             // password+salt es atómico: si el remoto no trae un par completo
             // (o trae solo una mitad), conservamos el par local completo.
@@ -1545,6 +1547,7 @@ class DatabaseHelper {
       'descripcion': r.descripcion,
       'costo_puntos': r.costoPuntos,
       'foto': r.foto,
+      'foto_local': r.fotoLocal,
     };
   }
 
@@ -1555,6 +1558,7 @@ class DatabaseHelper {
       descripcion: (map['descripcion'] as String?) ?? '',
       costoPuntos: (map['costo_puntos'] as int?) ?? 0,
       foto: (map['foto'] as String?) ?? '',
+      fotoLocal: (map['foto_local'] as String?) ?? '',
     );
   }
 
@@ -2496,17 +2500,10 @@ class DatabaseHelper {
   // RETOS
   // ---------------------------------------------------------------
   Map<String, dynamic> _retoToMap(Reto r) {
-    return {
-      'id': r.id,
-      'titulo': r.titulo,
-      'descripcion': r.descripcion,
-      'puntos': r.puntos,
-      'fecha_inicio': r.fechaInicio.toIso8601String(),
-      'fecha_fin': r.fechaFin?.toIso8601String(),
-      'cumplidos': r.cumplidos,
-      'aprobados': r.aprobados,
-      'finalizado': r.finalizado ? 1 : 0,
-    };
+    // Delegar en el modelo: serializa TODOS los campos, incluidos los del
+    // modo (lluvia/frenesí), marcas, robados y ganador. Antes se omitían y
+    // todo reto reaparecía como "normal" al recargar.
+    return Map<String, dynamic>.from(r.toMap());
   }
 
   Reto _mapToReto(Map map) {

@@ -523,7 +523,7 @@ class _AdminTasksListState extends State<_AdminTasksList> {
         }
       }
     }
-    await context.read<AppProvider>().crearTarea(
+    final creada = await context.read<AppProvider>().crearTarea(
       titulo: c?.titulo ?? titulo,
       puntos: c?.puntos ?? 0,
       dificultad: c?.dificultad ?? 'media',
@@ -540,6 +540,9 @@ class _AdminTasksListState extends State<_AdminTasksList> {
           : '"$titulo" creada para el ${_nombreDia(_claveDeFecha(fecha))}',
     );
     await _recargar();
+    // Con plantilla del catálogo la tarea nace directo en la pantalla de
+    // edición para asignar hijos, ajustar puntos o agregar detalles.
+    if (c != null && mounted) await _editarTarea(creada);
   }
 
   /// Texto libre sin match en el catálogo: abre el formulario completo
