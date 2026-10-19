@@ -6,6 +6,7 @@ import '../models/task.dart';
 import '../models/user.dart';
 import '../theme/app_theme.dart';
 import 'empty_state.dart';
+import 'icono3d.dart';
 import 'user_avatar.dart';
 
 /// Planificador semanal unificado (sustituye las pestañas Semana/Tareas/Catálogo).
@@ -935,11 +936,16 @@ class _QuickAddState extends State<_QuickAdd> {
                         ),
                         child: Row(
                           children: [
-                            Icon(
-                              CategoriaTarea.iconoDe(c.categoria),
-                              size: 14,
-                              color: AppColors.verdeOscuro,
-                            ),
+                            c.icono.isEmpty
+                                ? Icon(
+                                    CategoriaTarea.iconoDe(c.categoria),
+                                    size: 14,
+                                    color: AppColors.verdeOscuro,
+                                  )
+                                : Icono3D(
+                                    tipo: Icono3DTipo.porNombre(c.icono),
+                                    size: 18,
+                                  ),
                             const SizedBox(width: 8),
                             Expanded(
                               child: Text(

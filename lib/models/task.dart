@@ -14,6 +14,10 @@ class Task {
   final String dia;
   final String categoria;
 
+  /// Icono 3D propio (nombre de [Icono3DTipo]) elegido en el Libro de
+  /// Tareas. Vacío = usar el icono por defecto de la categoría.
+  final String icono;
+
   const Task({
     this.id,
     required this.titulo,
@@ -25,6 +29,7 @@ class Task {
     this.estado = 'activa',
     this.dia = '',
     this.categoria = 'General',
+    this.icono = '',
   });
 
   bool get activa => estado == 'activa';
@@ -40,6 +45,7 @@ class Task {
     String? estado,
     String? dia,
     String? categoria,
+    String? icono,
   }) {
     return Task(
       id: id ?? this.id,
@@ -52,6 +58,7 @@ class Task {
       estado: estado ?? this.estado,
       dia: dia ?? this.dia,
       categoria: categoria ?? this.categoria,
+      icono: icono ?? this.icono,
     );
   }
 
@@ -67,6 +74,7 @@ class Task {
       'estado': estado,
       'dia': dia,
       'categoria': categoria,
+      'icono': icono,
     };
   }
 
@@ -84,8 +92,15 @@ class Task {
       estado: (map['estado'] as String?) ?? 'activa',
       dia: (map['dia'] as String?) ?? '',
       categoria: (map['categoria'] as String?) ?? 'General',
+      icono: (map['icono'] as String?) ?? '',
     );
   }
+
+  /// Icono 3D de la tarea: el propio (del Libro de Tareas) si existe; si no,
+  /// el de la categoría.
+  Icono3DTipo get icono3d => icono.isEmpty
+      ? CategoriaTarea.icono3dDe(categoria)
+      : Icono3DTipo.porNombre(icono);
 }
 
 /// Metadatos de las categorías de tarea (color y icono para la UI).

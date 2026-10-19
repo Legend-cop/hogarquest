@@ -1482,6 +1482,7 @@ class DatabaseHelper {
       'estado': t.estado,
       'dia': t.dia,
       'categoria': t.categoria,
+      'icono': t.icono,
     };
   }
 
@@ -1499,6 +1500,7 @@ class DatabaseHelper {
       estado: (map['estado'] as String?) ?? 'activa',
       dia: (map['dia'] as String?) ?? '',
       categoria: (map['categoria'] as String?) ?? 'General',
+      icono: (map['icono'] as String?) ?? '',
     );
   }
 

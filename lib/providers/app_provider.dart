@@ -436,6 +436,7 @@ class AppProvider extends ChangeNotifier {
     List<int> integrantesIds = const [],
     String dia = '',
     String categoria = 'General',
+    String icono = '',
   }) async {
     final tarea = Task(
       titulo: titulo,
@@ -446,6 +447,7 @@ class AppProvider extends ChangeNotifier {
       frecuencia: frecuencia,
       dia: dia,
       categoria: categoria,
+      icono: icono,
     );
     final tareaId = await _db.insertTarea(tarea);
     debugPrint(

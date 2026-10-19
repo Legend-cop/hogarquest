@@ -162,6 +162,14 @@ class _AdminTasksListState extends State<_AdminTasksList> {
   int _segmento = 0;
   bool _cargando = true;
 
+  /// Panel lateral del Libro de Tareas abierto (pantallas >= 700). Sin
+  /// barrera modal para poder arrastrar tarjetas del libro a los días.
+  bool _libroAbierto = false;
+
+  /// Tween fijo: si se recreara en cada build, el panel re-animaría su
+  /// entrada en cada rebuild (poll de 20 s, recargas, etc.).
+  final Tween<double> _panelTween = Tween(begin: 1, end: 0);
+
   @override
   void initState() {
     super.initState();
@@ -425,6 +433,7 @@ class _AdminTasksListState extends State<_AdminTasksList> {
           'frecuencia': tarea.frecuencia,
           'dia': tarea.dia,
           'categoria': tarea.categoria,
+          'icono': tarea.icono,
           'integrantes': integrantesData,
         },
         onSaved: (data) => _guardarEdicion(tarea, data),
@@ -450,6 +459,7 @@ class _AdminTasksListState extends State<_AdminTasksList> {
       frecuencia: data['frecuencia'] as String? ?? tarea.frecuencia,
       dia: data['dia'] as String? ?? tarea.dia,
       categoria: data['categoria'] as String? ?? tarea.categoria,
+      icono: data['icono'] as String? ?? tarea.icono,
     );
     await app.editarTarea(editada, integrantesIds: integrantesIds);
 
@@ -518,6 +528,7 @@ class _AdminTasksListState extends State<_AdminTasksList> {
       puntos: c?.puntos ?? 0,
       dificultad: c?.dificultad ?? 'media',
       categoria: c?.categoria ?? 'General',
+      icono: c?.icono ?? '',
       dia: _claveDeFecha(fecha),
       frecuencia: 'semanal',
       integrantesIds: [],
@@ -578,6 +589,7 @@ class _AdminTasksListState extends State<_AdminTasksList> {
       integrantesIds: integrantesIds,
       dia: data['dia'] as String? ?? '',
       categoria: data['categoria'] as String? ?? 'General',
+      icono: data['icono'] as String? ?? '',
     );
     if (mounted) Navigator.pop(context);
     await _recargar();
@@ -622,41 +634,53 @@ class _AdminTasksListState extends State<_AdminTasksList> {
     await _recargar();
   }
 
-  /// Libro de tareas: catálogo CRUD en panel lateral (web) o bottom sheet.
+  /// Libro de tareas: catálogo CRUD en panel lateral sin modal (web, para
+  /// poder arrastrar) o bottom sheet (móvil).
   void _abrirLibro() {
     final ancho = MediaQuery.sizeOf(context).width;
     if (ancho >= 700) {
-      showDialog(
-        context: context,
-        builder: (ctx) => Dialog(
-          alignment: Alignment.centerRight,
-          insetPadding: EdgeInsets.zero,
-          child: SizedBox(
-            width: 380,
-            height: MediaQuery.sizeOf(ctx).height,
-            child: _LibroTareas(
-              catalogo: _catalogo,
-              onChanged: _recargar,
-              onNuevo: _nuevaEntradaCatalogo,
-            ),
-          ),
-        ),
-      );
-    } else {
-      showModalBottomSheet(
-        context: context,
-        isScrollControlled: true,
-        showDragHandle: true,
-        builder: (ctx) => SizedBox(
-          height: MediaQuery.sizeOf(ctx).height * 0.75,
-          child: _LibroTareas(
-            catalogo: _catalogo,
-            onChanged: _recargar,
-            onNuevo: _nuevaEntradaCatalogo,
-          ),
-        ),
-      );
+      setState(() => _libroAbierto = !_libroAbierto);
+      return;
     }
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (ctx) => SizedBox(
+        height: MediaQuery.sizeOf(ctx).height * 0.75,
+        child: _LibroTareas(
+          catalogo: _catalogo,
+          onChanged: _recargar,
+          onNuevo: _nuevaEntradaCatalogo,
+          onUsar: (c) =>
+              _usarEntradaCatalogo(c, dia: _claveDeFecha(_fechas[_indiceSel])),
+        ),
+      ),
+    );
+  }
+
+  /// Añadir una entrada del catálogo como tarea: abre el formulario
+  /// prellenado con los datos del libro (puntos, categoría, dificultad,
+  /// icono) y el día elegido — con el botón "Añadir" o al soltar la
+  /// tarjeta sobre un día.
+  void _usarEntradaCatalogo(TareaCatalogo entrada, {String dia = ''}) {
+    showDialog(
+      context: context,
+      builder: (_) => _TaskFormDialog(
+        initialData: {
+          'titulo': entrada.titulo,
+          'puntos': entrada.puntos,
+          'dificultad': entrada.dificultad,
+          'categoria': entrada.categoria,
+          'icono': entrada.icono,
+          'dia': dia,
+          'frecuencia': 'semanal',
+        },
+        onSaved: _crearDesdeDialog,
+        usuarios: _integrantes,
+        catalogo: _catalogo,
+      ),
+    );
   }
 
   void _ajustesCastigos() async {
@@ -723,8 +747,15 @@ class _AdminTasksListState extends State<_AdminTasksList> {
           .toList();
     }
 
+    final anchoPanel = MediaQuery.sizeOf(context).width;
+    final libroLateral = _libroAbierto && anchoPanel >= 700;
+
     return Scaffold(
-      body: _cargando
+      body: Stack(
+        children: [
+          Padding(
+            padding: EdgeInsets.only(right: libroLateral ? 380 : 0),
+            child: _cargando
           ? const Center(child: CircularProgressIndicator())
           : RefreshIndicator(
               onRefresh: _recargar,
@@ -833,17 +864,36 @@ class _AdminTasksListState extends State<_AdminTasksList> {
                       ),
                     ),
                   const SizedBox(height: 8),
-                  // Rejilla de 7 días (letras) estilo referencia.
+                  // Rejilla de 7 días (letras) estilo referencia. Cada chip
+                  // acepta tarjetas arrastradas desde el Libro de Tareas.
                   Row(
                     children: [
                       for (var i = 0; i < 7; i++)
                         Expanded(
                           child: Padding(
                             padding: const EdgeInsets.all(2),
-                            child: ChoiceChip(
-                              label: Text(_letrasDia[i]),
-                              selected: i == _indiceSel,
-                              onSelected: (_) => setState(() => _diaSel = i),
+                            child: DragTarget<TareaCatalogo>(
+                              onWillAcceptWithDetails: (_) => true,
+                              onAcceptWithDetails: (d) =>
+                                  _usarEntradaCatalogo(
+                                d.data,
+                                dia: _claveDeFecha(_fechas[i]),
+                              ),
+                              builder: (context, candidatos, rechazados) {
+                                final sobre = candidatos.isNotEmpty;
+                                return ChoiceChip(
+                                  label: Text(_letrasDia[i]),
+                                  selected: i == _indiceSel,
+                                  side: BorderSide(
+                                    color: sobre
+                                        ? AppColors.verde
+                                        : Colors.transparent,
+                                    width: 2,
+                                  ),
+                                  onSelected: (_) =>
+                                      setState(() => _diaSel = i),
+                                );
+                              },
                             ),
                           ),
                         ),
@@ -950,6 +1000,41 @@ class _AdminTasksListState extends State<_AdminTasksList> {
           ],
         ),
       ),
+          ),
+          // Panel lateral del Libro de Tareas (>= 700 px): sin barrera
+          // modal para que el arrastre de tarjetas a los días funcione.
+          if (libroLateral)
+            Positioned(
+              right: 0,
+              top: 0,
+              bottom: 0,
+              width: 380,
+              child: TweenAnimationBuilder<double>(
+                tween: _panelTween,
+                duration: const Duration(milliseconds: 220),
+                curve: Curves.easeOutCubic,
+                builder: (context, v, child) => Transform.translate(
+                  offset: Offset(v * 380, 0),
+                  child: child,
+                ),
+                child: Material(
+                  elevation: 10,
+                  color: Theme.of(context).scaffoldBackgroundColor,
+                  child: _LibroTareas(
+                    catalogo: _catalogo,
+                    onChanged: _recargar,
+                    onNuevo: _nuevaEntradaCatalogo,
+                    onUsar: (c) => _usarEntradaCatalogo(
+                      c,
+                      dia: _claveDeFecha(_fechas[_indiceSel]),
+                    ),
+                    onCerrar: () => setState(() => _libroAbierto = false),
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
     );
   }
 }
@@ -1005,7 +1090,7 @@ class _AdminTareaFila extends StatelessWidget {
                   ],
                 ),
                 child: Icono3D(
-                  tipo: CategoriaTarea.icono3dDe(tarea.categoria),
+                  tipo: tarea.icono3d,
                   size: 26,
                 ),
               );
@@ -1360,10 +1445,18 @@ class _LibroTareas extends StatelessWidget {
   final Future<void> Function() onChanged;
   final VoidCallback onNuevo;
 
+  /// Usa una entrada como tarea (formulario prellenado).
+  final void Function(TareaCatalogo entrada)? onUsar;
+
+  /// Cierra el panel lateral (cuando no vive en una ruta con Navigator).
+  final VoidCallback? onCerrar;
+
   const _LibroTareas({
     required this.catalogo,
     required this.onChanged,
     required this.onNuevo,
+    this.onUsar,
+    this.onCerrar,
   });
 
   @override
@@ -1394,7 +1487,7 @@ class _LibroTareas extends StatelessWidget {
               IconButton(
                 icon: const Icon(Icons.close),
                 tooltip: 'Cerrar',
-                onPressed: () => Navigator.pop(context),
+                onPressed: onCerrar ?? () => Navigator.pop(context),
               ),
             ],
           ),
@@ -1434,7 +1527,11 @@ class _LibroTareas extends StatelessWidget {
                         ),
                       ),
                       for (final c in lista)
-                        _CatalogoCard(entrada: c, onChanged: onChanged),
+                        _CatalogoCard(
+                          entrada: c,
+                          onChanged: onChanged,
+                          onUsar: onUsar,
+                        ),
                     ],
                   ),
           ),
@@ -1496,13 +1593,18 @@ class _IntegrantePill extends StatelessWidget {
 class _CatalogoCard extends StatelessWidget {
   final TareaCatalogo entrada;
   final Future<void> Function() onChanged;
+  final void Function(TareaCatalogo entrada)? onUsar;
 
-  const _CatalogoCard({required this.entrada, required this.onChanged});
+  const _CatalogoCard({
+    required this.entrada,
+    required this.onChanged,
+    this.onUsar,
+  });
 
   @override
   Widget build(BuildContext context) {
     final color = _colorPorDificultad(_dificultadPara(entrada.puntos));
-    return DuoCard(
+    final card = DuoCard(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       margin: const EdgeInsets.only(bottom: 8),
       child: Row(
@@ -1546,6 +1648,11 @@ class _CatalogoCard extends StatelessWidget {
             ),
           ),
           IconButton(
+            icon: const Icon(Icons.add_circle, color: AppColors.verde),
+            tooltip: 'Añadir a la semana',
+            onPressed: onUsar == null ? null : () => onUsar!(entrada),
+          ),
+          IconButton(
             icon: const Icon(Icons.edit, color: AppColors.azul),
             onPressed: () => _editar(context),
           ),
@@ -1555,6 +1662,53 @@ class _CatalogoCard extends StatelessWidget {
           ),
         ],
       ),
+    );
+
+    // Arrastrar la tarjeta del libro sobre un día (pantallas con panel
+    // lateral) para abrir el formulario prellenado de ese día.
+    return LongPressDraggable<TareaCatalogo>(
+      data: entrada,
+      hapticFeedbackOnStart: true,
+      feedback: Material(
+        color: Colors.transparent,
+        child: Container(
+          constraints: const BoxConstraints(maxWidth: 220),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.surface,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: color.withValues(alpha: 0.6)),
+            boxShadow: const [
+              BoxShadow(color: Colors.black26, blurRadius: 8),
+            ],
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icono3D(
+                tipo: entrada.icono.isEmpty
+                    ? CategoriaTarea.icono3dDe(entrada.categoria)
+                    : Icono3DTipo.porNombre(entrada.icono),
+                size: 18,
+              ),
+              const SizedBox(width: 6),
+              Flexible(
+                child: Text(
+                  entrada.titulo,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+      childWhenDragging: Opacity(opacity: 0.35, child: card),
+      child: card,
     );
   }
 
@@ -1838,16 +1992,18 @@ class _AdminTaskCard extends StatelessWidget {
         leading: Container(
           width: 48,
           height: 48,
-          decoration: BoxDecoration(
-            color: isDark ? Colors.white10 : AppColors.linea,
-            borderRadius: BorderRadius.circular(12),
+            decoration: BoxDecoration(
+              color: isDark ? Colors.white10 : AppColors.linea,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: tarea.icono.isEmpty
+                ? Icon(
+                    CategoriaTarea.iconoDe(tarea.categoria),
+                    size: 24,
+                    color: Color(CategoriaTarea.colorDe(tarea.categoria)),
+                  )
+                : Icono3D(tipo: tarea.icono3d, size: 24),
           ),
-          child: Icon(
-            CategoriaTarea.iconoDe(tarea.categoria),
-            size: 24,
-            color: Color(CategoriaTarea.colorDe(tarea.categoria)),
-          ),
-        ),
         title: Text(
           tarea.titulo,
           style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
@@ -2495,7 +2651,7 @@ class _MiniTaskCard extends StatelessWidget {
                   ],
                 ),
                 child: Icono3D(
-                  tipo: CategoriaTarea.icono3dDe(task.categoria),
+                  tipo: task.icono3d,
                   size: 34,
                 ),
               );
@@ -2711,11 +2867,12 @@ class _TaskFormDialogState extends State<_TaskFormDialog> {
   String _frecuencia = 'unica';
   String _dia = '';
   String _categoria = 'General';
+  String _icono = '';
   final Set<int> _integrantesIds = {};
   bool _puntosManual = false;
 
   /// Si el título coincide con el catálogo y el admin no tocó los campos,
-  /// rellena puntos/categoría/dificultad por defecto.
+  /// rellena puntos/categoría/dificultad/icono por defecto.
   void _autofillDesdeCatalogo() {
     if (_puntosManual || widget.catalogo.isEmpty) return;
     final t = _tituloController.text.trim().toLowerCase();
@@ -2732,6 +2889,10 @@ class _TaskFormDialogState extends State<_TaskFormDialog> {
         }
         if (_dificultad != c.dificultad) {
           _dificultad = c.dificultad;
+          cambia = true;
+        }
+        if (_icono != c.icono) {
+          _icono = c.icono;
           cambia = true;
         }
         if (cambia) setState(() {});
@@ -2765,6 +2926,7 @@ class _TaskFormDialogState extends State<_TaskFormDialog> {
       _frecuencia = d['frecuencia'] as String? ?? 'unica';
       _dia = d['dia'] as String? ?? '';
       _categoria = d['categoria'] as String? ?? 'General';
+      _icono = d['icono'] as String? ?? '';
       final iniciales = d['integrantes'] as List? ?? [];
       for (final e in iniciales) {
         if (e is Map) {
@@ -2839,6 +3001,44 @@ class _TaskFormDialogState extends State<_TaskFormDialog> {
                     DropdownMenuItem(value: c, child: Text(c)),
                 ],
                 onChanged: (v) => setState(() => _categoria = v!),
+              ),
+              const SizedBox(height: 12),
+              // Icono de la tarea: el del Libro de Tareas si tiene; si no,
+              // el de la categoría. Vive en el formulario para que se vea
+              // al prellenar y se guarde con la tarea.
+              Row(
+                children: [
+                  Container(
+                    width: 40,
+                    height: 40,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: Color(
+                        CategoriaTarea.colorDe(_categoria),
+                      ).withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Icono3D(
+                      tipo: _icono.isEmpty
+                          ? CategoriaTarea.icono3dDe(_categoria)
+                          : Icono3DTipo.porNombre(_icono),
+                      size: 24,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      _icono.isEmpty
+                          ? 'Icono por defecto de la categoría'
+                          : 'Icono del Libro de Tareas',
+                      style: TextStyle(
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w700,
+                        color: textoSuaveTema(context),
+                      ),
+                    ),
+                  ),
+                ],
               ),
               ListTile(
                 title: Text(
@@ -2953,6 +3153,7 @@ class _TaskFormDialogState extends State<_TaskFormDialog> {
                 'frecuencia': _frecuencia,
                 'dia': _dia,
                 'categoria': _categoria,
+                'icono': _icono,
                 'integrantes': _integrantesIds.map((id) => {'id': id}).toList(),
               };
               widget.onSaved?.call(data);
