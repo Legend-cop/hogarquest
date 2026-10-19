@@ -623,7 +623,11 @@ class AppProvider extends ChangeNotifier {
     await _db.updateAsignacion(
       a.copyWith(robadaPor: uid, fechaRobo: DateTime.now()),
     );
-    final nuevosPuntos = yo.puntos + t.puntos;
+    // Ventana de frenesí activa: el robo también se paga con el multiplicador.
+    final frenesi = await retoFrenesiActivo();
+    final mult = frenesi?.multiplicador ?? 1;
+    final gano = t.puntos * mult;
+    final nuevosPuntos = yo.puntos + gano;
     final nuevoNivel = GamificationService.nivelPara(nuevosPuntos);
     await _db.updateUsuario(
       yo.copyWith(puntos: nuevosPuntos, nivel: nuevoNivel),
@@ -631,15 +635,39 @@ class AppProvider extends ChangeNotifier {
     if (_usuarioActual?.id == uid) {
       _usuarioActual = yo.copyWith(puntos: nuevosPuntos, nivel: nuevoNivel);
     }
+    await _acumularEnFrenesi(frenesi, uid, gano);
     unawaited(
       _db.enviarPush(
         dueno.id!,
         'Te robaron una tarea',
-        '${yo.nombre} robó "${t.titulo}" y ganó ${t.puntos} puntos.',
+        mult > 1
+            ? '${yo.nombre} robó "${t.titulo}" y ganó $gano puntos (x$mult).'
+            : '${yo.nombre} robó "${t.titulo}" y ganó ${t.puntos} puntos.',
       ),
     );
     notifyListeners();
     return true;
+  }
+
+  /// El reto frenesí cuya ventana de multiplicador está corriendo ahora
+  /// (null si no hay ninguna). Solo el más reciente aplica.
+  Future<Reto?> retoFrenesiActivo() async {
+    final ahora = DateTime.now();
+    final retos = await _db.getRetos();
+    Reto? mejor;
+    for (final r in retos) {
+      if (!r.ventanaFrenesiActiva(ahora)) continue;
+      if (mejor == null || r.id! > mejor.id!) mejor = r;
+    }
+    return mejor;
+  }
+
+  /// Suma `puntos` al acumulado del reto frenesí activo para `uid`.
+  Future<void> _acumularEnFrenesi(Reto? frenesi, int uid, int puntos) async {
+    if (frenesi == null || puntos <= 0) return;
+    final acumulados = {...frenesi.acumulados};
+    acumulados[uid] = (acumulados[uid] ?? 0) + puntos;
+    await _db.updateReto(frenesi.copyWith(acumulados: acumulados));
   }
 
   Future<void> aprobarAsignacion(int asignacionId) async {
@@ -664,8 +692,13 @@ class AppProvider extends ChangeNotifier {
         .toList();
     final racha = GamificationService.calcularRacha(fechas);
 
+    // Ventana de frenesí activa: la tarea se paga con el multiplicador.
+    final frenesi = await retoFrenesiActivo();
+    final mult = frenesi?.multiplicador ?? 1;
+    final puntosTarea = tarea.puntos * mult;
+
     final nuevosPuntos =
-        user.puntos + tarea.puntos + GamificationService.bonusRacha(racha);
+        user.puntos + puntosTarea + GamificationService.bonusRacha(racha);
     final nuevoNivel = GamificationService.nivelPara(nuevosPuntos);
 
     await _db.updateUsuario(
@@ -687,11 +720,14 @@ class AppProvider extends ChangeNotifier {
     // Avisar al niño que su tarea fue aprobada (push, si el servidor tiene
     // FIREBASE_CREDENTIALS configurado). El niño también ve confeti en su
     // dispositivo cuando suben sus puntos.
+    await _acumularEnFrenesi(frenesi, a.usuarioId, puntosTarea);
     unawaited(
       _db.enviarPush(
         a.usuarioId,
         '¡Tarea aprobada!',
-        'Ganaste ${tarea.puntos} puntos con "${tarea.titulo}".',
+        mult > 1
+            ? 'Ganaste $puntosTarea puntos (x$mult) con "${tarea.titulo}".'
+            : 'Ganaste ${tarea.puntos} puntos con "${tarea.titulo}".',
       ),
     );
     notifyListeners();
@@ -1335,7 +1371,7 @@ class AppProvider extends ChangeNotifier {
     return retos.where((r) => r.vigente && r.perteneceASemana(hoy)).toList();
   }
 
-  Future<void> crearReto({
+  Future<Reto?> crearReto({
     required String titulo,
     required String descripcion,
     required int puntos,
@@ -1343,12 +1379,16 @@ class AppProvider extends ChangeNotifier {
     String modo = Reto.modoNormal,
     DateTime? fechaLluvia,
     DateTime? plazoIndividual,
+    DateTime? ventanaInicio,
+    DateTime? ventanaFin,
+    int multiplicador = 1,
   }) async {
     final hoy = DateTime.now();
     final lunes = hoy.subtract(Duration(days: hoy.weekday - 1));
     final inicio = DateTime(lunes.year, lunes.month, lunes.day);
     var fin = fechaFin;
     var diaLluvia = fechaLluvia;
+    var plazo = plazoIndividual;
     if (modo == Reto.modoLluvia) {
       // Día aleatorio de la semana (se puede re-sortear desde el diálogo).
       // fechaInicio sigue siendo el lunes (ancla de la semana) y el reto
@@ -1358,19 +1398,26 @@ class AppProvider extends ChangeNotifier {
       diaLluvia = d;
       fin ??= DateTime(d.year, d.month, d.day, 23, 59, 59);
     }
-    await _db.insertReto(
-      Reto(
-        titulo: titulo,
-        descripcion: descripcion,
-        puntos: puntos,
-        fechaInicio: inicio,
-        fechaFin: fin,
-        modo: modo,
-        fechaLluvia: diaLluvia,
-        plazoIndividual: plazoIndividual,
-      ),
+    if (modo == Reto.modoFrenesi) {
+      // Compatibilidad: plazoIndividual (legacy) = fin de la ventana.
+      plazo ??= ventanaFin;
+    }
+    final creado = Reto(
+      titulo: titulo,
+      descripcion: descripcion,
+      puntos: puntos,
+      fechaInicio: inicio,
+      fechaFin: fin,
+      modo: modo,
+      fechaLluvia: diaLluvia,
+      plazoIndividual: plazo,
+      ventanaInicio: modo == Reto.modoFrenesi ? ventanaInicio : null,
+      ventanaFin: modo == Reto.modoFrenesi ? ventanaFin : null,
+      multiplicador: modo == Reto.modoFrenesi ? multiplicador : 1,
     );
+    final id = await _db.insertReto(creado);
     notifyListeners();
+    return creado.copyWith(id: id);
   }
 
   /// Sortea un día aleatorio dentro de la semana de hoy, excluyendo los días

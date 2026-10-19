@@ -30,8 +30,19 @@ class Reto {
   /// Día sorteado de lluvia (solo modo lluvia).
   final DateTime? fechaLluvia;
 
-  /// "Su tiempo" único para todos (solo modo frenesí).
+  /// "Su tiempo" único para todos (solo modo frenesí, legacy).
   final DateTime? plazoIndividual;
+
+  /// Ventana del frenesí: mientras corre, las tareas aprobadas o robadas
+  /// pagan `tarea.puntos * multiplicador`.
+  final DateTime? ventanaInicio;
+  final DateTime? ventanaFin;
+
+  /// Multiplicador de puntos dentro de la ventana del frenesí (x2, x3...).
+  final int multiplicador;
+
+  /// uid → puntos acumulados (con multiplicador) durante la ventana.
+  final Map<int, int> acumulados;
 
   /// Ganador de la lluvia (uid); quien cobra al instante.
   final int? ganador;
@@ -56,6 +67,10 @@ class Reto {
     this.modo = modoNormal,
     this.fechaLluvia,
     this.plazoIndividual,
+    this.ventanaInicio,
+    this.ventanaFin,
+    this.multiplicador = 1,
+    this.acumulados = const {},
     this.ganador,
     this.marcas = const {},
     this.robados = const {},
@@ -81,15 +96,28 @@ class Reto {
     return ahora.isAfter(f);
   }
 
-  /// "Su tiempo" del modo frenesí (plazoIndividual, o el vencimiento del
-  /// reto, o el domingo 23:59:59 de su semana como último recurso).
+  /// "Su tiempo" del modo frenesí (ventanaFin, plazoIndividual, el
+  /// vencimiento del reto, o el domingo 23:59:59 de su semana).
   DateTime get plazoEfectivo {
+    final v = ventanaFin;
+    if (v != null) return v;
     final p = plazoIndividual;
     if (p != null) return p;
     final f = fechaFin;
     if (f != null) return f;
     final fin = fechaInicio.add(const Duration(days: 6));
     return DateTime(fechaInicio.year, fechaInicio.month, fin.day, 23, 59, 59);
+  }
+
+  /// True si la ventana del frenesí está corriendo AHORA: las tareas
+  /// aprobadas o robadas en este lapso pagan con `multiplicador`.
+  bool ventanaFrenesiActiva(DateTime ahora) {
+    if (!esFrenesi || finalizado) return false;
+    final inicio = ventanaInicio;
+    final fin = ventanaFin ?? plazoIndividual;
+    if (inicio != null && ahora.isBefore(inicio)) return false;
+    if (fin != null && ahora.isAfter(fin)) return false;
+    return inicio != null || fin != null;
   }
 
   /// True si la lluvia está corriendo hoy (mismo día de `fechaLluvia`).
@@ -99,9 +127,14 @@ class Reto {
     return d.year == ahora.year && d.month == ahora.month && d.day == ahora.day;
   }
 
-  /// En frenesí: ¿el hijo todavía puede marcar "¡Lo cumplí!"?
-  bool puedeMarcarFrenesi(DateTime ahora) =>
-      vigente && !ahora.isAfter(plazoEfectivo);
+  /// En frenesí: ¿el hijo todavía puede marcar "¡Lo cumplí!"? Solo dentro
+  /// de la ventana (si tiene) y antes de "su tiempo".
+  bool puedeMarcarFrenesi(DateTime ahora) {
+    if (!vigente) return false;
+    final inicio = ventanaInicio;
+    if (inicio != null && ahora.isBefore(inicio)) return false;
+    return !ahora.isAfter(plazoEfectivo);
+  }
 
   /// En frenesí: este slot ¿aún está disponible para robar?
   bool slotRobable(int original) =>
@@ -124,6 +157,10 @@ class Reto {
     String? modo,
     DateTime? fechaLluvia,
     DateTime? plazoIndividual,
+    DateTime? ventanaInicio,
+    DateTime? ventanaFin,
+    int? multiplicador,
+    Map<int, int>? acumulados,
     int? ganador,
     Map<int, int>? marcas,
     Map<int, int>? robados,
@@ -141,6 +178,10 @@ class Reto {
       modo: modo ?? this.modo,
       fechaLluvia: fechaLluvia ?? this.fechaLluvia,
       plazoIndividual: plazoIndividual ?? this.plazoIndividual,
+      ventanaInicio: ventanaInicio ?? this.ventanaInicio,
+      ventanaFin: ventanaFin ?? this.ventanaFin,
+      multiplicador: multiplicador ?? this.multiplicador,
+      acumulados: acumulados ?? this.acumulados,
       ganador: ganador ?? this.ganador,
       marcas: marcas ?? this.marcas,
       robados: robados ?? this.robados,
@@ -161,10 +202,14 @@ class Reto {
       'modo': modo,
       'fecha_lluvia': fechaLluvia?.toIso8601String(),
       'plazo_individual': plazoIndividual?.toIso8601String(),
+      'ventana_inicio': ventanaInicio?.toIso8601String(),
+      'ventana_fin': ventanaFin?.toIso8601String(),
+      'multiplicador': multiplicador,
       'ganador': ganador,
       // Map<int,int> se serializa con claves string para ser JSON-safe.
       'marcas': marcas.map((k, v) => MapEntry(k.toString(), v)),
       'robados': robados.map((k, v) => MapEntry(k.toString(), v)),
+      'acumulados': acumulados.map((k, v) => MapEntry(k.toString(), v)),
     };
   }
 
@@ -199,6 +244,12 @@ class Reto {
       plazoIndividual: DateTime.tryParse(
         (map['plazo_individual'] as String?) ?? '',
       ),
+      ventanaInicio: DateTime.tryParse(
+        (map['ventana_inicio'] as String?) ?? '',
+      ),
+      ventanaFin: DateTime.tryParse((map['ventana_fin'] as String?) ?? ''),
+      multiplicador: (map['multiplicador'] as int?) ?? 1,
+      acumulados: _intMap(map['acumulados']),
       ganador: map['ganador'] as int?,
       marcas: _intMap(map['marcas']),
       robados: _intMap(map['robados']),

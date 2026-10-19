@@ -458,7 +458,7 @@ class DatabaseHelper {
       };
     }
 
-    for (final campo in const ['marcas', 'robados']) {
+    for (final campo in const ['marcas', 'robados', 'acumulados']) {
       final a = leerMap(v, campo);
       final b = leerMap(otro, campo);
       var crecio = false;
@@ -472,6 +472,15 @@ class DatabaseHelper {
           final ta = int.tryParse('${a[e.key]}');
           final tb = int.tryParse('${e.value}');
           if (ta != null && tb != null && tb < ta) {
+            a[e.key] = e.value;
+            crecio = true;
+          }
+        } else if (campo == 'acumulados') {
+          // Acumulado: nos quedamos con el mayor (nunca se suma, para no
+          // duplicar puntos si el mismo dato viaja dos veces).
+          final ta = int.tryParse('${a[e.key]}') ?? 0;
+          final tb = int.tryParse('${e.value}') ?? 0;
+          if (tb > ta) {
             a[e.key] = e.value;
             crecio = true;
           }

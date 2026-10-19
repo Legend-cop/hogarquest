@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 
 import '../providers/app_provider.dart';
 import '../services/celebration_service.dart';
+import '../widgets/contadores.dart';
 import '../services/haptics_service.dart';
 import '../services/notification_service.dart';
 import '../theme/app_theme.dart';
@@ -21,6 +22,7 @@ import '../widgets/user_avatar.dart';
 import '../models/tarea_catalogo.dart';
 import '../models/task.dart';
 import '../models/assignment.dart';
+import '../models/reto.dart';
 import '../models/user.dart';
 import 'retos_screen.dart' show RetosAdminInline;
 
@@ -39,6 +41,7 @@ class _TareasScreenState extends State<TareasScreen> {
   List<(Task, Assignment, User)> _robables = [];
   List<Task> _todasLasTareas = [];
   User? _usuarioActual;
+  Reto? _frenesiActivo;
   late AppProvider _provider;
 
   @override
@@ -79,11 +82,13 @@ class _TareasScreenState extends State<TareasScreen> {
         final mis = await app.tareasConAsignacionDe(user.id!);
         final hist = await app.historialDe(user.id!);
         final rob = await app.tareasRobables();
+        final frenesi = await app.retoFrenesiActivo();
         if (!mounted) return;
         setState(() {
           _misTareas = mis;
           _historial = hist;
           _robables = rob;
+          _frenesiActivo = frenesi;
         });
       }
     } finally {
@@ -130,6 +135,7 @@ class _TareasScreenState extends State<TareasScreen> {
               _IntegranteTasksList(
                 misTareas: _misTareas,
                 robables: _robables,
+                frenesiActivo: _frenesiActivo,
               ),
               _HistorialTasksList(historial: _historial),
             ],
@@ -2341,9 +2347,11 @@ class _AsignadosList extends StatelessWidget {
 class _IntegranteTasksList extends StatelessWidget {
   final List<(Task, Assignment)> misTareas;
   final List<(Task, Assignment, User)> robables;
+  final Reto? frenesiActivo;
   const _IntegranteTasksList({
     required this.misTareas,
     this.robables = const [],
+    this.frenesiActivo,
   });
 
   static const _diasOrden = [
@@ -2380,6 +2388,11 @@ class _IntegranteTasksList extends StatelessWidget {
           physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.all(16),
           children: [
+            if (frenesiActivo != null &&
+                frenesiActivo!.ventanaFrenesiActiva(DateTime.now())) ...[
+              _BannerFrenesi(reto: frenesiActivo!),
+              const SizedBox(height: 10),
+            ],
             const EmptyState(
               mascota: MascotType.chispita,
               icon: Icons.task_alt,
@@ -2415,6 +2428,11 @@ class _IntegranteTasksList extends StatelessWidget {
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.all(16),
         children: [
+          if (frenesiActivo != null &&
+              frenesiActivo!.ventanaFrenesiActiva(DateTime.now())) ...[
+            _BannerFrenesi(reto: frenesiActivo!),
+            const SizedBox(height: 10),
+          ],
           for (final (i, t) in [...conDia, ...sinDia].indexed)
             PlayfulEntrance(
               delayMs: (i * 70).clamp(0, 560),
@@ -2423,6 +2441,10 @@ class _IntegranteTasksList extends StatelessWidget {
                 assignment: t.$2,
                 bloqueada: t.$1.dia.isNotEmpty && t.$1.dia != _diaHoy,
                 vencida: _vencida(t.$1),
+                mult: frenesiActivo != null &&
+                        frenesiActivo!.ventanaFrenesiActiva(DateTime.now())
+                    ? frenesiActivo!.multiplicador
+                    : 1,
                 onCompletada: () {
                   lanzarConfeti(context);
                   app.completarTarea(t.$1.id!);
@@ -2533,6 +2555,66 @@ class _IntegranteTasksList extends StatelessWidget {
     final f = fl.toLocal();
     final now = DateTime.now();
     return f.year == now.year && f.month == now.month && f.day == now.day;
+  }
+}
+
+/// Banner "🔥 en llamas" mientras corre la ventana del frenesí: avisa que
+/// las tareas aprobadas o robadas pagan con el multiplicador y muestra la
+/// cuenta regresiva al cierre de la ventana.
+class _BannerFrenesi extends StatelessWidget {
+  final Reto reto;
+  const _BannerFrenesi({required this.reto});
+
+  @override
+  Widget build(BuildContext context) {
+    final ahora = DateTime.now();
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [AppColors.coral, AppColors.coralOscuro],
+        ),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Row(
+        children: [
+          const Text('🔥', style: TextStyle(fontSize: 26)),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '¡Ventana de frenesí!',
+                  style: const TextStyle(
+                    fontSize: 14.5,
+                    fontWeight: FontWeight.w900,
+                    color: Colors.white,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'Las tareas de hoy pagan x${reto.multiplicador} '
+                  'mientras corre la ventana.',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white70,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          ContadorRegresivo(
+            hasta: ahora.isBefore(reto.ventanaInicio ?? DateTime(2000))
+                ? (reto.ventanaInicio ?? reto.plazoEfectivo)
+                : reto.plazoEfectivo,
+            color: Colors.white,
+            fondo: Colors.black26,
+          ),
+        ],
+      ),
+    );
   }
 }
 
@@ -2648,6 +2730,7 @@ class _MiniTaskCard extends StatelessWidget {
   final VoidCallback? onCompletada;
   final bool bloqueada;
   final bool vencida;
+  final int mult;
 
   const _MiniTaskCard({
     required this.task,
@@ -2655,6 +2738,7 @@ class _MiniTaskCard extends StatelessWidget {
     this.onCompletada,
     this.bloqueada = false,
     this.vencida = false,
+    this.mult = 1,
   });
 
   @override
@@ -2690,6 +2774,17 @@ class _MiniTaskCard extends StatelessWidget {
         labelStyle: TextStyle(
           color: textoTema(context),
           fontSize: 12.5,
+          fontWeight: FontWeight.w900,
+        ),
+      );
+    } else if (mult > 1) {
+      // Ventana de frenesí activa: esta tarea se aprueba con multiplicador.
+      trailing = Chip(
+        label: Text('🔥 x$mult'),
+        backgroundColor: coralFondoTema(context),
+        labelStyle: const TextStyle(
+          color: AppColors.coralOscuro,
+          fontSize: 13,
           fontWeight: FontWeight.w900,
         ),
       );

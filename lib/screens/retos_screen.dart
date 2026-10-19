@@ -9,6 +9,7 @@ import '../providers/app_provider.dart';
 import '../services/celebration_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/confetti.dart';
+import '../widgets/contadores.dart';
 import '../widgets/duo_widgets.dart';
 import '../widgets/hq_design.dart';
 import '../widgets/icono3d.dart';
@@ -267,6 +268,9 @@ class _NuevoRetoDialogState extends State<_NuevoRetoDialog> {
   String _modo = Reto.modoNormal;
   DateTime? _diaLluvia;
   DateTime? _plazoIndividual;
+  DateTime? _ventanaInicio;
+  DateTime? _ventanaFin;
+  int _multiplicador = 2;
 
   @override
   void initState() {
@@ -275,6 +279,50 @@ class _NuevoRetoDialogState extends State<_NuevoRetoDialog> {
     _modo = widget.inicial?.modo ?? Reto.modoNormal;
     _diaLluvia = widget.inicial?.fechaLluvia;
     _plazoIndividual = widget.inicial?.plazoIndividual;
+    _ventanaInicio = widget.inicial?.ventanaInicio;
+    _ventanaFin = widget.inicial?.ventanaFin ?? widget.inicial?.plazoIndividual;
+    _multiplicador = widget.inicial?.multiplicador ?? 2;
+  }
+
+  /// Ventana por defecto del frenesí: hoy de 16:00 a 18:00.
+  DateTime get _hoy16 =>
+      DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day, 16);
+
+  DateTime get _hoy18 =>
+      DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day, 18);
+
+  /// Elige día + hora de la ventana del frenesí (inicio o fin).
+  Future<void> _elegirVentana({required bool esInicio}) async {
+    final base = (esInicio ? _ventanaInicio : _ventanaFin) ?? _hoy16;
+    final fecha = await showDatePicker(
+      context: context,
+      initialDate: base,
+      firstDate: DateTime.now().subtract(const Duration(days: 1)),
+      lastDate: DateTime.now().add(const Duration(days: 30)),
+    );
+    if (fecha == null || !mounted) return;
+    final hora = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.fromDateTime(base),
+    );
+    if (hora == null || !mounted) return;
+    final completo = DateTime(
+      fecha.year,
+      fecha.month,
+      fecha.day,
+      hora.hour,
+      hora.minute,
+    );
+    setState(() {
+      if (esInicio) {
+        _ventanaInicio = completo;
+        if (_ventanaFin == null || !_ventanaFin!.isAfter(completo)) {
+          _ventanaFin = completo.add(const Duration(hours: 2));
+        }
+      } else {
+        _ventanaFin = completo;
+      }
+    });
   }
 
   /// El modo/día solo se pueden cambiar si el reto aún no tiene marcas,
@@ -451,41 +499,115 @@ class _NuevoRetoDialogState extends State<_NuevoRetoDialog> {
                   ],
                 ),
               ),
-            ] else ...[
+            ] else if (_modo == Reto.modoFrenesi) ...[
               const SizedBox(height: 12),
-              Text(
-                _modo == Reto.modoFrenesi
-                    ? 'Su tiempo (fecha única para todos)'
-                    : 'Vencimiento (opcional)',
-                style: const TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
+              const Text(
+                '🔥 Ventana de la batalla',
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+              ),
+              const SizedBox(height: 6),
+              DuoCard(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
+                color: AppColors.coralFondo,
+                child: Column(
+                  children: [
+                    Row(
+                      children: [
+                        const Icon(
+                          Icons.play_arrow_rounded,
+                          size: 18,
+                          color: AppColors.coral,
+                        ),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            'Empieza: ${_formatoFecha(_ventanaInicio ?? _hoy16)}',
+                            style: const TextStyle(
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                        TextButton(
+                          onPressed: () => _elegirVentana(esInicio: true),
+                          child: const Text('Cambiar'),
+                        ),
+                      ],
+                    ),
+                    Row(
+                      children: [
+                        const Icon(
+                          Icons.stop_rounded,
+                          size: 18,
+                          color: AppColors.rojo,
+                        ),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            'Termina: ${_formatoFecha(_ventanaFin ?? _hoy18)}',
+                            style: const TextStyle(
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                        TextButton(
+                          onPressed: () => _elegirVentana(esInicio: false),
+                          child: const Text('Cambiar'),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 10),
+              const Text(
+                'Multiplicador de puntos',
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+              ),
+              const SizedBox(height: 6),
+              SizedBox(
+                height: 40,
+                child: ListView(
+                  scrollDirection: Axis.horizontal,
+                  children: [
+                    for (final m in const [2, 3, 4, 5])
+                      Padding(
+                        padding: const EdgeInsets.only(right: 6),
+                        child: ChoiceChip(
+                          label: Text('x$m'),
+                          selected: _multiplicador == m,
+                          selectedColor: AppColors.coralFondo,
+                          onSelected: (_) => setState(() => _multiplicador = m),
+                        ),
+                      ),
+                  ],
                 ),
               ),
               const SizedBox(height: 6),
-              _FechaFinPicker(
-                fechaFin: _modo == Reto.modoFrenesi
-                    ? _plazoIndividual
-                    : _fechaFin,
-                onChanged: (v) => setState(() {
-                  if (_modo == Reto.modoFrenesi) {
-                    _plazoIndividual = v;
-                  } else {
-                    _fechaFin = v;
-                  }
-                }),
-              ),
-              if (_modo == Reto.modoFrenesi) ...[
-                const SizedBox(height: 6),
-                Text(
-                  'El que no lo cumpla antes de esa fecha pierde su slot: otro hijo puede robarlo.',
-                  style: TextStyle(
-                    fontSize: 11.5,
-                    height: 1.35,
-                    color: textoSuaveTema(context),
-                  ),
+              Text(
+                'Dentro de la ventana, las tareas aprobadas o robadas pagan '
+                'x$_multiplicador. El que pierda su slot, otro hijo lo roba.',
+                style: TextStyle(
+                  fontSize: 11.5,
+                  height: 1.35,
+                  color: textoSuaveTema(context),
                 ),
-              ],
+              ),
+            ] else ...[
+              const SizedBox(height: 12),
+              const Text(
+                'Vencimiento (opcional)',
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+              ),
+              const SizedBox(height: 6),
+              _FechaFinPicker(
+                fechaFin: _fechaFin,
+                onChanged: (v) => setState(() => _fechaFin = v),
+              ),
             ],
           ],
         ),
@@ -520,8 +642,15 @@ class _NuevoRetoDialogState extends State<_NuevoRetoDialog> {
                   modo: _modo,
                   fechaLluvia: _diaLluvia,
                   plazoIndividual: _modo == Reto.modoFrenesi
-                      ? _plazoIndividual
+                      ? _ventanaFin
                       : null,
+                  ventanaInicio: _modo == Reto.modoFrenesi
+                      ? (_ventanaInicio ?? _hoy16)
+                      : null,
+                  ventanaFin: _modo == Reto.modoFrenesi
+                      ? (_ventanaFin ?? _hoy18)
+                      : null,
+                  multiplicador: _multiplicador,
                 );
               } else {
                 var finEdicion = _fechaFin;
@@ -540,8 +669,16 @@ class _NuevoRetoDialogState extends State<_NuevoRetoDialog> {
                     modo: _modo,
                     fechaLluvia: _diaLluvia,
                     plazoIndividual: _modo == Reto.modoFrenesi
-                        ? _plazoIndividual
+                        ? (_ventanaFin ?? _plazoIndividual)
                         : null,
+                    ventanaInicio: _modo == Reto.modoFrenesi
+                        ? (_ventanaInicio ?? _hoy16)
+                        : null,
+                    ventanaFin: _modo == Reto.modoFrenesi
+                        ? (_ventanaFin ?? _hoy18)
+                        : null,
+                    multiplicador:
+                        _modo == Reto.modoFrenesi ? _multiplicador : 1,
                   ),
                 );
               }
@@ -1052,6 +1189,70 @@ class _RetoCardAdmin extends StatelessWidget {
             ],
           ),
           _ProgresoReto(reto: reto, total: total),
+          if (reto.esFrenesi && reto.ventanaFin != null) ...[
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                ContadorRegresivo(
+                  hasta: reto.plazoEfectivo,
+                  compacto: true,
+                ),
+                const SizedBox(width: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 3,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppColors.coralFondo,
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text(
+                    '🔥 x${reto.multiplicador}',
+                    style: const TextStyle(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w900,
+                      color: AppColors.coralOscuro,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            if (reto.acumulados.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Text(
+                'Acumulado de la ventana:',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800,
+                  color: textoSuaveTema(context),
+                ),
+              ),
+              const SizedBox(height: 4),
+              Wrap(
+                spacing: 6,
+                runSpacing: 4,
+                children: [
+                  for (final e in reto.acumulados.entries)
+                    Chip(
+                      visualDensity: VisualDensity.compact,
+                      avatar: const Icon(
+                        Icons.local_fire_department,
+                        size: 14,
+                        color: AppColors.coral,
+                      ),
+                      label: Text(
+                        '${_nombreDe(context, e.key)}: ${e.value} pts',
+                        style: const TextStyle(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ],
+          ],
           if (reto.esLluvia && reto.ganador != null) ...[
             const SizedBox(height: 8),
             Row(
@@ -1186,6 +1387,52 @@ class _RetoCardChild extends StatelessWidget {
         children: [
           _RetoCabecera(reto: reto),
           _ProgresoReto(reto: reto, total: total),
+          if (reto.esFrenesi && (reto.ventanaFin != null || reto.plazoIndividual != null)) ...[
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                ContadorRegresivo(
+                  hasta: ahora.isBefore(reto.ventanaInicio ?? DateTime(2000))
+                      ? (reto.ventanaInicio ?? reto.plazoEfectivo)
+                      : reto.plazoEfectivo,
+                ),
+                const SizedBox(width: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppColors.coralFondo,
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text(
+                    '🔥 x${reto.multiplicador}',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w900,
+                      color: AppColors.coralOscuro,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Text(
+              reto.ventanaFrenesiActiva(ahora)
+                  ? '¡La ventana está corriendo! Tus tareas pagán '
+                        'x${reto.multiplicador}. Acumulado: '
+                        '${reto.acumulados[user.id] ?? 0} pts.'
+                  : 'Dentro de la ventana las tareas pagan '
+                        'x${reto.multiplicador}. Tu acumulado: '
+                        '${reto.acumulados[user.id] ?? 0} pts.',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: textoSuaveTema(context),
+              ),
+            ),
+          ],
           const SizedBox(height: 14),
           if (yaAprobado)
             Row(
