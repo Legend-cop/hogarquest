@@ -79,8 +79,14 @@ class _TareasScreenState extends State<TareasScreen> {
     try {
       if (user.esAdmin) {
         final tareas = await app.listarTareas();
+        // Tareas propias del admin: se gestionan en el segmento "Mis
+        // tareas" y se aprueban en "Por aprobar" como las de los niños.
+        final mis = await app.tareasConAsignacionDe(user.id!);
         if (!mounted) return;
-        setState(() => _todasLasTareas = tareas);
+        setState(() {
+          _todasLasTareas = tareas;
+          _misTareas = mis;
+        });
       } else {
         final mis = await app.tareasConAsignacionDe(user.id!);
         final hist = await app.historialDe(user.id!);
@@ -126,7 +132,11 @@ class _TareasScreenState extends State<TareasScreen> {
     }
 
     if (esAdmin) {
-      return _AdminTasksList(tareas: _todasLasTareas, onRefresh: _cargarDatos);
+      return _AdminTasksList(
+        tareas: _todasLasTareas,
+        misTareas: _misTareas,
+        onRefresh: _cargarDatos,
+      );
     }
     return Column(
       children: [
@@ -171,9 +181,16 @@ class _TareasScreenState extends State<TareasScreen> {
 
 class _AdminTasksList extends StatefulWidget {
   final List<Task> tareas;
+
+  /// Tareas propias del admin (segmento "Mis tareas").
+  final List<(Task, Assignment)> misTareas;
   final Future<void> Function() onRefresh;
 
-  const _AdminTasksList({required this.tareas, required this.onRefresh});
+  const _AdminTasksList({
+    required this.tareas,
+    required this.misTareas,
+    required this.onRefresh,
+  });
 
   @override
   State<_AdminTasksList> createState() => _AdminTasksListState();
@@ -223,7 +240,7 @@ class _AdminTasksListState extends State<_AdminTasksList> {
       app.asignadosPorTarea(),
       app.listarCatalogo(),
       app.pendientesDeAprobacion(),
-      app.listarIntegrantes(),
+      app.listarIntegrantes(incluirAdmin: true),
       app.idsTareasPendientes(),
     ]);
     if (!mounted) return;
@@ -458,7 +475,7 @@ class _AdminTasksListState extends State<_AdminTasksList> {
 
   Future<void> _editarTarea(Task tarea) async {
     final app = context.read<AppProvider>();
-    final usuarios = await app.listarIntegrantes();
+    final usuarios = await app.listarIntegrantes(incluirAdmin: true);
     if (!mounted) return;
     final integrantesData = (_asignados[tarea.id] ?? const <User>[])
         .map((u) => {'id': u.id})
@@ -867,14 +884,23 @@ class _AdminTasksListState extends State<_AdminTasksList> {
                       onChanged: (i) => setState(() => _segmento = i),
                       items: const [
                         (icon: Icons.calendar_today, label: 'Tareas'),
+                        (
+                          icon: Icons.check_circle_outline,
+                          label: 'Mis tareas',
+                        ),
                         (icon: Icons.flag_outlined, label: 'Retos'),
                       ],
                     ),
                   ),
                   Expanded(
-                    child: _segmento == 1
+                    child: _segmento == 2
                         ? const RetosAdminInline()
-                        : ListView(
+                        : _segmento == 1
+                            ? _MisTareasAdmin(
+                                misTareas: widget.misTareas,
+                                refrescar: widget.onRefresh,
+                              )
+                            : ListView(
                             physics: const AlwaysScrollableScrollPhysics(),
                             padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
                             children: [
@@ -2243,7 +2269,7 @@ class _AdminTaskCard extends StatelessWidget {
 
   void _editarTarea(BuildContext context, Task tarea) async {
     final app = context.read<AppProvider>();
-    final usuarios = await app.listarIntegrantes();
+    final usuarios = await app.listarIntegrantes(incluirAdmin: true);
     if (!context.mounted) return;
     final asignadosAEstaTarea = asignados;
     final integrantesData = asignadosAEstaTarea
@@ -2389,6 +2415,69 @@ class _AsignadosList extends StatelessWidget {
       spacing: 6,
       runSpacing: 6,
       children: [for (final u in asignados) _IntegrantePill(nombre: u.nombre)],
+    );
+  }
+}
+
+/// "Mis tareas" del admin: sus propias asignaciones con el mismo botón
+/// "Marcar como hecha" de los niños. Al marcarla entra a "Por aprobar" y
+/// él mismo la aprueba para cobrar (misma vía de puntos que los hijos,
+/// con bonus de racha e insignias incluidos).
+class _MisTareasAdmin extends StatelessWidget {
+  final List<(Task, Assignment)> misTareas;
+  final Future<void> Function() refrescar;
+  const _MisTareasAdmin({required this.misTareas, required this.refrescar});
+
+  @override
+  Widget build(BuildContext context) {
+    final app = context.read<AppProvider>();
+    // Mismo filtro que los niños: lo que sigue sin aprobar y es del día.
+    final items = misTareas
+        .where((t) => !t.$2.aprobada && _IntegranteTasksList._esDeHoy(t.$1))
+        .toList();
+
+    if (items.isEmpty) {
+      return RefreshIndicator(
+        onRefresh: refrescar,
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.all(16),
+          children: const [
+            EmptyState(
+              mascota: MascotType.chispita,
+              icon: Icons.task_alt,
+              message: 'No tienes tareas para hoy.',
+              hint: 'Crea una tarea y asígnate el checkbox para ganar puntos.',
+            ),
+          ],
+        ),
+      );
+    }
+
+    return RefreshIndicator(
+      onRefresh: refrescar,
+      child: ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.all(16),
+        children: [
+          for (final (i, t) in items.indexed)
+            PlayfulEntrance(
+              delayMs: (i * 70).clamp(0, 560),
+              child: _MiniTaskCard(
+                task: t.$1,
+                assignment: t.$2,
+                bloqueada:
+                    t.$1.dia.isNotEmpty &&
+                    t.$1.dia != _IntegranteTasksList._diaHoy,
+                vencida: _IntegranteTasksList._vencida(t.$1),
+                onCompletada: () {
+                  lanzarConfeti(context);
+                  app.completarTarea(t.$1.id!);
+                },
+              ),
+            ),
+        ],
+      ),
     );
   }
 }

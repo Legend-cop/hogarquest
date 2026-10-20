@@ -317,11 +317,43 @@ class AppProvider extends ChangeNotifier {
     return usuarios;
   }
 
-  Future<List<User>> listarIntegrantes({bool soloActivos = true}) =>
-      _db.getIntegrantes(soloActivos: soloActivos);
+  /// Integrantes de la familia (sin el admin, salvo `incluirAdmin`: solo
+  /// donde él gestiona sus propias tareas; retos/ranking siguen viendo
+  /// únicamente a los niños).
+  Future<List<User>> listarIntegrantes({
+    bool soloActivos = true,
+    bool incluirAdmin = false,
+  }) =>
+      _db.getIntegrantes(
+        soloActivos: soloActivos,
+        incluirAdmin: incluirAdmin,
+      );
 
   /// Busca un usuario por id (sin marcar sesión).
   Future<User?> buscarUsuario(int id) => _db.getUserById(id);
+
+  /// Bono diario del admin: 10 puntos una vez por día (fecha local del
+  /// dispositivo, clave por usuario). Devuelve los puntos otorgados, o 0
+  /// si el usuario no es admin o ya se cobró hoy. No toca racha ni
+  /// insignias: solo puntos.
+  Future<int> darBonoDiarioAdmin() async {
+    final user = _usuarioActual;
+    if (user == null || !user.esAdmin) return 0;
+    final prefs = await SharedPreferences.getInstance();
+    final clave = DateTime.now().toIso8601String().substring(0, 10);
+    final key = 'hq_admin_bono_${user.id}';
+    if (prefs.getString(key) == clave) return 0;
+    const bono = 10;
+    final nuevosPuntos = user.puntos + bono;
+    final nuevoNivel = GamificationService.nivelPara(nuevosPuntos);
+    await _db.updateUsuario(
+      user.copyWith(puntos: nuevosPuntos, nivel: nuevoNivel),
+    );
+    _usuarioActual = user.copyWith(puntos: nuevosPuntos, nivel: nuevoNivel);
+    await prefs.setString(key, clave);
+    notifyListeners();
+    return bono;
+  }
 
   /// Envía la hora del recordatorio diario del usuario al server.
   Future<void> guardarRecordatorioEnServer({
@@ -845,12 +877,6 @@ class AppProvider extends ChangeNotifier {
   Future<bool> canjearRecompensa(Reward r) async {
     final user = _usuarioActual!;
     if (user.puntos < r.costoPuntos) return false;
-    // Bloqueo: no se pueden canjear recompensas con tareas vencidas.
-    if (await tieneTareasVencidas(user.id!)) {
-      _error = 'Tienes tareas vencidas. Complétalas antes de canjear.';
-      notifyListeners();
-      return false;
-    }
     final nuevosPuntos = user.puntos - r.costoPuntos;
     final nuevoNivel = GamificationService.nivelPara(nuevosPuntos);
     await _db.updateUsuario(
@@ -1841,26 +1867,6 @@ class AppProvider extends ChangeNotifier {
   }
 
   /// ¿El usuario tiene tareas vencidas sin completar? (bloquea recompensas)
-  Future<bool> tieneTareasVencidas(int usuarioId) async {
-    final pendientes = await _db.getAsignacionesPendientes();
-    final hoy = DateTime.now();
-    for (final a in pendientes) {
-      if (a.usuarioId != usuarioId || a.castigada) continue;
-      final t = await _db.getTareaById(a.tareaId);
-      if (t == null) continue;
-      final vence = _fechaVencimiento(t);
-      if (vence == null || !hoy.isAfter(vence) || !t.activa) continue;
-      final asignada = a.fechaAsignada;
-      if (asignada != null && asignada.isAfter(vence)) continue;
-      // Asignaciones de semanas anteriores no cuentan como vencidas.
-      final inicio = hoy.subtract(Duration(days: hoy.weekday % 7));
-      final inicioDia = DateTime(inicio.year, inicio.month, inicio.day);
-      if (asignada != null && asignada.isBefore(inicioDia)) continue;
-      return true;
-    }
-    return false;
-  }
-
   /// Puntos perdidos por castigos de un integrante en los últimos `dias`.
   Future<int> puntosCastigadosRecientes(int usuarioId, {int dias = 7}) async {
     final castigos = await _db.getCastigosDeUsuario(usuarioId);

@@ -1649,10 +1649,13 @@ class DatabaseHelper {
     return box.items.map(_mapToUser).toList();
   }
 
-  Future<List<User>> getIntegrantes({bool soloActivos = true}) async {
+  Future<List<User>> getIntegrantes({
+    bool soloActivos = true,
+    bool incluirAdmin = false,
+  }) async {
     final box = _box(_boxUsuarios);
     return box.items
-        .where((m) => (m['rol'] as String?) != 'admin')
+        .where((m) => incluirAdmin || (m['rol'] as String?) != 'admin')
         .where((m) {
           if (!soloActivos) return true;
           final activo = m['activo'] as int?;

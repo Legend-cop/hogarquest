@@ -702,7 +702,6 @@ class _UserRewardsViewState extends State<_UserRewardsView> {
   List<Reward> _recompensas = [];
   List<(Redemption, Reward)> _canjes = [];
   bool _cargando = true;
-  bool _bloqueado = false;
 
   @override
   void initState() {
@@ -723,7 +722,6 @@ class _UserRewardsViewState extends State<_UserRewardsView> {
     try {
       _recompensas = await widget.app.listarRecompensas();
       _canjes = await widget.app.canjesDe(widget.user.id!);
-      _bloqueado = await widget.app.tieneTareasVencidas(widget.user.id!);
     } finally {
       if (mounted) setState(() => _cargando = false);
     }
@@ -810,11 +808,6 @@ class _UserRewardsViewState extends State<_UserRewardsView> {
             ),
           ),
         ),
-        if (_bloqueado)
-          const Padding(
-            padding: EdgeInsets.fromLTRB(20, 12, 20, 12),
-            child: _CanjesBloqueadosBanner(),
-          ),
         Expanded(
           child: _recompensas.isEmpty
               ? const EmptyState(
@@ -862,38 +855,6 @@ class _UserRewardsViewState extends State<_UserRewardsView> {
                 ),
         ),
       ],
-    );
-  }
-}
-
-/// Banner rosado de canjes bloqueado, idéntico a ChildPremiosScreen.
-class _CanjesBloqueadosBanner extends StatelessWidget {
-  const _CanjesBloqueadosBanner();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: rojoFondoTema(context),
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: const Row(
-        children: [
-          Icon(Icons.lock_outline, color: Colors.redAccent),
-          SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              'Canjes bloqueados: Tienes tareas vencidas.',
-              style: TextStyle(
-                color: Colors.redAccent,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-        ],
-      ),
     );
   }
 }

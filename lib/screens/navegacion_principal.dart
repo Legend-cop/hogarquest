@@ -74,6 +74,7 @@ class _NavegacionPrincipalState extends State<NavegacionPrincipal> {
       _programarGlobo();
       _programarCicloMascota();
       _avisarRobosPendientes();
+      _cobrarBonoAdmin();
     });
   }
 
@@ -85,6 +86,21 @@ class _NavegacionPrincipalState extends State<NavegacionPrincipal> {
     final avisos = await _provider.robosNoVistos();
     if (!mounted || avisos.isEmpty) return;
     await mostrarAvisoRobo(context, avisos);
+  }
+
+  /// Bono diario del admin (10 pts, una vez por día): se cobra al abrir
+  /// la app y se agradece con confeti + snackbar.
+  Future<void> _cobrarBonoAdmin() async {
+    final u = _provider.usuarioActual;
+    if (u == null || !u.esAdmin) return;
+    final bono = await _provider.darBonoDiarioAdmin();
+    if (bono <= 0 || !mounted) return;
+    lanzarConfeti(context);
+    unawaited(CelebrationService.instance.success());
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('¡Bono diario! +$bono puntos 🎁')),
+    );
   }
 
   @override
