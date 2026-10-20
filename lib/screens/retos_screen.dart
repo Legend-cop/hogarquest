@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../models/reto.dart';
-import '../models/task.dart';
 import '../models/user.dart';
 import '../providers/app_provider.dart';
 import '../services/celebration_service.dart';
@@ -54,7 +53,6 @@ class RetosScreen extends StatefulWidget {
 class _RetosScreenState extends State<RetosScreen> {
   List<Reto> _retos = const [];
   List<User> _integrantes = const [];
-  final Map<int, List<Task>> _pozosLluvia = {};
   bool _cargando = true;
   late AppProvider _provider;
 
@@ -85,20 +83,10 @@ class _RetosScreenState extends State<RetosScreen> {
       app.listarIntegrantes(),
     ]);
     final retos = results[0] as List<Reto>;
-    // El pozo de tareas de cada lluvia (solo para el niño: lo usa al tomar).
-    final pozos = <int, List<Task>>{};
-    for (final r in retos) {
-      if (r.esLluvia && r.id != null) {
-        pozos[r.id!] = await app.tareasPozoLluvia(r);
-      }
-    }
     if (!mounted) return;
     setState(() {
       _retos = retos;
       _integrantes = results[1] as List<User>;
-      _pozosLluvia
-        ..clear()
-        ..addAll(pozos);
       _cargando = false;
     });
   }
@@ -144,7 +132,6 @@ class _RetosScreenState extends State<RetosScreen> {
                           reto: reto,
                           total: total,
                           user: user,
-                          pozo: _pozosLluvia[reto.id] ?? const [],
                         ),
                 const SizedBox(height: 8),
                 if (esAdmin)
@@ -1507,12 +1494,10 @@ class _RetoCardChild extends StatelessWidget {
   final Reto reto;
   final int total;
   final User user;
-  final List<Task> pozo;
   const _RetoCardChild({
     required this.reto,
     required this.total,
     required this.user,
-    this.pozo = const [],
   });
 
   Future<void> _robarSlot(
@@ -1676,7 +1661,34 @@ class _RetoCardChild extends StatelessWidget {
               ],
             )
           else if (reto.esLluvia && reto.lluviaEnVentana(ahora))
-            _PozoLluvia(reto: reto, pozo: pozo, user: user)
+            Row(
+              children: [
+                const Icon(
+                  Icons.water_drop_outlined,
+                  size: 18,
+                  color: AppColors.azul,
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    'Pozo activo: las tareas están en '
+                    'Tareas → Pendientes.',
+                    style: TextStyle(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w700,
+                      color: textoSuaveTema(context),
+                    ),
+                  ),
+                ),
+                // Rojo = falta para que cierre la ventana.
+                ContadorRegresivo(
+                  hasta: reto.finLluvia ?? reto.plazoEfectivo,
+                  compacto: true,
+                  color: AppColors.rojo,
+                  fondo: rojoFondoTema(context),
+                ),
+              ],
+            )
           else if (reto.esLluvia && !reto.lluviaEnVentana(ahora))
             Row(
               children: [
@@ -1851,125 +1863,6 @@ class _MarcadoChip extends StatelessWidget {
             ),
           ),
         ),
-      ],
-    );
-  }
-}
-
-/// "🌧 Pozo de tareas": durante la ventana de la lluvia, las tareas del día
-/// sin asignar están aquí. El primero en tomarla cobra al instante y la
-/// tarea desaparece del pozo.
-class _PozoLluvia extends StatelessWidget {
-  final Reto reto;
-  final List<Task> pozo;
-  final User user;
-  const _PozoLluvia({
-    required this.reto,
-    required this.pozo,
-    required this.user,
-  });
-
-  Future<void> _tomar(BuildContext context, Task tarea) async {
-    final app = context.read<AppProvider>();
-    final ok = await app.tomarDelPozo(reto, tarea.id!);
-    if (!ok || !context.mounted) return;
-    lanzarConfeti(context);
-    unawaited(CelebrationService.instance.success());
-    if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          backgroundColor: AppColors.azul,
-          content: Text(
-            '¡Tomaste "${tarea.titulo}"! +${tarea.puntos} pts',
-            style: const TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-        ),
-      );
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final fin = reto.finLluvia ?? reto.plazoEfectivo;
-    final restante = fin.difference(DateTime.now());
-    final urgente = !restante.isNegative && restante.inMinutes <= 5;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            const Text('🌧', style: TextStyle(fontSize: 18)),
-            const SizedBox(width: 6),
-            Text(
-              'Pozo de tareas',
-              style: TextStyle(
-                fontSize: 15,
-                fontWeight: FontWeight.w900,
-                color: textoTema(context),
-              ),
-            ),
-            const SizedBox(width: 8),
-            // Rojo = falta para que cierre la ventana.
-            ContadorRegresivo(
-              hasta: fin,
-              compacto: true,
-              color: urgente ? Colors.white : AppColors.rojo,
-              fondo: urgente ? AppColors.rojo : rojoFondoTema(context),
-            ),
-          ],
-        ),
-        const SizedBox(height: 4),
-        Text(
-          'Toma una tarea y cobra sus puntos al instante. ¡El mayor '
-          'acumulado gana +${reto.puntos} pts al cerrar!',
-          style: TextStyle(
-            fontSize: 11.5,
-            height: 1.35,
-            color: textoSuaveTema(context),
-          ),
-        ),
-        const SizedBox(height: 8),
-        if (pozo.isEmpty)
-          Text(
-            'El pozo está vacío: no quedan tareas sin tomar. 🌵',
-            style: TextStyle(
-              fontSize: 12.5,
-              fontWeight: FontWeight.w700,
-              color: textoSuaveTema(context),
-            ),
-          )
-        else
-          for (final t in pozo)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 6),
-              child: Row(
-                children: [
-                  Icono3D(
-                    tipo: Icono3DTipo.porNombre(t.icono),
-                    size: 22,
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      t.titulo,
-                      style: TextStyle(
-                        fontSize: 12.5,
-                        fontWeight: FontWeight.w700,
-                        color: textoTema(context),
-                      ),
-                    ),
-                  ),
-                  DuoButton(
-                    fullWidth: false,
-                    label: '¡La hago! +${t.puntos}',
-                    onPressed: () => _tomar(context, t),
-                  ),
-                ],
-              ),
-            ),
       ],
     );
   }
