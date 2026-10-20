@@ -576,6 +576,23 @@ class AppProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// La ventana de robo diaria (18:00–21:30) está abierta ahora. Solo en
+  /// ese horario se puede robar: tareas de "Para robar" y slots de reto.
+  static bool enVentanaRobo([DateTime? ahora]) {
+    final a = ahora ?? DateTime.now();
+    if (a.hour < 18) return false;
+    if (a.hour < 21) return true;
+    return a.hour == 21 && a.minute < 30;
+  }
+
+  /// Próxima apertura de la ventana de robo (18:00 de hoy, o de mañana si
+  /// ya pasó): sirve para los contadores verdes fuera de ventana.
+  static DateTime proximaVentanaRobo([DateTime? ahora]) {
+    final a = ahora ?? DateTime.now();
+    final h18 = DateTime(a.year, a.month, a.day, 18);
+    return a.isBefore(h18) ? h18 : h18.add(const Duration(days: 1));
+  }
+
   /// Tareas que otro hijo dejó vencidas (sin completar en su tiempo) y que
   /// ya pueden robarse: sigue activa, de la semana actual y sin robar.
   /// Mismas reglas de vencimiento que `aplicarCastigosVencidos`.
@@ -594,6 +611,12 @@ class AppProvider extends ChangeNotifier {
       if (t == null || !t.activa) continue;
       final vence = _fechaVencimiento(t);
       if (vence == null || !hoy.isAfter(vence)) continue;
+      // Solo tareas cuyo vencimiento cae en el día de hoy.
+      if (vence.year != hoy.year ||
+          vence.month != hoy.month ||
+          vence.day != hoy.day) {
+        continue;
+      }
       final asignada = a.fechaAsignada;
       if (asignada != null && asignada.isAfter(vence)) continue;
       if (asignada != null && asignada.isBefore(inicioDia)) continue;
@@ -610,7 +633,7 @@ class AppProvider extends ChangeNotifier {
   /// gana. Nunca descuenta puntos.
   Future<bool> robarTarea(int asignacionId) async {
     final uid = _usuarioActual?.id;
-    if (uid == null) return false;
+    if (uid == null || !enVentanaRobo()) return false;
     final robables = await tareasRobables();
     final hit = robables
         .where((r) => r.$2.id == asignacionId)
@@ -1534,8 +1557,13 @@ class AppProvider extends ChangeNotifier {
               t.fechaLimite!.month == fin.month &&
               t.fechaLimite!.day == fin.day);
       if (!esDelDia) continue;
+      // El pozo incluye las tareas del día de TODOS los niños (aunque ya
+      // tengan asignación: la carrera es por quien la toma primero). Solo
+      // fuera del pozo las que alguien ya tomó aquí (`tomas`) o las que ya
+      // pagaron (asignación aprobada) para no duplicar puntos.
+      if (reto.tomas.containsKey(t.id!)) continue;
       final asignadas = await _db.getAsignacionesPorTarea(t.id!);
-      if (asignadas.isNotEmpty) continue;
+      if (asignadas.any((a) => a.aprobada)) continue;
       result.add(t);
     }
     return result;
@@ -1554,6 +1582,13 @@ class AppProvider extends ChangeNotifier {
     final tarea = pozo.firstWhere((t) => t.id == tareaId);
     final yo = await _db.getUserById(uid);
     if (yo == null) return false;
+
+    // Fuera del pozo las asignaciones de esta tarea que aún no pagaron: el
+    // dueño pierde la carrera sin castigo y nadie cobra dos veces.
+    final previas = await _db.getAsignacionesPorTarea(tareaId);
+    for (final p in previas) {
+      if (!p.aprobada) await _db.eliminarAsignacion(p.id!);
+    }
 
     await _db.insertAsignacion(
       Assignment(
@@ -1587,7 +1622,12 @@ class AppProvider extends ChangeNotifier {
           (lista) => lista.firstWhere((r) => r.id == reto.id, orElse: () => reto),
         );
     await _db.updateReto(
-      actualizado.copyWith(marcas: marcas, acumulados: acumulados),
+      actualizado.copyWith(
+        marcas: marcas,
+        acumulados: acumulados,
+        // Marca la tarea como tomada: sale del pozo para todos.
+        tomas: {...actualizado.tomas, tareaId: uid},
+      ),
     );
     unawaited(
       _db.enviarPush(
@@ -1609,6 +1649,7 @@ class AppProvider extends ChangeNotifier {
     if (uid == null || uid == originalId) return false;
     if (!reto.slotRobable(originalId)) return false;
     if (!DateTime.now().isAfter(reto.plazoEfectivo)) return false;
+    if (!enVentanaRobo()) return false;
     final dueno = await _db.getUserById(originalId);
 
     final actualizado = reto.copyWith(

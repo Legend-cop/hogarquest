@@ -1229,6 +1229,58 @@ class _ProgresoReto extends StatelessWidget {
   }
 }
 
+/// Barra INDIVIDUAL del frenesí: tus puntos acumulados contra el mayor
+/// acumulado de la familia. El admin sí ve el reporte de todos en su
+/// tarjeta (chips por hijo).
+class _ProgresoIndividual extends StatelessWidget {
+  final Reto reto;
+  final int uid;
+  const _ProgresoIndividual({required this.reto, required this.uid});
+
+  @override
+  Widget build(BuildContext context) {
+    final mios = reto.acumulados[uid] ?? 0;
+    var lider = 0;
+    for (final v in reto.acumulados.values) {
+      if (v > lider) lider = v;
+    }
+    final max = lider > 0 ? lider : (mios > 0 ? mios : 1);
+    final valor = (mios / max).clamp(0.0, 1.0);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(height: 14),
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                'Tus puntos acumulados',
+                style: TextStyle(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w700,
+                  color: textoSuaveTema(context),
+                ),
+              ),
+            ),
+            Text(
+              lider > mios
+                  ? '$mios pts · líder $lider'
+                  : (lider > 0 ? '$mios pts · ¡vas líder!' : '0 pts'),
+              style: TextStyle(
+                fontSize: 12.5,
+                fontWeight: FontWeight.w900,
+                color: textoTema(context),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 6),
+        ProgressLine(valor, color: AppColors.coral),
+      ],
+    );
+  }
+}
+
 class _RetoCardAdmin extends StatelessWidget {
   final Reto reto;
   final int total;
@@ -1268,6 +1320,9 @@ class _RetoCardAdmin extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final app = context.read<AppProvider>();
+    // Verde = falta para empezar la ventana; rojo = falta para cerrarla.
+    final fenIni = reto.ventanaInicio;
+    final sinEmpezar = fenIni != null && DateTime.now().isBefore(fenIni);
     return DuoCard(
       padding: const EdgeInsets.fromLTRB(16, 16, 12, 12),
       child: Column(
@@ -1310,8 +1365,12 @@ class _RetoCardAdmin extends StatelessWidget {
             Row(
               children: [
                 ContadorRegresivo(
-                  hasta: reto.plazoEfectivo,
+                  hasta: sinEmpezar ? fenIni : reto.plazoEfectivo,
                   compacto: true,
+                  color: sinEmpezar ? AppColors.verde : AppColors.rojo,
+                  fondo: sinEmpezar
+                      ? verdeFondoTema(context)
+                      : rojoFondoTema(context),
                 ),
                 const SizedBox(width: 8),
                 Container(
@@ -1483,9 +1542,18 @@ class _RetoCardChild extends StatelessWidget {
     final loCumpli = reto.cumplidos.contains(user.id);
     final yaAprobado = reto.aprobados.contains(user.id);
 
-    // Slots vencidos sin cumplir de otros hijos (frenesí): se pueden robar.
+    // ¿Todavía no abre el pozo? El contador de "empieza en" es VERDE
+    // (verde = falta para empezar, rojo = falta para cerrar). Antes se
+    // mostraba "ya pasó" durante todo el día de la lluvia.
+    final lluviaAntes =
+        reto.esLluvia && (reto.inicioLluvia?.isAfter(ahora) ?? false);
+
+    // Slots vencidos sin cumplir de otros hijos (frenesí): se pueden robar
+    // cuando YA pasó "su tiempo" (el vencido = sin info de ventana).
     final robables = <User>[];
-    if (reto.esFrenesi && reto.vigente) {
+    if (reto.esFrenesi &&
+        reto.vigente &&
+        ahora.isAfter(reto.plazoEfectivo)) {
       for (final u in app.listaUsuarios) {
         if (u.id == null ||
             u.id == user.id ||
@@ -1504,52 +1572,76 @@ class _RetoCardChild extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _RetoCabecera(reto: reto),
-          _ProgresoReto(reto: reto, total: total),
-          if (reto.esFrenesi && (reto.ventanaFin != null || reto.plazoIndividual != null)) ...[
-            const SizedBox(height: 10),
-            Row(
-              children: [
-                ContadorRegresivo(
-                  hasta: ahora.isBefore(reto.ventanaInicio ?? DateTime(2000))
-                      ? (reto.ventanaInicio ?? reto.plazoEfectivo)
-                      : reto.plazoEfectivo,
+          // En frenesí cada hijo ve SU barra (acumulado vs líder); el
+          // "Progreso familiar" es para los demás modos y el admin.
+          reto.esFrenesi
+              ? _ProgresoIndividual(reto: reto, uid: user.id ?? 0)
+              : _ProgresoReto(reto: reto, total: total),
+          if (reto.esFrenesi &&
+              (reto.ventanaFin != null || reto.plazoIndividual != null)) ...[
+            if (reto.ventanaInicio != null &&
+                ahora.isBefore(reto.ventanaInicio!)) ...[
+              // Sin empezar: SOLO el contador al inicio, en VERDE
+              // (verde = falta para empezar), sin info de vencimiento.
+              const SizedBox(height: 10),
+              ContadorRegresivo(
+                hasta: reto.ventanaInicio!,
+                color: AppColors.verde,
+                fondo: verdeFondoTema(context),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'La ventana de la batalla empieza en… ¡prepárate!',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: textoSuaveTema(context),
                 ),
-                const SizedBox(width: 8),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 4,
+              ),
+            ] else if (reto.ventanaFrenesiActiva(ahora)) ...[
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  // Rojo = falta para que cierre la ventana.
+                  ContadorRegresivo(
+                    hasta: reto.ventanaFin ?? reto.plazoEfectivo,
+                    compacto: true,
+                    color: AppColors.rojo,
+                    fondo: rojoFondoTema(context),
                   ),
-                  decoration: BoxDecoration(
-                    color: AppColors.coralFondo,
-                    borderRadius: BorderRadius.circular(999),
-                  ),
-                  child: Text(
-                    '🔥 x${reto.multiplicador}',
-                    style: const TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w900,
-                      color: AppColors.coralOscuro,
+                  const SizedBox(width: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: AppColors.coralFondo,
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: Text(
+                      '🔥 x${reto.multiplicador}',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w900,
+                        color: AppColors.coralOscuro,
+                      ),
                     ),
                   ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 6),
-            Text(
-              reto.ventanaFrenesiActiva(ahora)
-                  ? '¡La ventana está corriendo! Tus tareas pagán '
-                        'x${reto.multiplicador}. Acumulado: '
-                        '${reto.acumulados[user.id] ?? 0} pts.'
-                  : 'Dentro de la ventana las tareas pagan '
-                        'x${reto.multiplicador}. Tu acumulado: '
-                        '${reto.acumulados[user.id] ?? 0} pts.',
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w700,
-                color: textoSuaveTema(context),
+                ],
               ),
-            ),
+              const SizedBox(height: 6),
+              Text(
+                '¡La ventana está corriendo! Tus tareas pagan '
+                'x${reto.multiplicador}. Acumulado: '
+                '${reto.acumulados[user.id] ?? 0} pts.',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: textoSuaveTema(context),
+                ),
+              ),
+            ],
           ],
           const SizedBox(height: 14),
           if (yaAprobado)
@@ -1596,10 +1688,13 @@ class _RetoCardChild extends StatelessWidget {
                 const SizedBox(width: 6),
                 Expanded(
                   child: Text(
-                    reto.lluviaActiva(ahora)
-                        ? 'La lluvia de hoy ya pasó — mira quién ganó.'
-                        : 'La lluvia es el ${_nombreDia(reto.fechaLluvia ?? ahora)}: '
-                              'el pozo abre en su ventana.',
+                    lluviaAntes
+                        ? (reto.lluviaActiva(ahora)
+                              ? 'La lluvia empieza hoy: el pozo abre en…'
+                              : 'La lluvia es el '
+                                    '${_nombreDia(reto.fechaLluvia ?? ahora)}: '
+                                    'el pozo abre en…')
+                        : 'La lluvia de hoy ya pasó — mira quién ganó.',
                     style: TextStyle(
                       fontSize: 12.5,
                       fontWeight: FontWeight.w700,
@@ -1607,9 +1702,14 @@ class _RetoCardChild extends StatelessWidget {
                     ),
                   ),
                 ),
-                if (!reto.lluviaActiva(ahora) &&
-                    (reto.inicioLluvia?.isAfter(ahora) ?? false))
-                  ContadorRegresivo(hasta: reto.inicioLluvia!, compacto: true),
+                // Verde = falta para que empiece la lluvia.
+                if (lluviaAntes)
+                  ContadorRegresivo(
+                    hasta: reto.inicioLluvia!,
+                    compacto: true,
+                    color: AppColors.verde,
+                    fondo: verdeFondoTema(context),
+                  ),
               ],
             )
           else if (loCumpli)
@@ -1671,13 +1771,28 @@ class _RetoCardChild extends StatelessWidget {
           ],
           if (robables.isNotEmpty) ...[
             const SizedBox(height: 12),
-            Text(
-              '🔥 Slots para robar',
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w900,
-                color: textoTema(context),
-              ),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    '🔥 Slots para robar',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w900,
+                      color: textoTema(context),
+                    ),
+                  ),
+                ),
+                // Robo solo de 18:00 a 21:30: fuera de ventana, contador
+                // verde al próximo opening y botón apagado.
+                if (!AppProvider.enVentanaRobo(ahora))
+                  ContadorRegresivo(
+                    hasta: AppProvider.proximaVentanaRobo(ahora),
+                    compacto: true,
+                    color: AppColors.verde,
+                    fondo: verdeFondoTema(context),
+                  ),
+              ],
             ),
             const SizedBox(height: 6),
             for (final v in robables)
@@ -1697,8 +1812,12 @@ class _RetoCardChild extends StatelessWidget {
                     ),
                     DuoButton(
                       fullWidth: false,
-                      label: '¡Robarla! +${reto.puntos}',
-                      onPressed: () => _robarSlot(context, app, v),
+                      label: AppProvider.enVentanaRobo(ahora)
+                          ? '¡Robarla! +${reto.puntos}'
+                          : 'Abre 18:00',
+                      onPressed: AppProvider.enVentanaRobo(ahora)
+                          ? () => _robarSlot(context, app, v)
+                          : null,
                     ),
                   ],
                 ),
@@ -1793,11 +1912,12 @@ class _PozoLluvia extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 8),
+            // Rojo = falta para que cierre la ventana.
             ContadorRegresivo(
               hasta: fin,
               compacto: true,
-              color: urgente ? Colors.white : AppColors.azul,
-              fondo: urgente ? AppColors.rojo : AppColors.azulFondo,
+              color: urgente ? Colors.white : AppColors.rojo,
+              fondo: urgente ? AppColors.rojo : rojoFondoTema(context),
             ),
           ],
         ),

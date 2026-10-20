@@ -458,7 +458,10 @@ class DatabaseHelper {
       };
     }
 
-    for (final campo in const ['marcas', 'robados', 'acumulados']) {
+    // `tomas` entra en la lista: en lluvia, si dos dispositivos registran
+    // tomas distintas para la misma tarea se queda la primera que llegue
+    // (el `if` por defecto no pisa lo que ya existe).
+    for (final campo in const ['marcas', 'robados', 'acumulados', 'tomas']) {
       final a = leerMap(v, campo);
       final b = leerMap(otro, campo);
       var crecio = false;

@@ -44,6 +44,7 @@ class _TareasScreenState extends State<TareasScreen> {
   User? _usuarioActual;
   Reto? _frenesiActivo;
   Reto? _lluviaHoy;
+  List<Task> _pozoLluvia = const [];
   late AppProvider _provider;
 
   @override
@@ -95,6 +96,12 @@ class _TareasScreenState extends State<TareasScreen> {
             break;
           }
         }
+        // Pozo de la lluvia (solo mientras corre la ventana): son las
+        // tareas del día de todos los niños que se pueden tomar ya.
+        List<Task> pozo = const [];
+        if (lluviaHoy != null && lluviaHoy.lluviaEnVentana(ahora)) {
+          pozo = await app.tareasPozoLluvia(lluviaHoy);
+        }
         if (!mounted) return;
         setState(() {
           _misTareas = mis;
@@ -102,6 +109,7 @@ class _TareasScreenState extends State<TareasScreen> {
           _robables = rob;
           _frenesiActivo = frenesi;
           _lluviaHoy = lluviaHoy;
+          _pozoLluvia = pozo;
         });
       }
     } finally {
@@ -150,6 +158,7 @@ class _TareasScreenState extends State<TareasScreen> {
                 robables: _robables,
                 frenesiActivo: _frenesiActivo,
                 lluviaHoy: _lluviaHoy,
+                pozo: _pozoLluvia,
               ),
               _HistorialTasksList(historial: _historial),
             ],
@@ -190,10 +199,22 @@ class _AdminTasksListState extends State<_AdminTasksList> {
   /// entrada en cada rebuild (poll de 20 s, recargas, etc.).
   final Tween<double> _panelTween = Tween(begin: 1, end: 0);
 
+  /// Revisión del catálogo: el bottom sheet del libro es una ruta modal
+  /// aparte que no se reconstruye con los setState de esta pantalla, así
+  /// que se notifica aparte para repintarlo con `_catalogo` fresco al
+  /// instante (guardar/editar/eliminar entrada sin salir del libro).
+  final ValueNotifier<int> _libroRev = ValueNotifier<int>(0);
+
   @override
   void initState() {
     super.initState();
     _cargar();
+  }
+
+  @override
+  void dispose() {
+    _libroRev.dispose();
+    super.dispose();
   }
 
   Future<void> _cargar() async {
@@ -218,6 +239,7 @@ class _AdminTasksListState extends State<_AdminTasksList> {
       _sinCompletar = results[4] as Set<int>;
       _cargando = false;
     });
+    _libroRev.value++;
   }
 
   /// Ids de tareas con una asignación completada pero sin aprobar, acotadas
@@ -677,19 +699,25 @@ class _AdminTasksListState extends State<_AdminTasksList> {
       context: context,
       isScrollControlled: true,
       showDragHandle: true,
-      builder: (ctx) => SizedBox(
-        height: MediaQuery.sizeOf(ctx).height * 0.75,
-        child: _LibroTareas(
-          catalogo: _catalogo,
-          onChanged: _recargar,
-          onNuevo: _nuevaEntradaCatalogo,
-          onUsar: (c) =>
-              _usarEntradaCatalogo(c, dia: _claveDeFecha(_fechas[_indiceSel])),
-          diasInternos: true,
-          letrasDia: _letrasDia,
-          onSoltarEnDia: (c, i) => _usarEntradaCatalogo(
-            c,
-            dia: _claveDeFecha(_fechas[i]),
+      // El builder de la ruta modal se ejecuta una sola vez: sin este
+      // ValueListenableBuilder el sheet conservaría la lista del catálogo
+      // capturada al abrir y no mostraría los cambios hasta reabrirlo.
+      builder: (ctx) => ValueListenableBuilder<int>(
+        valueListenable: _libroRev,
+        builder: (ctx, _, _) => SizedBox(
+          height: MediaQuery.sizeOf(ctx).height * 0.75,
+          child: _LibroTareas(
+            catalogo: _catalogo,
+            onChanged: _recargar,
+            onNuevo: _nuevaEntradaCatalogo,
+            onUsar: (c) =>
+                _usarEntradaCatalogo(c, dia: _claveDeFecha(_fechas[_indiceSel])),
+            diasInternos: true,
+            letrasDia: _letrasDia,
+            onSoltarEnDia: (c, i) => _usarEntradaCatalogo(
+              c,
+              dia: _claveDeFecha(_fechas[i]),
+            ),
           ),
         ),
       ),
@@ -1911,100 +1939,107 @@ class _CatalogoFormDialogState extends State<_CatalogoFormDialog> {
   Widget build(BuildContext context) {
     return AlertDialog(
       title: Text(widget.inicial == null ? 'Nueva entrada' : 'Editar entrada'),
-      content: Form(
-        key: _formKey,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextFormField(
-              controller: _tituloController,
-              decoration: const InputDecoration(labelText: 'Título'),
-              validator: (v) => v == null || v.isEmpty ? 'Requerido' : null,
-            ),
-            const SizedBox(height: 12),
-            TextFormField(
-              controller: _puntosController,
-              decoration: const InputDecoration(labelText: 'Puntos'),
-              keyboardType: TextInputType.number,
-              validator: (v) => (v == null || int.tryParse(v) == null)
-                  ? 'Número válido'
-                  : null,
-            ),
-            const SizedBox(height: 12),
-            DropdownButtonFormField<String>(
-              initialValue: _categoria,
-              decoration: const InputDecoration(labelText: 'Categoría'),
-              items: [
-                for (final c in CategoriaTarea.nombres)
-                  DropdownMenuItem(value: c, child: Text(c)),
-              ],
-              onChanged: (v) => setState(() => _categoria = v ?? 'General'),
-            ),
-            const SizedBox(height: 12),
-            DropdownButtonFormField<String>(
-              initialValue: _dificultad,
-              decoration: const InputDecoration(labelText: 'Dificultad'),
-              items: const [
-                DropdownMenuItem(value: 'facil', child: Text('Fácil')),
-                DropdownMenuItem(value: 'media', child: Text('Media')),
-                DropdownMenuItem(value: 'dificil', child: Text('Difícil')),
-              ],
-              onChanged: (v) => setState(() => _dificultad = v ?? 'media'),
-            ),
-            const SizedBox(height: 16),
-            const Align(
-              alignment: Alignment.centerLeft,
-              child: Text(
-                'Icono',
-                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+      // Con el teclado abierto `AlertDialog` acota la altura del contenido
+      // sin scroll propio (solo un Flexible): sin este SingleChildScrollView
+      // la columna desborda y los iconos se pintan fuera de la superficie
+      // del diálogo (flotando con fondo transparente). Mismo patrón que
+      // _TaskFormDialog.
+      content: SingleChildScrollView(
+        child: Form(
+          key: _formKey,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextFormField(
+                controller: _tituloController,
+                decoration: const InputDecoration(labelText: 'Título'),
+                validator: (v) => v == null || v.isEmpty ? 'Requerido' : null,
               ),
-            ),
-            const SizedBox(height: 8),
-            Center(
-              child: Container(
-                width: 60,
-                height: 60,
-                decoration: BoxDecoration(
-                  color: verdeFondoTema(context),
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: Icono3D(
-                  tipo: _icono.isEmpty
-                      ? CategoriaTarea.icono3dDe(_categoria)
-                      : Icono3DTipo.porNombre(_icono),
-                  size: 38,
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: _puntosController,
+                decoration: const InputDecoration(labelText: 'Puntos'),
+                keyboardType: TextInputType.number,
+                validator: (v) => (v == null || int.tryParse(v) == null)
+                    ? 'Número válido'
+                    : null,
+              ),
+              const SizedBox(height: 12),
+              DropdownButtonFormField<String>(
+                initialValue: _categoria,
+                decoration: const InputDecoration(labelText: 'Categoría'),
+                items: [
+                  for (final c in CategoriaTarea.nombres)
+                    DropdownMenuItem(value: c, child: Text(c)),
+                ],
+                onChanged: (v) => setState(() => _categoria = v ?? 'General'),
+              ),
+              const SizedBox(height: 12),
+              DropdownButtonFormField<String>(
+                initialValue: _dificultad,
+                decoration: const InputDecoration(labelText: 'Dificultad'),
+                items: const [
+                  DropdownMenuItem(value: 'facil', child: Text('Fácil')),
+                  DropdownMenuItem(value: 'media', child: Text('Media')),
+                  DropdownMenuItem(value: 'dificil', child: Text('Difícil')),
+                ],
+                onChanged: (v) => setState(() => _dificultad = v ?? 'media'),
+              ),
+              const SizedBox(height: 16),
+              const Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  'Icono',
+                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
                 ),
               ),
-            ),
-            const SizedBox(height: 10),
-            ConstrainedBox(
-              constraints: const BoxConstraints(maxHeight: 148),
-              child: SingleChildScrollView(
-                child: Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  alignment: WrapAlignment.center,
-                  children: [
-                    _IconoOpcion(
-                      tipo: CategoriaTarea.icono3dDe(_categoria),
-                      etiqueta: 'Auto',
-                      seleccionado: _icono.isEmpty,
-                      onTap: () => setState(() => _icono = ''),
-                    ),
-                    for (final t in Icono3DTipo.values)
+              const SizedBox(height: 8),
+              Center(
+                child: Container(
+                  width: 60,
+                  height: 60,
+                  decoration: BoxDecoration(
+                    color: verdeFondoTema(context),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Icono3D(
+                    tipo: _icono.isEmpty
+                        ? CategoriaTarea.icono3dDe(_categoria)
+                        : Icono3DTipo.porNombre(_icono),
+                    size: 38,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 10),
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxHeight: 148),
+                child: SingleChildScrollView(
+                  child: Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    alignment: WrapAlignment.center,
+                    children: [
                       _IconoOpcion(
-                        tipo: t,
-                        seleccionado: _icono == t.name,
-                        onTap: () => setState(() => _icono = t.name),
+                        tipo: CategoriaTarea.icono3dDe(_categoria),
+                        etiqueta: 'Auto',
+                        seleccionado: _icono.isEmpty,
+                        onTap: () => setState(() => _icono = ''),
                       ),
-                  ],
+                      for (final t in Icono3DTipo.values)
+                        _IconoOpcion(
+                          tipo: t,
+                          seleccionado: _icono == t.name,
+                          onTap: () => setState(() => _icono = t.name),
+                        ),
+                    ],
+                  ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
-        actions: [
+      actions: [
           DialogActions(
             onCancel: () => Navigator.pop(context),
             primary: DuoButton(
@@ -2363,11 +2398,15 @@ class _IntegranteTasksList extends StatelessWidget {
   final List<(Task, Assignment, User)> robables;
   final Reto? frenesiActivo;
   final Reto? lluviaHoy;
+
+  /// Tareas del pozo de la lluvia (vacío fuera de la ventana).
+  final List<Task> pozo;
   const _IntegranteTasksList({
     required this.misTareas,
     this.robables = const [],
     this.frenesiActivo,
     this.lluviaHoy,
+    this.pozo = const [],
   });
 
   static const _diasOrden = [
@@ -2383,6 +2422,42 @@ class _IntegranteTasksList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final app = context.read<AppProvider>();
+    final ahora = DateTime.now();
+
+    Future<void> refrescar() async {
+      final p = context.read<AppProvider>();
+      final u = p.usuarioActual;
+      if (u != null) {
+        await p.tareasConAsignacionDe(u.id!);
+        await p.tareasRobables();
+      }
+    }
+
+    // Mientras corre la ventana de la lluvia, Pendientes muestra el POZO
+    // (todas las tareas del día de todos los niños) en lugar de la lista
+    // de siempre: carrera por tarea, quien la toma primero cobra.
+    if (lluviaHoy != null && lluviaHoy!.lluviaEnVentana(ahora)) {
+      return RefreshIndicator(
+        onRefresh: refrescar,
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.all(16),
+          children: [
+            _BannerLluvia(reto: lluviaHoy!),
+            const SizedBox(height: 10),
+            if (frenesiActivo != null &&
+                frenesiActivo!.ventanaFrenesiActiva(ahora)) ...[
+              _BannerFrenesi(reto: frenesiActivo!),
+              const SizedBox(height: 10),
+            ],
+            _PozoPendientes(reto: lluviaHoy!, pozo: pozo),
+            if (robables.isNotEmpty) ...[
+              ..._seccionRobables(context, app),
+            ],
+          ],
+        ),
+      );
+    }
 
     // Solo lo que sigue sin aprobar Y es del día actual: día de hoy o
     // con fecha límite que vence hoy.
@@ -2392,23 +2467,13 @@ class _IntegranteTasksList extends StatelessWidget {
 
     if (items.isEmpty) {
       return RefreshIndicator(
-        onRefresh: () async {
-          final app = context.read<AppProvider>();
-          final u = app.usuarioActual;
-          if (u != null) {
-            await app.tareasConAsignacionDe(u.id!);
-            await app.tareasRobables();
-          }
-        },
+        onRefresh: refrescar,
         child: ListView(
           physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.all(16),
           children: [
-            if (lluviaHoy != null &&
-                lluviaHoy!.lluviaEnVentana(DateTime.now())) ...[
-              _BannerLluvia(reto: lluviaHoy!),
-              const SizedBox(height: 10),
-            ],
+            // (Sin banner de lluvia aquí: en ventana manda el pozo, que es
+            // otra rama; fuera de ventana el aviso vive en Retos.)
             if (frenesiActivo != null &&
                 frenesiActivo!.ventanaFrenesiActiva(DateTime.now())) ...[
               _BannerFrenesi(reto: frenesiActivo!),
@@ -2437,22 +2502,11 @@ class _IntegranteTasksList extends StatelessWidget {
     final sinDia = items.where((t) => t.$1.dia.isEmpty).toList();
 
     return RefreshIndicator(
-      onRefresh: () async {
-        final app2 = context.read<AppProvider>();
-        final u = app2.usuarioActual;
-        if (u != null) {
-          await app2.tareasConAsignacionDe(u.id!);
-          await app2.tareasRobables();
-        }
-      },
+      onRefresh: refrescar,
       child: ListView(
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.all(16),
         children: [
-          if (lluviaHoy != null && lluviaHoy!.lluviaEnVentana(DateTime.now())) ...[
-            _BannerLluvia(reto: lluviaHoy!),
-            const SizedBox(height: 10),
-          ],
           if (frenesiActivo != null &&
               frenesiActivo!.ventanaFrenesiActiva(DateTime.now())) ...[
             _BannerFrenesi(reto: frenesiActivo!),
@@ -2521,11 +2575,36 @@ class _IntegranteTasksList extends StatelessWidget {
           color: textoSuaveTema(context),
         ),
       ),
+      // La ventana de robo corre de 18:00 a 21:30: fuera de ese horario
+      // las tarjetas siguen visibles pero con el botón apagado.
+      if (!AppProvider.enVentanaRobo()) ...[
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            Text(
+              'El robo abre en',
+              style: TextStyle(
+                fontSize: 12.5,
+                fontWeight: FontWeight.w800,
+                color: textoSuaveTema(context),
+              ),
+            ),
+            const SizedBox(width: 8),
+            ContadorRegresivo(
+              hasta: AppProvider.proximaVentanaRobo(),
+              compacto: true,
+              color: AppColors.verde,
+              fondo: verdeFondoTema(context),
+            ),
+          ],
+        ),
+      ],
       const SizedBox(height: 10),
       for (final r in robables)
         _TareaRobableCard(
           task: r.$1,
           dueno: r.$3,
+          habilitado: AppProvider.enVentanaRobo(),
           onRobar: () async {
             final ok = await app.robarTarea(r.$2.id!);
             if (!ok || !context.mounted) return;
@@ -2580,6 +2659,120 @@ class _IntegranteTasksList extends StatelessWidget {
     final f = fl.toLocal();
     final now = DateTime.now();
     return f.year == now.year && f.month == now.month && f.day == now.day;
+  }
+}
+
+/// Pozo de la lluvia DENTRO de Pendientes: mientras corre la ventana,
+/// muestra las tareas del día de todos los niños; quien la toma primero
+/// cobra sus puntos al instante (la tarea sale del pozo para todos).
+class _PozoPendientes extends StatelessWidget {
+  final Reto reto;
+  final List<Task> pozo;
+  const _PozoPendientes({required this.reto, required this.pozo});
+
+  Future<void> _tomar(BuildContext context, Task tarea) async {
+    final app = context.read<AppProvider>();
+    final ok = await app.tomarDelPozo(reto, tarea.id!);
+    if (!ok || !context.mounted) return;
+    lanzarConfeti(context);
+    unawaited(CelebrationService.instance.success());
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          backgroundColor: AppColors.azul,
+          content: Text(
+            '¡Tomaste "${tarea.titulo}"! +${tarea.puntos} pts',
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final fin = reto.finLluvia ?? reto.plazoEfectivo;
+    final restante = fin.difference(DateTime.now());
+    final urgente = !restante.isNegative && restante.inMinutes <= 5;
+    return DuoCard(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Text('🌧', style: TextStyle(fontSize: 18)),
+              const SizedBox(width: 6),
+              Text(
+                '¡Lluvia de tareas! Pozo',
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w900,
+                  color: textoTema(context),
+                ),
+              ),
+              const SizedBox(width: 8),
+              ContadorRegresivo(
+                hasta: fin,
+                compacto: true,
+                color: urgente ? Colors.white : AppColors.azul,
+                fondo: urgente ? AppColors.rojo : AppColors.azulFondo,
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Estas son las tareas de hoy de todos. Toma una y cobra '
+            'sus puntos al instante. ¡El mayor acumulado gana '
+            '+${reto.puntos} pts al cerrar!',
+            style: TextStyle(
+              fontSize: 11.5,
+              height: 1.35,
+              color: textoSuaveTema(context),
+            ),
+          ),
+          const SizedBox(height: 8),
+          if (pozo.isEmpty)
+            Text(
+              'El pozo está vacío: no quedan tareas sin tomar. 🌵',
+              style: TextStyle(
+                fontSize: 12.5,
+                fontWeight: FontWeight.w700,
+                color: textoSuaveTema(context),
+              ),
+            )
+          else
+            for (final t in pozo)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 6),
+                child: Row(
+                  children: [
+                    Icono3D(tipo: t.icono3d, size: 22),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        t.titulo,
+                        style: TextStyle(
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w700,
+                          color: textoTema(context),
+                        ),
+                      ),
+                    ),
+                    DuoButton(
+                      fullWidth: false,
+                      label: '¡La hago! +${t.puntos}',
+                      onPressed: () => _tomar(context, t),
+                    ),
+                  ],
+                ),
+              ),
+        ],
+      ),
+    );
   }
 }
 
@@ -2713,10 +2906,14 @@ class _TareaRobableCard extends StatelessWidget {
   final Task task;
   final User dueno;
   final VoidCallback onRobar;
+
+  /// false = fuera de la ventana de robo (18:00–21:30): botón apagado.
+  final bool habilitado;
   const _TareaRobableCard({
     required this.task,
     required this.dueno,
     required this.onRobar,
+    this.habilitado = true,
   });
 
   @override
@@ -2803,9 +3000,9 @@ class _TareaRobableCard extends StatelessWidget {
               const SizedBox(height: 6),
               DuoButton(
                 fullWidth: false,
-                label: '¡Robarla!',
+                label: habilitado ? '¡Robarla!' : 'Abre 18:00',
                 icon: Icons.local_fire_department,
-                onPressed: onRobar,
+                onPressed: habilitado ? onRobar : null,
               ),
             ],
           ),
@@ -2813,6 +3010,105 @@ class _TareaRobableCard extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Marco de fuego animado para las tareas mientras corre la ventana del
+/// frenesí: aro de gradiente giratorio + glow pulsante con el color del
+/// multiplicador (x2 rojo, x3 morado, x4 azul, x5 dorado).
+class _BordeFuego extends StatefulWidget {
+  final int mult;
+  final Widget child;
+  const _BordeFuego({required this.mult, required this.child});
+
+  /// Color del fuego según el multiplicador (por defecto dorado).
+  static Color colorPara(int mult) => switch (mult) {
+    2 => AppColors.rojo,
+    3 => AppColors.morado,
+    4 => AppColors.azul,
+    _ => AppColors.amarillo,
+  };
+
+  @override
+  State<_BordeFuego> createState() => _BordeFuegoState();
+}
+
+class _BordeFuegoState extends State<_BordeFuego>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _c = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 1600),
+  )..repeat();
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final color = _BordeFuego.colorPara(widget.mult);
+    return AnimatedBuilder(
+      animation: _c,
+      builder: (context, child) {
+        final t = _c.value;
+        final pulso = 0.5 + 0.5 * math.sin(t * 2 * math.pi);
+        return Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(24),
+            boxShadow: [
+              BoxShadow(
+                color: color.withValues(alpha: 0.30 + 0.30 * pulso),
+                blurRadius: 8 + 8 * pulso,
+                spreadRadius: 1 + 2 * pulso,
+              ),
+            ],
+          ),
+          child: Stack(
+            children: [
+              child!,
+              Positioned.fill(
+                child: IgnorePointer(
+                  child: CustomPaint(
+                    painter: _FuegoBordePainter(color, t * 2 * math.pi),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+      child: widget.child,
+    );
+  }
+}
+
+/// Aro con `SweepGradient` que gira: el brillo blanco recorre el borde
+/// redondeado de la tarjeta simulando fuego vivo.
+class _FuegoBordePainter extends CustomPainter {
+  final Color color;
+  final double angulo;
+  _FuegoBordePainter(this.color, this.angulo);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final rrect = RRect.fromRectAndRadius(
+      Offset.zero & size,
+      const Radius.circular(24),
+    ).deflate(1.5);
+    final paint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 3
+      ..shader = SweepGradient(
+        colors: [color, Colors.white, color, color, Colors.white, color],
+        transform: GradientRotation(angulo),
+      ).createShader(rrect.outerRect);
+    canvas.drawRRect(rrect, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _FuegoBordePainter old) =>
+      old.color != color || old.angulo != angulo;
 }
 
 class _MiniTaskCard extends StatelessWidget {
@@ -2869,12 +3165,13 @@ class _MiniTaskCard extends StatelessWidget {
         ),
       );
     } else if (mult > 1) {
-      // Ventana de frenesí activa: esta tarea se aprueba con multiplicador.
+      // Ventana de frenesí activa: chip con el color del multiplicador.
+      final fuego = _BordeFuego.colorPara(mult);
       trailing = Chip(
         label: Text('🔥 x$mult'),
-        backgroundColor: coralFondoTema(context),
-        labelStyle: const TextStyle(
-          color: AppColors.coralOscuro,
+        backgroundColor: fuego.withValues(alpha: 0.15),
+        labelStyle: TextStyle(
+          color: fuego,
           fontSize: 13,
           fontWeight: FontWeight.w900,
         ),
@@ -2883,8 +3180,7 @@ class _MiniTaskCard extends StatelessWidget {
       trailing = const SizedBox.shrink();
     }
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
+    final tarjeta = Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: isDark ? AppColors.superficieOscura : Colors.white,
@@ -2971,6 +3267,14 @@ class _MiniTaskCard extends StatelessWidget {
           ),
         ],
       ),
+    );
+    // Con la ventana del frenesí activa (mult > 1) la tarjeta "arde":
+    // aro de fuego giratorio + glow pulsante del color del multiplicador.
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: mult > 1
+          ? _BordeFuego(mult: mult, child: tarjeta)
+          : tarjeta,
     );
   }
 }

@@ -54,6 +54,10 @@ class Reto {
   /// uid original → uid ladrón (solo frenesí). Cada slot solo se roba una vez.
   final Map<int, int> robados;
 
+  /// tareaId → uid que la tomó del pozo (solo lluvia). Quien la toma
+  /// primero cobra al instante y la tarea desaparece del pozo.
+  final Map<int, int> tomas;
+
   const Reto({
     this.id,
     required this.titulo,
@@ -74,6 +78,7 @@ class Reto {
     this.ganador,
     this.marcas = const {},
     this.robados = const {},
+    this.tomas = const {},
   });
 
   bool get esLluvia => modo == modoLluvia;
@@ -192,6 +197,7 @@ class Reto {
     int? ganador,
     Map<int, int>? marcas,
     Map<int, int>? robados,
+    Map<int, int>? tomas,
   }) {
     return Reto(
       id: id ?? this.id,
@@ -213,6 +219,7 @@ class Reto {
       ganador: ganador ?? this.ganador,
       marcas: marcas ?? this.marcas,
       robados: robados ?? this.robados,
+      tomas: tomas ?? this.tomas,
     );
   }
 
@@ -238,6 +245,7 @@ class Reto {
       'marcas': marcas.map((k, v) => MapEntry(k.toString(), v)),
       'robados': robados.map((k, v) => MapEntry(k.toString(), v)),
       'acumulados': acumulados.map((k, v) => MapEntry(k.toString(), v)),
+      'tomas': tomas.map((k, v) => MapEntry(k.toString(), v)),
     };
   }
 
@@ -281,6 +289,7 @@ class Reto {
       ganador: map['ganador'] as int?,
       marcas: _intMap(map['marcas']),
       robados: _intMap(map['robados']),
+      tomas: _intMap(map['tomas']),
     );
   }
 }
