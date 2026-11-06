@@ -597,14 +597,17 @@ class _EntregaCanjesDialogState extends State<_EntregaCanjesDialog> {
         .where((c) => c.$1.estado == 'pendiente')
         .toList();
     final aprobados = _canjes.where((c) => c.$1.estado != 'pendiente').toList();
-    final alto = MediaQuery.sizeOf(context).height * 0.62;
+    final tamano = MediaQuery.sizeOf(context);
+    final ancho = (tamano.width - 32).clamp(0.0, 620.0).toDouble();
+    final alto = (tamano.height - 48).clamp(160.0, 560.0).toDouble();
     return Dialog(
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 620),
+      insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+      child: SizedBox(
+        width: ancho,
         child: Padding(
           padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
           child: SizedBox(
-            height: alto.clamp(240.0, 560.0).toDouble(),
+            height: alto,
             child: DefaultTabController(
               length: 2,
               child: Column(
@@ -612,8 +615,9 @@ class _EntregaCanjesDialogState extends State<_EntregaCanjesDialog> {
                 children: [
                   Text(
                     'Canjes de recompensas',
-                    style: Theme.of(context).textTheme.titleLarge
-                        ?.copyWith(fontWeight: FontWeight.w900),
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.w900,
+                    ),
                   ),
                   const SizedBox(height: 12),
                   TabBar(
