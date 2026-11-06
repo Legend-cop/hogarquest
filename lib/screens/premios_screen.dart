@@ -540,52 +540,81 @@ class _EntregaCanjesDialogState extends State<_EntregaCanjesDialog> {
     return ListView.separated(
       padding: const EdgeInsets.symmetric(vertical: 8),
       itemCount: canjes.length,
-      separatorBuilder: (_, _) => const Divider(height: 1),
+      separatorBuilder: (_, _) => const SizedBox(height: 8),
       itemBuilder: (context, i) {
         final canje = canjes[i];
         final id = canje.$1.id!;
         final fecha = canje.$1.fecha;
-        return ListTile(
-          contentPadding: const EdgeInsets.symmetric(
-            horizontal: 8,
-            vertical: 4,
-          ),
-          leading: CircleAvatar(
-            backgroundColor: pendientes
-                ? AppColors.amarilloFondo
-                : AppColors.verdeFondo,
-            child: Icon(
-              pendientes ? Icons.card_giftcard : Icons.check,
-              color: pendientes ? AppColors.amarilloOscuro : AppColors.verde,
+        return Card(
+          margin: EdgeInsets.zero,
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  children: [
+                    CircleAvatar(
+                      backgroundColor: pendientes
+                          ? AppColors.amarilloFondo
+                          : AppColors.verdeFondo,
+                      child: Icon(
+                        pendientes ? Icons.card_giftcard : Icons.check,
+                        color: pendientes
+                            ? AppColors.amarilloOscuro
+                            : AppColors.verde,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            canje.$2.nombre,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(fontWeight: FontWeight.w800),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            '${canje.$3.nombre} · ${fecha.day}/${fecha.month}/${fecha.year}'
+                            '${canje.$1.costoPuntos == null ? '' : ' · ${canje.$1.costoPuntos} monedas'}',
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ),
+                    ),
+                    if (!pendientes) ...[
+                      const SizedBox(width: 8),
+                      const Icon(Icons.verified, color: AppColors.verde),
+                    ],
+                  ],
+                ),
+                if (pendientes) ...[
+                  const SizedBox(height: 12),
+                  DuoButton(
+                    label: _procesando.contains(id) ? 'Guardando' : 'Aprobar',
+                    color: AppColors.verde,
+                    onPressed: _procesando.contains(id)
+                        ? null
+                        : () async {
+                            setState(() => _procesando.add(id));
+                            try {
+                              await widget.app.marcarCanjeEntregado(id);
+                              await _cargar();
+                            } finally {
+                              if (mounted) {
+                                setState(() => _procesando.remove(id));
+                              }
+                            }
+                          },
+                  ),
+                ],
+              ],
             ),
           ),
-          title: Text(
-            canje.$2.nombre,
-            style: const TextStyle(fontWeight: FontWeight.w800),
-          ),
-          subtitle: Text(
-            '${canje.$3.nombre} · ${fecha.day}/${fecha.month}/${fecha.year}'
-            '${canje.$1.costoPuntos == null ? '' : ' · ${canje.$1.costoPuntos} monedas'}',
-          ),
-          trailing: pendientes
-              ? DuoButton(
-                  label: _procesando.contains(id) ? 'Guardando' : 'Aprobar',
-                  color: AppColors.verde,
-                  onPressed: _procesando.contains(id)
-                      ? null
-                      : () async {
-                          setState(() => _procesando.add(id));
-                          try {
-                            await widget.app.marcarCanjeEntregado(id);
-                            await _cargar();
-                          } finally {
-                            if (mounted) {
-                              setState(() => _procesando.remove(id));
-                            }
-                          }
-                        },
-                )
-              : const Icon(Icons.verified, color: AppColors.verde),
         );
       },
     );
