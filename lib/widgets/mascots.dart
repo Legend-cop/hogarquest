@@ -336,7 +336,9 @@ const Set<MascotType> mascotasSoloAdmin = {
 MascotType mascotaDeUser(User u) {
   for (final m in MascotType.values) {
     if (m.name == u.mascota) {
-      if (u.esAdmin) return mascotasSoloAdmin.contains(m) ? m : MascotType.buhomago;
+      if (u.esAdmin) {
+        return mascotasSoloAdmin.contains(m) ? m : MascotType.buhomago;
+      }
       return mascotasSoloAdmin.contains(m) ? _inicialDe(u) : m;
     }
   }
@@ -412,15 +414,43 @@ const Map<MascotType, RequisitosMascota> requisitosMascotas = {
   MascotType.sushito: RequisitosMascota(nivel: 4, puntos: 450, insignias: 3),
   MascotType.meloncito: RequisitosMascota(tareas: 30, insignias: 3),
   MascotType.piquito: RequisitosMascota(nivel: 4, puntos: 500, tareas: 25),
-  MascotType.dragito:
-      RequisitosMascota(nivel: 5, puntos: 800, tareas: 40, insignias: 4),
+  MascotType.dragito: RequisitosMascota(
+    nivel: 5,
+    puntos: 800,
+    tareas: 40,
+    insignias: 4,
+  ),
   // Exclusivas (5): los diseños nuevos, las más difíciles.
-  MascotType.auron: RequisitosMascota(nivel: 5, puntos: 700, tareas: 30, insignias: 4),
-  MascotType.fenix: RequisitosMascota(nivel: 5, puntos: 850, tareas: 35, insignias: 5),
-  MascotType.dori: RequisitosMascota(nivel: 5, puntos: 900, tareas: 40, insignias: 5),
-  MascotType.cosmo: RequisitosMascota(nivel: 5, puntos: 1000, tareas: 45, insignias: 6),
-  MascotType.rex:
-      RequisitosMascota(nivel: 5, puntos: 1200, tareas: 55, insignias: 7),
+  MascotType.auron: RequisitosMascota(
+    nivel: 5,
+    puntos: 700,
+    tareas: 30,
+    insignias: 4,
+  ),
+  MascotType.fenix: RequisitosMascota(
+    nivel: 5,
+    puntos: 850,
+    tareas: 35,
+    insignias: 5,
+  ),
+  MascotType.dori: RequisitosMascota(
+    nivel: 5,
+    puntos: 900,
+    tareas: 40,
+    insignias: 5,
+  ),
+  MascotType.cosmo: RequisitosMascota(
+    nivel: 5,
+    puntos: 1000,
+    tareas: 45,
+    insignias: 6,
+  ),
+  MascotType.rex: RequisitosMascota(
+    nivel: 5,
+    puntos: 1200,
+    tareas: 55,
+    insignias: 7,
+  ),
 };
 
 /// Requisitos de una mascota (por defecto, sin requisitos).
@@ -649,8 +679,9 @@ class _MascotWidgetState extends State<MascotWidget>
               child: AnimatedOpacity(
                 opacity: mostrarGlobo ? 1 : 0,
                 duration: Duration(
-                  milliseconds:
-                      MediaQuery.disableAnimationsOf(context) ? 0 : 260,
+                  milliseconds: MediaQuery.disableAnimationsOf(context)
+                      ? 0
+                      : 260,
                 ),
                 curve: Curves.easeOutCubic,
                 child: Align(
@@ -801,8 +832,10 @@ class _Globo extends StatelessWidget {
                 behavior: HitTestBehavior.opaque,
                 onTap: onAccion,
                 child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 3,
+                  ),
                   decoration: BoxDecoration(
                     color: mascota.color,
                     borderRadius: BorderRadius.circular(99),
@@ -855,9 +888,7 @@ Future<MascotType?> elegirMascotaSheet(
   // Sin lista explícita: las de los integrantes (nunca las del admin).
   final lista =
       visibles ??
-      MascotType.values
-          .where((m) => !mascotasSoloAdmin.contains(m))
-          .toSet();
+      MascotType.values.where((m) => !mascotasSoloAdmin.contains(m)).toSet();
   return showModalBottomSheet<MascotType>(
     context: context,
     isScrollControlled: true,
@@ -903,28 +934,30 @@ Future<MascotType?> elegirMascotaSheet(
                 builder: (context, constraints) {
                   final cols = constraints.maxWidth > 560 ? 5 : 4;
                   final ancho = constraints.maxWidth / cols;
-                  return GridView.count(
-                    crossAxisCount: cols,
-                    shrinkWrap: true,
+                  return GridView.builder(
                     padding: const EdgeInsets.fromLTRB(12, 4, 12, 16),
-                    mainAxisSpacing: 8,
-                    crossAxisSpacing: 8,
-                    childAspectRatio: ancho / 118,
-                    children: [
-                      for (final m in lista)
-                        _CeldaMascota(
-                          tipo: m,
-                          seleccionada: m == actual,
-                          desbloqueada: desbloqueadas.contains(m),
-                          nivelActual: nivel,
-                          puntosActuales: puntos,
-                          tareasActuales: tareas,
-                          insigniasActuales: insignias,
-                          onTap: desbloqueadas.contains(m)
-                              ? () => Navigator.of(sheetContext).pop(m)
-                              : null,
-                        ),
-                    ],
+                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: cols,
+                      mainAxisSpacing: 8,
+                      crossAxisSpacing: 8,
+                      childAspectRatio: ancho / 118,
+                    ),
+                    itemCount: lista.length,
+                    itemBuilder: (context, index) {
+                      final m = lista.elementAt(index);
+                      return _CeldaMascota(
+                        tipo: m,
+                        seleccionada: m == actual,
+                        desbloqueada: desbloqueadas.contains(m),
+                        nivelActual: nivel,
+                        puntosActuales: puntos,
+                        tareasActuales: tareas,
+                        insigniasActuales: insignias,
+                        onTap: desbloqueadas.contains(m)
+                            ? () => Navigator.of(sheetContext).pop(m)
+                            : null,
+                      );
+                    },
                   );
                 },
               ),
@@ -985,7 +1018,7 @@ class _CeldaMascota extends StatelessWidget {
               Stack(
                 clipBehavior: Clip.none,
                 children: [
-                  MascotWidget(mascota: tipo, size: 54, interactivo: false),
+                  _MascotaEstatica(tipo: tipo),
                   if (!desbloqueada)
                     Positioned(
                       right: -2,
@@ -1040,6 +1073,20 @@ class _CeldaMascota extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+class _MascotaEstatica extends StatelessWidget {
+  final MascotType tipo;
+  const _MascotaEstatica({required this.tipo});
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 54,
+      height: 54,
+      child: RepaintBoundary(child: CustomPaint(painter: _MascotPainter(tipo))),
     );
   }
 }
@@ -1429,30 +1476,10 @@ class _MascotPainter extends CustomPainter {
       canvas.drawPath(
         Path()
           ..moveTo(c.dx, c.dy - r)
-          ..quadraticBezierTo(
-            c.dx + r * 0.18,
-            c.dy - r * 0.18,
-            c.dx + r,
-            c.dy,
-          )
-          ..quadraticBezierTo(
-            c.dx + r * 0.18,
-            c.dy + r * 0.18,
-            c.dx,
-            c.dy + r,
-          )
-          ..quadraticBezierTo(
-            c.dx - r * 0.18,
-            c.dy + r * 0.18,
-            c.dx - r,
-            c.dy,
-          )
-          ..quadraticBezierTo(
-            c.dx - r * 0.18,
-            c.dy - r * 0.18,
-            c.dx,
-            c.dy - r,
-          )
+          ..quadraticBezierTo(c.dx + r * 0.18, c.dy - r * 0.18, c.dx + r, c.dy)
+          ..quadraticBezierTo(c.dx + r * 0.18, c.dy + r * 0.18, c.dx, c.dy + r)
+          ..quadraticBezierTo(c.dx - r * 0.18, c.dy + r * 0.18, c.dx - r, c.dy)
+          ..quadraticBezierTo(c.dx - r * 0.18, c.dy - r * 0.18, c.dx, c.dy - r)
           ..close(),
         destello,
       );
@@ -1995,11 +2022,7 @@ class _MascotPainter extends CustomPainter {
   void _pintarCosmo(Canvas canvas, double s) {
     final stroke = _trazo();
     // Antena.
-    canvas.drawLine(
-      Offset(110 * s, 46 * s),
-      Offset(110 * s, 24 * s),
-      stroke,
-    );
+    canvas.drawLine(Offset(110 * s, 46 * s), Offset(110 * s, 24 * s), stroke);
     canvas.drawCircle(
       Offset(110 * s, 20 * s),
       8 * s,
@@ -2257,11 +2280,7 @@ class _MascotPainter extends CustomPainter {
   void _pintarRobotGuardian(Canvas canvas, double s) {
     final stroke = _trazo();
     // Antena con luz.
-    canvas.drawLine(
-      Offset(110 * s, 52 * s),
-      Offset(110 * s, 26 * s),
-      stroke,
-    );
+    canvas.drawLine(Offset(110 * s, 52 * s), Offset(110 * s, 26 * s), stroke);
     canvas.drawCircle(
       Offset(110 * s, 22 * s),
       9 * s,

@@ -8,7 +8,10 @@ class User {
   final DateTime? fechaNacimiento;
   final String colorTema;
   final int nivel;
+  /// Saldo de monedas que puede gastar en el catálogo de recompensas.
   final int puntos;
+  /// Experiencia acumulada; no disminuye al canjear ni recibir castigos.
+  final int puntosTotales;
   final int racha;
   final String password;
   final String salt;
@@ -32,6 +35,7 @@ class User {
     this.colorTema = '',
     this.nivel = 1,
     this.puntos = 0,
+    int? puntosTotales,
     this.racha = 0,
     required this.password,
     this.salt = '',
@@ -41,7 +45,8 @@ class User {
     this.insigniasObtenidas,
     this.mascota = '',
     // ignore: prefer_initializing_formals
-  }) : _edad = edad;
+  }) : _edad = edad,
+       puntosTotales = puntosTotales ?? puntos;
 
   /// Edad calculada a partir de la fecha de nacimiento cuando existe, de modo
   /// que se actualiza sola al cumplir años. Si no hay fecha, usa el valor
@@ -125,6 +130,7 @@ class User {
     String? colorTema,
     int? nivel,
     int? puntos,
+    int? puntosTotales,
     int? racha,
     String? password,
     String? salt,
@@ -145,6 +151,7 @@ class User {
       colorTema: colorTema ?? this.colorTema,
       nivel: nivel ?? this.nivel,
       puntos: puntos ?? this.puntos,
+      puntosTotales: puntosTotales ?? this.puntosTotales,
       racha: racha ?? this.racha,
       password: password ?? this.password,
       salt: salt ?? this.salt,
@@ -168,6 +175,7 @@ class User {
       'color_tema': colorTema,
       'nivel': nivel,
       'puntos': puntos,
+      'puntos_totales': puntosTotales,
       'racha': racha,
       'password': password,
       'salt': salt,
@@ -193,6 +201,8 @@ class User {
       colorTema: (map['color_tema'] as String?) ?? '',
       nivel: (map['nivel'] as int?) ?? 1,
       puntos: (map['puntos'] as int?) ?? 0,
+      puntosTotales:
+          (map['puntos_totales'] as int?) ?? (map['puntos'] as int? ?? 0),
       racha: (map['racha'] as int?) ?? 0,
       password: (map['password'] as String?) ?? '',
       salt: (map['salt'] as String?) ?? '',

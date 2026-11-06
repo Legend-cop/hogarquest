@@ -8,6 +8,7 @@ class Assignment {
   final DateTime? fechaCompletada;
   final DateTime? fechaAsignada;
   final DateTime? fechaAprobada;
+  final int? puntosOtorgados;
 
   /// uid del hijo que ROBÓ esta tarea (vencida) y se quedó sus puntos.
   /// La fila sigue incompletada: el castigo automático del dueño aplica igual.
@@ -24,6 +25,7 @@ class Assignment {
     this.fechaCompletada,
     this.fechaAsignada,
     this.fechaAprobada,
+    this.puntosOtorgados,
     this.robadaPor,
     this.fechaRobo,
   });
@@ -38,6 +40,7 @@ class Assignment {
     DateTime? fechaCompletada,
     DateTime? fechaAsignada,
     DateTime? fechaAprobada,
+    int? puntosOtorgados,
     int? robadaPor,
     DateTime? fechaRobo,
   }) {
@@ -51,6 +54,7 @@ class Assignment {
       fechaCompletada: fechaCompletada ?? this.fechaCompletada,
       fechaAsignada: fechaAsignada ?? this.fechaAsignada,
       fechaAprobada: fechaAprobada ?? this.fechaAprobada,
+      puntosOtorgados: puntosOtorgados ?? this.puntosOtorgados,
       robadaPor: robadaPor ?? this.robadaPor,
       fechaRobo: fechaRobo ?? this.fechaRobo,
     );
@@ -67,6 +71,7 @@ class Assignment {
       'fecha_completada': fechaCompletada?.toIso8601String(),
       'fecha_asignada': fechaAsignada?.toIso8601String(),
       'fecha_aprobada': fechaAprobada?.toIso8601String(),
+      'puntos_otorgados': puntosOtorgados,
       'robada_por': robadaPor,
       'fecha_robo': fechaRobo?.toIso8601String(),
     };
@@ -89,6 +94,7 @@ class Assignment {
       fechaAprobada: map['fecha_aprobada'] != null
           ? DateTime.tryParse(map['fecha_aprobada'] as String)
           : null,
+      puntosOtorgados: map['puntos_otorgados'] as int?,
       robadaPor: map['robada_por'] as int?,
       fechaRobo: map['fecha_robo'] != null
           ? DateTime.tryParse(map['fecha_robo'] as String)

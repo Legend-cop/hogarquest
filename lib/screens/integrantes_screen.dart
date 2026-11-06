@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../widgets/hq_design.dart';
+
 import 'package:provider/provider.dart';
 
 import '../models/user.dart';
@@ -346,9 +347,8 @@ class _IntegrantesScreenState extends State<IntegrantesScreen> {
                                         vertical: 2,
                                       ),
                                       decoration: BoxDecoration(
-                                        color: textoSuaveTema(
-                                          context,
-                                        ).withValues(alpha: 0.2),
+                                        color: textoSuaveTema(context)
+                                            .withValues(alpha: 0.2),
                                         borderRadius: BorderRadius.circular(6),
                                       ),
                                       child: Text(
@@ -364,7 +364,7 @@ class _IntegrantesScreenState extends State<IntegrantesScreen> {
                                 ],
                               ),
                               subtitle: Text(
-                                '${u.edad} años · Nivel ${u.nivel} · ${u.puntos} pts',
+                                '${u.edad} años · Nivel ${u.nivel} · ${u.puntosTotales} XP',
                               ),
                               trailing: PopupMenuButton<String>(
                                 tooltip: 'Opciones',

@@ -80,7 +80,9 @@ class _RankingScreenState extends State<RankingScreen> {
     if (usuarios.isEmpty) return [];
 
     final racha = usuarios.reduce((a, b) => b.racha > a.racha ? b : a);
-    final xp = usuarios.reduce((a, b) => b.puntos > a.puntos ? b : a);
+    final xp = usuarios.reduce(
+      (a, b) => b.puntosTotales > a.puntosTotales ? b : a,
+    );
     var maxCompletadas = -1;
     User? masTareas;
     for (final u in usuarios) {
@@ -102,7 +104,7 @@ class _RankingScreenState extends State<RankingScreen> {
       _Recorde(
         icon: Icons.bolt,
         titulo: 'Más XP',
-        valor: '${xp.puntos} XP',
+        valor: '${xp.puntosTotales} XP',
         detalle: xp.nombre,
         color: AppColors.amarillo,
       ),
@@ -141,7 +143,10 @@ class _RankingScreenState extends State<RankingScreen> {
     final user = _provider.usuarioActual;
     if (user == null) return (null, -1);
     final idx = _rankingAnterior.indexWhere((e) => e.$1.id == user.id);
-    return (GamificationService.ligaDe(user.puntos), idx >= 0 ? idx + 1 : -1);
+    return (
+      GamificationService.ligaDe(user.puntosTotales),
+      idx >= 0 ? idx + 1 : -1,
+    );
   }
 
   @override
@@ -281,7 +286,7 @@ class _RankingScreenState extends State<RankingScreen> {
 
   Widget _vistaLiga({required bool esAdmin, required User user}) {
     final (liga, posicion) = _ligaUsuario;
-    final idxLiga = GamificationService.indiceLiga(user.puntos);
+    final idxLiga = GamificationService.indiceLiga(user.puntosTotales);
     return ListView(
       padding: const EdgeInsets.only(bottom: 20),
       children: [
@@ -479,8 +484,10 @@ class _PosicionLiga extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color = _colorLiga(liga);
-    final idx = GamificationService.indiceLiga(user.puntos);
-    final faltan = GamificationService.puntosParaSiguienteLiga(user.puntos);
+    final idx = GamificationService.indiceLiga(user.puntosTotales);
+    final faltan = GamificationService.puntosParaSiguienteLiga(
+      user.puntosTotales,
+    );
     final sig = idx + 1 < GamificationService.ligas.length
         ? GamificationService.ligas[idx + 1]
         : null;
@@ -503,11 +510,7 @@ class _PosicionLiga extends StatelessWidget {
               ],
             ),
             child: Center(
-              child: Medal3D(
-                size: 34,
-                tono: medalTonoDe(liga),
-                animar: false,
-              ),
+              child: Medal3D(size: 34, tono: medalTonoDe(liga), animar: false),
             ),
           ),
           const SizedBox(width: 14),
@@ -577,10 +580,7 @@ class _LigasSeccionState extends State<_LigasSeccion> {
   void initState() {
     super.initState();
     _pagina = widget.idxLiga;
-    _ctrl = PageController(
-      initialPage: widget.idxLiga,
-      viewportFraction: 0.54,
-    );
+    _ctrl = PageController(initialPage: widget.idxLiga, viewportFraction: 0.54);
   }
 
   @override
@@ -651,8 +651,8 @@ class _LigasSeccionState extends State<_LigasSeccion> {
                         Text(
                           alcanzada
                               ? (actual
-                                  ? 'Tu liga · $umbral pts'
-                                  : 'Alcanzada ✓')
+                                    ? 'Tu liga · $umbral pts'
+                                    : 'Alcanzada ✓')
                               : 'Desde $umbral pts',
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
@@ -1023,7 +1023,10 @@ class _RecordsSeccion extends StatelessWidget {
                         ],
                       ),
                       child: Center(
-                        child: _icono(records[i].icon, racha: records[i].valorRacha),
+                        child: _icono(
+                          records[i].icon,
+                          racha: records[i].valorRacha,
+                        ),
                       ),
                     ),
                     const SizedBox(width: 14),
@@ -1135,7 +1138,7 @@ class _FamaTabState extends State<_FamaTab> {
 
     final detalle = GamificationService.detalleInsignias(
       catalogo: catalogo,
-      puntos: widget.user.puntos,
+      puntos: widget.user.puntosTotales,
       racha: widget.user.racha,
       aprobadas: historial.map((h) => h.$2).toList(),
       tareas: tareas,
@@ -1186,7 +1189,7 @@ class _FamaTabState extends State<_FamaTab> {
         case 'tareas':
           return aprobadas.length;
         case 'puntos':
-          return widget.user.puntos;
+          return widget.user.puntosTotales;
         case 'nivel':
           return widget.user.nivel;
         case 'diarias':
@@ -1235,10 +1238,8 @@ class _FamaTabState extends State<_FamaTab> {
         context: context,
         isScrollControlled: true,
         showDragHandle: true,
-        builder: (ctx) => SizedBox(
-          height: MediaQuery.sizeOf(ctx).height * 0.8,
-          child: panel,
-        ),
+        builder: (ctx) =>
+            SizedBox(height: MediaQuery.sizeOf(ctx).height * 0.8, child: panel),
       );
     }
     if (mounted) await _cargar();
@@ -1484,7 +1485,10 @@ class _GestionarInsigniasState extends State<_GestionarInsignias> {
                         index: _pestana,
                         onChanged: (i) => setState(() => _pestana = i),
                         items: const [
-                          (icon: Icons.emoji_events_outlined, label: 'Insignias'),
+                          (
+                            icon: Icons.emoji_events_outlined,
+                            label: 'Insignias',
+                          ),
                           (icon: Icons.flag_outlined, label: 'Logros'),
                         ],
                       ),
@@ -1493,10 +1497,10 @@ class _GestionarInsigniasState extends State<_GestionarInsignias> {
                         child: Text(
                           _pestana == 0
                               ? 'Cada insignia mide una métrica con una meta. '
-                                  'Los integrantes la ganan al llegar a la meta.'
+                                    'Los integrantes la ganan al llegar a la meta.'
                               : 'Cada logro es una meta de progreso que se '
-                                  'muestra en "Logros en camino" del salón de '
-                                  'la fama. El avance depende del tipo elegido.',
+                                    'muestra en "Logros en camino" del salón de '
+                                    'la fama. El avance depende del tipo elegido.',
                           style: TextStyle(
                             fontSize: 12,
                             color: textoSuaveTema(context),
@@ -1653,9 +1657,7 @@ class _InsigniaFormDialogState extends State<_InsigniaFormDialog> {
     _descripcion = TextEditingController(
       text: widget.inicial?.descripcion ?? '',
     );
-    _meta = TextEditingController(
-      text: (widget.inicial?.meta ?? 1).toString(),
-    );
+    _meta = TextEditingController(text: (widget.inicial?.meta ?? 1).toString());
     _icono = widget.inicial?.icono ?? 'emoji_events';
     _metrica = widget.inicial?.metrica ?? 'tareas';
   }
@@ -1918,9 +1920,7 @@ class _LogroFormDialogState extends State<_LogroFormDialog> {
   void initState() {
     super.initState();
     _nombre = TextEditingController(text: widget.inicial?.nombre ?? '');
-    _meta = TextEditingController(
-      text: (widget.inicial?.meta ?? 1).toString(),
-    );
+    _meta = TextEditingController(text: (widget.inicial?.meta ?? 1).toString());
     _icono = widget.inicial?.icono ?? 'emoji_events';
     _tipo = widget.inicial?.tipo ?? 'tareas';
   }
@@ -1935,9 +1935,7 @@ class _LogroFormDialogState extends State<_LogroFormDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: Text(
-        widget.inicial == null ? 'Nuevo logro' : 'Editar logro',
-      ),
+      title: Text(widget.inicial == null ? 'Nuevo logro' : 'Editar logro'),
       content: Form(
         key: _formKey,
         child: SingleChildScrollView(

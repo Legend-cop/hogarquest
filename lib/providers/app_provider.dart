@@ -51,6 +51,47 @@ class AppProvider extends ChangeNotifier {
   List<User> get listaUsuarios => _usuarios;
   List<User> _usuarios = [];
 
+  User _sumarPuntos(User user, int cantidad) {
+    final puntos = user.puntos + cantidad;
+    final puntosTotales = user.puntosTotales + cantidad;
+    return user.copyWith(
+      puntos: puntos,
+      puntosTotales: puntosTotales,
+      nivel: GamificationService.nivelPara(puntosTotales),
+    );
+  }
+
+  User _descontarPuntos(User user, int cantidad) {
+    return user.copyWith(
+      puntos: user.puntos - cantidad,
+      nivel: GamificationService.nivelPara(user.puntosTotales),
+    );
+  }
+
+  Future<int?> _puntosDeAsignacion(
+    Assignment assignment,
+    Map<int?, Task> tareas,
+  ) async {
+    final snapshot = assignment.puntosOtorgados;
+    if (snapshot != null) return snapshot;
+    final puntos = tareas[assignment.tareaId]?.puntos;
+    if (puntos != null) {
+      await _db.updateAsignacion(assignment.copyWith(puntosOtorgados: puntos));
+    }
+    return puntos;
+  }
+
+  Future<void> _guardarPuntosHistoricos(int tareaId, int puntos) async {
+    final asignaciones = await _db.getAsignacionesPorTarea(tareaId);
+    for (final asignacion in asignaciones) {
+      if (asignacion.aprobada && asignacion.puntosOtorgados == null) {
+        await _db.updateAsignacion(
+          asignacion.copyWith(puntosOtorgados: puntos),
+        );
+      }
+    }
+  }
+
   /// Notifica a todas las vistas que recarguen sus datos (pull-to-refresh).
   void refrescar() => notifyListeners();
 
@@ -324,10 +365,7 @@ class AppProvider extends ChangeNotifier {
     bool soloActivos = true,
     bool incluirAdmin = false,
   }) =>
-      _db.getIntegrantes(
-        soloActivos: soloActivos,
-        incluirAdmin: incluirAdmin,
-      );
+      _db.getIntegrantes(soloActivos: soloActivos, incluirAdmin: incluirAdmin);
 
   /// Busca un usuario por id (sin marcar sesión).
   Future<User?> buscarUsuario(int id) => _db.getUserById(id);
@@ -344,12 +382,9 @@ class AppProvider extends ChangeNotifier {
     final key = 'hq_admin_bono_${user.id}';
     if (prefs.getString(key) == clave) return 0;
     const bono = 10;
-    final nuevosPuntos = user.puntos + bono;
-    final nuevoNivel = GamificationService.nivelPara(nuevosPuntos);
-    await _db.updateUsuario(
-      user.copyWith(puntos: nuevosPuntos, nivel: nuevoNivel),
-    );
-    _usuarioActual = user.copyWith(puntos: nuevosPuntos, nivel: nuevoNivel);
+    final actualizado = _sumarPuntos(user, bono);
+    await _db.updateUsuario(actualizado);
+    _usuarioActual = actualizado;
     await prefs.setString(key, clave);
     notifyListeners();
     return bono;
@@ -540,6 +575,10 @@ class AppProvider extends ChangeNotifier {
     Task t, {
     List<int> integrantesIds = const [],
   }) async {
+    final anterior = await _db.getTareaById(t.id!);
+    if (anterior != null) {
+      await _guardarPuntosHistoricos(t.id!, anterior.puntos);
+    }
     await _db.updateTarea(t);
     if (integrantesIds.isNotEmpty) {
       final asignacionesActuales = await _db.getAsignacionesPorTarea(t.id!);
@@ -562,6 +601,10 @@ class AppProvider extends ChangeNotifier {
   }
 
   Future<void> eliminarTarea(int id) async {
+    final tarea = await _db.getTareaById(id);
+    if (tarea != null) {
+      await _guardarPuntosHistoricos(id, tarea.puntos);
+    }
     // Si la tarea tenía castigos automáticos, se revierten al eliminarla
     // (se devuelven los puntos que se descontaron).
     final castigos = await _db.getCastigos();
@@ -569,11 +612,10 @@ class AppProvider extends ChangeNotifier {
       if (c.tipo == 'tarea' && c.tareaId == id) {
         final user = await _db.getUserById(c.usuarioId);
         if (user != null) {
-          final nuevos = user.puntos + c.puntos;
           await _db.updateUsuario(
             user.copyWith(
-              puntos: nuevos,
-              nivel: GamificationService.nivelPara(nuevos),
+              puntos: user.puntos + c.puntos,
+              nivel: GamificationService.nivelPara(user.puntosTotales),
             ),
           );
           if (_usuarioActual?.id == c.usuarioId) {
@@ -667,9 +709,7 @@ class AppProvider extends ChangeNotifier {
     final uid = _usuarioActual?.id;
     if (uid == null || !enVentanaRobo()) return false;
     final robables = await tareasRobables();
-    final hit = robables
-        .where((r) => r.$2.id == asignacionId)
-        .firstOrNull;
+    final hit = robables.where((r) => r.$2.id == asignacionId).firstOrNull;
     if (hit == null) return false;
     final (t, a, dueno) = hit;
     final yo = await _db.getUserById(uid);
@@ -682,13 +722,10 @@ class AppProvider extends ChangeNotifier {
     final frenesi = await retoFrenesiActivo();
     final mult = frenesi?.multiplicador ?? 1;
     final gano = t.puntos * mult;
-    final nuevosPuntos = yo.puntos + gano;
-    final nuevoNivel = GamificationService.nivelPara(nuevosPuntos);
-    await _db.updateUsuario(
-      yo.copyWith(puntos: nuevosPuntos, nivel: nuevoNivel),
-    );
+    final actualizado = _sumarPuntos(yo, gano);
+    await _db.updateUsuario(actualizado);
     if (_usuarioActual?.id == uid) {
-      _usuarioActual = yo.copyWith(puntos: nuevosPuntos, nivel: nuevoNivel);
+      _usuarioActual = actualizado;
     }
     await _acumularEnFrenesi(frenesi, uid, gano);
     unawaited(
@@ -752,19 +789,21 @@ class AppProvider extends ChangeNotifier {
     final mult = frenesi?.multiplicador ?? 1;
     final puntosTarea = tarea.puntos * mult;
 
-    final nuevosPuntos =
-        user.puntos + puntosTarea + GamificationService.bonusRacha(racha);
-    final nuevoNivel = GamificationService.nivelPara(nuevosPuntos);
-
-    await _db.updateUsuario(
-      user.copyWith(puntos: nuevosPuntos, nivel: nuevoNivel, racha: racha),
+    final puntosOtorgados = puntosTarea + GamificationService.bonusRacha(racha);
+    await _db.updateAsignacion(
+      aprobada.copyWith(puntosOtorgados: puntosOtorgados),
     );
+    final actualizado = _sumarPuntos(
+      user,
+      puntosOtorgados,
+    ).copyWith(racha: racha);
+    await _db.updateUsuario(actualizado);
 
     final tareas = await _db.getTareas();
     final catalogoInsignias = await _db.getInsignias();
     final ganadas = GamificationService.insigniasGanadas(
       catalogo: catalogoInsignias,
-      puntos: nuevosPuntos,
+      puntos: actualizado.puntosTotales,
       racha: racha,
       aprobadas: historial,
       tareas: tareas,
@@ -878,15 +917,19 @@ class AppProvider extends ChangeNotifier {
     final user = _usuarioActual!;
     if (user.puntos < r.costoPuntos) return false;
     final nuevosPuntos = user.puntos - r.costoPuntos;
-    final nuevoNivel = GamificationService.nivelPara(nuevosPuntos);
     await _db.updateUsuario(
-      user.copyWith(puntos: nuevosPuntos, nivel: nuevoNivel),
+      user.copyWith(
+        puntos: nuevosPuntos,
+        nivel: GamificationService.nivelPara(user.puntosTotales),
+      ),
     );
     await _db.insertCanje(
       Redemption(
         usuarioId: user.id!,
         recompensaId: r.id!,
         fecha: DateTime.now(),
+        recompensaNombre: r.nombre,
+        costoPuntos: r.costoPuntos,
       ),
     );
     final admins = (await _db.getUsuarios()).where((u) => u.esAdmin);
@@ -894,12 +937,15 @@ class AppProvider extends ChangeNotifier {
       unawaited(
         _db.enviarPush(
           a.id!,
-          'Canje solicitado',
-          '${user.nombre} canjeó: ${r.nombre}',
+          'Canje por aprobar',
+          '${user.nombre} solicitó "${r.nombre}".',
         ),
       );
     }
-    _usuarioActual = user.copyWith(puntos: nuevosPuntos, nivel: nuevoNivel);
+    _usuarioActual = user.copyWith(
+      puntos: nuevosPuntos,
+      nivel: GamificationService.nivelPara(user.puntosTotales),
+    );
     notifyListeners();
     return true;
   }
@@ -910,7 +956,15 @@ class AppProvider extends ChangeNotifier {
     final map = {for (final r in recompensas) r.id: r};
     final result = <(Redemption, Reward)>[];
     for (final c in canjes) {
-      final r = map[c.recompensaId];
+      final r =
+          map[c.recompensaId] ??
+          (c.recompensaNombre == null
+              ? null
+              : Reward(
+                  id: c.recompensaId,
+                  nombre: c.recompensaNombre!,
+                  costoPuntos: c.costoPuntos ?? 0,
+                ));
       if (r != null) result.add((c, r));
     }
     return result;
@@ -925,12 +979,23 @@ class AppProvider extends ChangeNotifier {
     final mapU = {for (final u in usuarios) u.id: u};
     final result = <(Redemption, Reward, User)>[];
     for (final c in canjes) {
-      final r = mapR[c.recompensaId];
+      final r =
+          mapR[c.recompensaId] ??
+          Reward(
+            id: c.recompensaId,
+            nombre: c.recompensaNombre ?? 'Recompensa eliminada',
+            costoPuntos: c.costoPuntos ?? 0,
+          );
       final u = mapU[c.usuarioId];
-      if (r != null && u != null) result.add((c, r, u));
+      if (u != null) result.add((c, r, u));
     }
     result.sort((a, b) => b.$1.fecha.compareTo(a.$1.fecha));
     return result;
+  }
+
+  Future<int> canjesPendientes() async {
+    final canjes = await _db.getCanjes();
+    return canjes.where((canje) => canje.estado == 'pendiente').length;
   }
 
   /// El admin marca una recompensa canjeada como entregada.
@@ -939,11 +1004,12 @@ class AppProvider extends ChangeNotifier {
     final c = canjes.where((x) => x.id == canjeId).firstOrNull;
     if (c == null) return;
     await _db.updateCanje(c.copyWith(estado: 'entregada'));
+    final nombreRecompensa = c.recompensaNombre ?? 'la recompensa';
     unawaited(
       _db.enviarPush(
         c.usuarioId,
-        'Recompensa entregada',
-        'Tu canje fue entregado',
+        'Canje aprobado',
+        'El administrador aprobó tu canje de "$nombreRecompensa".',
       ),
     );
     notifyListeners();
@@ -1010,7 +1076,11 @@ class AppProvider extends ChangeNotifier {
       hoy.month,
       hoy.day,
     ).subtract(Duration(days: dias - 1));
-    final fin = hoy.add(const Duration(days: 1));
+    final fin = DateTime(
+      hoy.year,
+      hoy.month,
+      hoy.day,
+    ).add(const Duration(days: 1));
     final aps = await _db.getAsignacionesAprobadasDeUsuarioEnRango(
       usuarioId,
       inicio,
@@ -1027,7 +1097,11 @@ class AppProvider extends ChangeNotifier {
       hoy.month,
       hoy.day,
     ).subtract(Duration(days: dias - 1));
-    final fin = hoy.add(const Duration(days: 1));
+    final fin = DateTime(
+      hoy.year,
+      hoy.month,
+      hoy.day,
+    ).add(const Duration(days: 1));
     final aps = await _db.getAsignacionesAprobadasEnRango(inicio, fin);
     return _agruparPuntosPorDia(aps, dias: dias, inicio: inicio);
   }
@@ -1038,12 +1112,21 @@ class AppProvider extends ChangeNotifier {
     required DateTime inicio,
   }) async {
     final porDia = <DateTime, int>{};
+    final tareas = await _db.getTareas();
+    final tareasPorId = {for (final tarea in tareas) tarea.id: tarea};
     for (final a in aps) {
-      final t = await _db.getTareaById(a.tareaId);
-      if (t == null || a.fechaAprobada == null) continue;
-      final dia = a.fechaAprobada!;
+      if (a.fechaAprobada == null) continue;
+      final puntosOtorgados =
+          a.puntosOtorgados ?? tareasPorId[a.tareaId]?.puntos;
+      if (puntosOtorgados == null) continue;
+      final dia = a.fechaAprobada!.toLocal();
       final clave = DateTime(dia.year, dia.month, dia.day);
-      porDia[clave] = (porDia[clave] ?? 0) + t.puntos;
+      if (a.puntosOtorgados == null) {
+        await _db.updateAsignacion(
+          a.copyWith(puntosOtorgados: puntosOtorgados),
+        );
+      }
+      porDia[clave] = (porDia[clave] ?? 0) + puntosOtorgados;
     }
     return [
       for (var i = 0; i < dias; i++)
@@ -1073,15 +1156,15 @@ class AppProvider extends ChangeNotifier {
     var puntosSemana = 0;
     var puntosHoy = 0;
     for (final a in aprobadas) {
-      final t = tareasPorId[a.tareaId];
-      if (t == null) continue;
-      puntosSemana += t.puntos;
+      final puntos = await _puntosDeAsignacion(a, tareasPorId);
+      if (puntos == null) continue;
+      puntosSemana += puntos;
       final fa = a.fechaAprobada;
       if (fa != null &&
           fa.year == hoyInicio.year &&
           fa.month == hoyInicio.month &&
           fa.day == hoyInicio.day) {
-        puntosHoy += t.puntos;
+        puntosHoy += puntos;
       }
     }
 
@@ -1139,6 +1222,9 @@ class AppProvider extends ChangeNotifier {
 
   Future<List<(User, int)>> ranking(String periodo) async {
     final usuarios = await _db.getIntegrantes();
+    final tareasPorId = {
+      for (final tarea in await _db.getTareas()) tarea.id: tarea,
+    };
     final hoy = DateTime.now();
     final inicio = periodo == 'semanal'
         ? hoy.subtract(const Duration(days: 6))
@@ -1168,8 +1254,7 @@ class AppProvider extends ChangeNotifier {
       );
       var pts = 0;
       for (final a in aps) {
-        final t = await _db.getTareaById(a.tareaId);
-        pts += t?.puntos ?? 0;
+        pts += await _puntosDeAsignacion(a, tareasPorId) ?? 0;
       }
       pts += retosPuntos[u.id!] ?? 0;
       resultado.add((u, pts));
@@ -1185,6 +1270,9 @@ class AppProvider extends ChangeNotifier {
     DateTime fin,
   ) async {
     final usuarios = await _db.getIntegrantes();
+    final tareasPorId = {
+      for (final tarea in await _db.getTareas()) tarea.id: tarea,
+    };
     final retos = await _db.getRetos();
     final retosPuntos = <int, int>{};
     for (final r in retos) {
@@ -1208,8 +1296,7 @@ class AppProvider extends ChangeNotifier {
       );
       var pts = 0;
       for (final a in aps) {
-        final t = await _db.getTareaById(a.tareaId);
-        pts += t?.puntos ?? 0;
+        pts += await _puntosDeAsignacion(a, tareasPorId) ?? 0;
       }
       pts += retosPuntos[u.id!] ?? 0;
       final castigos = await _db.getCastigosDeUsuario(u.id!);
@@ -1290,7 +1377,7 @@ class AppProvider extends ChangeNotifier {
       await _db.updateUsuario(
         user.copyWith(
           puntos: user.puntos - _puntosCastigo(t),
-          nivel: GamificationService.nivelPara(user.puntos - _puntosCastigo(t)),
+          nivel: GamificationService.nivelPara(user.puntosTotales),
         ),
       );
       if (_usuarioActual?.id == a.usuarioId) {
@@ -1311,13 +1398,7 @@ class AppProvider extends ChangeNotifier {
   }) async {
     final user = await _db.getUserById(usuarioId);
     if (user == null) return;
-    final nuevosPuntos = user.puntos - puntos;
-    await _db.updateUsuario(
-      user.copyWith(
-        puntos: nuevosPuntos,
-        nivel: GamificationService.nivelPara(nuevosPuntos),
-      ),
-    );
+    await _db.updateUsuario(_descontarPuntos(user, puntos));
     await _db.insertCastigo(
       Castigo(
         usuarioId: usuarioId,
@@ -1464,10 +1545,12 @@ class AppProvider extends ChangeNotifier {
       modo: modo,
       fechaLluvia: diaLluvia,
       plazoIndividual: plazo,
-      ventanaInicio:
-          (modo == Reto.modoFrenesi || modo == Reto.modoLluvia) ? vinicio : null,
-      ventanaFin:
-          (modo == Reto.modoFrenesi || modo == Reto.modoLluvia) ? vfin : null,
+      ventanaInicio: (modo == Reto.modoFrenesi || modo == Reto.modoLluvia)
+          ? vinicio
+          : null,
+      ventanaFin: (modo == Reto.modoFrenesi || modo == Reto.modoLluvia)
+          ? vfin
+          : null,
       multiplicador: modo == Reto.modoFrenesi ? multiplicador : 1,
     );
     final id = await _db.insertReto(creado);
@@ -1577,7 +1660,8 @@ class AppProvider extends ChangeNotifier {
     final result = <Task>[];
     for (final t in tareas) {
       if (!t.activa) continue;
-      final esDelDia = t.dia == dia ||
+      final esDelDia =
+          t.dia == dia ||
           (t.fechaLimite != null &&
               t.fechaLimite!.year == fin.year &&
               t.fechaLimite!.month == fin.month &&
@@ -1625,15 +1709,13 @@ class AppProvider extends ChangeNotifier {
         fechaAsignada: ahora,
         fechaCompletada: ahora,
         fechaAprobada: ahora,
+        puntosOtorgados: tarea.puntos,
       ),
     );
-    final nuevosPuntos = yo.puntos + tarea.puntos;
-    final nuevoNivel = GamificationService.nivelPara(nuevosPuntos);
-    await _db.updateUsuario(
-      yo.copyWith(puntos: nuevosPuntos, nivel: nuevoNivel),
-    );
+    final actualizadoUsuario = _sumarPuntos(yo, tarea.puntos);
+    await _db.updateUsuario(actualizadoUsuario);
     if (_usuarioActual?.id == uid) {
-      _usuarioActual = yo.copyWith(puntos: nuevosPuntos, nivel: nuevoNivel);
+      _usuarioActual = actualizadoUsuario;
     }
 
     // Registra la marca (la más antigua = primera en llegar) y el
@@ -1642,11 +1724,9 @@ class AppProvider extends ChangeNotifier {
     marcas.putIfAbsent(uid, () => ahora.millisecondsSinceEpoch);
     final acumulados = {...reto.acumulados};
     acumulados[uid] = (acumulados[uid] ?? 0) + tarea.puntos;
-    final actualizado = await _db
-        .getRetos()
-        .then(
-          (lista) => lista.firstWhere((r) => r.id == reto.id, orElse: () => reto),
-        );
+    final actualizado = await _db.getRetos().then(
+      (lista) => lista.firstWhere((r) => r.id == reto.id, orElse: () => reto),
+    );
     await _db.updateReto(
       actualizado.copyWith(
         marcas: marcas,
@@ -1707,8 +1787,8 @@ class AppProvider extends ChangeNotifier {
       final prefs = await SharedPreferences.getInstance();
       final tsVisto = prefs.getInt('hq_robo_vista_$uid') ?? 0;
       final claveRetos = 'hq_reto_robos_vista_$uid';
-      final retosVistos =
-          (prefs.getStringList(claveRetos) ?? const <String>[]).toSet();
+      final retosVistos = (prefs.getStringList(claveRetos) ?? const <String>[])
+          .toSet();
       final ahora = DateTime.now();
       final avisos = <AvisoRobo>[];
 
@@ -1747,10 +1827,7 @@ class AppProvider extends ChangeNotifier {
       }
 
       if (avisos.isNotEmpty) {
-        await prefs.setInt(
-          'hq_robo_vista_$uid',
-          ahora.millisecondsSinceEpoch,
-        );
+        await prefs.setInt('hq_robo_vista_$uid', ahora.millisecondsSinceEpoch);
         await prefs.setStringList(claveRetos, retosVistos.toList());
       }
       return avisos;
@@ -1779,25 +1856,26 @@ class AppProvider extends ChangeNotifier {
     for (final uid in candidatos.difference(pagados)) {
       final user = await _db.getUserById(uid);
       if (user == null) continue;
-      final nuevosPuntos = user.puntos + reto.puntos;
-      final nuevoNivel = GamificationService.nivelPara(nuevosPuntos);
-      await _db.updateUsuario(
-        user.copyWith(puntos: nuevosPuntos, nivel: nuevoNivel),
-      );
+      final actualizado = _sumarPuntos(user, reto.puntos);
+      await _db.updateUsuario(actualizado);
       pagados.add(uid);
       if (_usuarioActual?.id == uid) {
-        _usuarioActual = user.copyWith(puntos: nuevosPuntos, nivel: nuevoNivel);
+        _usuarioActual = actualizado;
       }
     }
     await _db.updateReto(
-      reto.copyWith(aprobados: pagados.toList(), finalizado: finalizar || reto.finalizado),
+      reto.copyWith(
+        aprobados: pagados.toList(),
+        finalizado: finalizar || reto.finalizado,
+      ),
     );
   }
 
   /// Otorga los puntos bonus del reto a sus candidatos y lo marca
   /// finalizado. Usado tanto por la aprobación manual del admin como por el
   /// vencimiento automático.
-  Future<void> _otorgarPuntosReto(Reto reto) => _pagarReto(reto, finalizar: true);
+  Future<void> _otorgarPuntosReto(Reto reto) =>
+      _pagarReto(reto, finalizar: true);
 
   /// El admin aprueba el reto: otorga los puntos bonus a quienes lo cumplieron.
   /// Guarda doble pago: un reto ya finalizado no se vuelve a pagar (y
@@ -1849,11 +1927,10 @@ class AppProvider extends ChangeNotifier {
     // Devolver los puntos.
     final user = await _db.getUserById(castigo.usuarioId);
     if (user != null) {
-      final nuevosPuntos = user.puntos + castigo.puntos;
       await _db.updateUsuario(
         user.copyWith(
-          puntos: nuevosPuntos,
-          nivel: GamificationService.nivelPara(nuevosPuntos),
+          puntos: user.puntos + castigo.puntos,
+          nivel: GamificationService.nivelPara(user.puntosTotales),
         ),
       );
       if (_usuarioActual?.id == castigo.usuarioId) {

@@ -58,7 +58,7 @@ class _PerfilScreenState extends State<PerfilScreen> {
   void _cargarLiga() {
     final user = context.read<AppProvider>().usuarioActual;
     if (user == null) return;
-    setState(() => _liga = GamificationService.ligaDe(user.puntos));
+    setState(() => _liga = GamificationService.ligaDe(user.puntosTotales));
   }
 
   @override
@@ -78,6 +78,7 @@ class _PerfilScreenState extends State<PerfilScreen> {
           m.foto == u.foto &&
           m.fotoLocal == u.fotoLocal &&
           m.puntos == u.puntos &&
+          m.puntosTotales == u.puntosTotales &&
           m.nivel == u.nivel &&
           m.mascota == u.mascota &&
           m.racha == u.racha) {
@@ -115,7 +116,7 @@ class _PerfilScreenState extends State<PerfilScreen> {
       await app.editarUsuario(user.copyWith(mascota: nueva.name));
       return;
     }
-    final nivel = GamificationService.nivelPara(user.puntos);
+    final nivel = GamificationService.nivelPara(user.puntosTotales);
     final historial = await app.historialDe(user.id!);
     final insignias = await app.insigniasDe(user.id!);
     if (!mounted) return;
@@ -123,7 +124,7 @@ class _PerfilScreenState extends State<PerfilScreen> {
     final nInsignias = insignias.length;
     final desbloqueadas = mascotasDesbloqueadas(
       nivel: nivel,
-      puntos: user.puntos,
+      puntos: user.puntosTotales,
       tareas: tareas,
       insignias: nInsignias,
     );
@@ -132,7 +133,7 @@ class _PerfilScreenState extends State<PerfilScreen> {
       actual,
       desbloqueadas: desbloqueadas,
       nivel: nivel,
-      puntos: user.puntos,
+      puntos: user.puntosTotales,
       tareas: tareas,
       insignias: nInsignias,
     );
@@ -222,9 +223,8 @@ class _PerfilScreenState extends State<PerfilScreen> {
       final app = context.read<AppProvider>();
       final user = app.usuarioActual;
       if (user == null) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Subiendo foto…')));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('Subiendo foto…')));
       final local = await PhotoStore.guardarBytes(bytes);
       final url = await UploadClient().subirFoto(bytes, mime: mime);
       if (!mounted) return;
@@ -241,9 +241,8 @@ class _PerfilScreenState extends State<PerfilScreen> {
         user.copyWith(foto: url ?? user.foto, fotoLocal: local),
       );
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('¡Foto actualizada!')));
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('¡Foto actualizada!')));
       }
     } catch (e) {
       debugPrint('Error al elegir foto: $e');
@@ -447,8 +446,8 @@ class _BotonIcono extends StatelessWidget {
         foregroundColor: c,
         backgroundColor: superficieTema(context),
         side: BorderSide(
-          color: color ??
-              (esOscuro(context) ? Colors.white24 : AppColors.linea),
+          color:
+              color ?? (esOscuro(context) ? Colors.white24 : AppColors.linea),
           width: 1.5,
         ),
         padding: EdgeInsets.zero,
@@ -474,7 +473,7 @@ class _MetricasRow extends StatelessWidget {
         ? <(String, String, IconData, Color, Widget)>[
             (
               'XP',
-              '${user.puntos}',
+              '${user.puntosTotales}',
               Icons.bolt,
               verdeFondoTema(context),
               Bolt3D(size: 34),
@@ -497,7 +496,7 @@ class _MetricasRow extends StatelessWidget {
         : <(String, String, IconData, Color, Widget)>[
             (
               'XP',
-              '${user.puntos}',
+              '${user.puntosTotales}',
               Icons.bolt,
               verdeFondoTema(context),
               Bolt3D(size: 34),
@@ -671,7 +670,7 @@ class _MedalleroSectionState extends State<_MedalleroSection> {
     final asignaciones = historial.map((h) => h.$2).toList();
     final detalle = GamificationService.detalleInsignias(
       catalogo: catalogo,
-      puntos: widget.user.puntos,
+      puntos: widget.user.puntosTotales,
       racha: widget.user.racha,
       aprobadas: asignaciones,
       tareas: tareas,
@@ -892,9 +891,7 @@ class _CastigosSectionState extends State<_CastigosSection> {
                   fontSize: 12,
                   fontWeight: FontWeight.w800,
                   color: _dias == valor
-                      ? (esOscuro(context)
-                          ? Colors.redAccent
-                          : AppColors.rojo)
+                      ? (esOscuro(context) ? Colors.redAccent : AppColors.rojo)
                       : textoSuaveTema(context),
                 ),
                 visualDensity: VisualDensity.compact,
@@ -947,9 +944,7 @@ class _CastigosSectionState extends State<_CastigosSection> {
             TextButton(
               onPressed: () => setState(() => _expandido = !_expandido),
               child: Text(
-                _expandido
-                    ? 'Ver menos'
-                    : 'Ver los ${lista.length} castigos',
+                _expandido ? 'Ver menos' : 'Ver los ${lista.length} castigos',
                 style: const TextStyle(fontWeight: FontWeight.w800),
               ),
             ),

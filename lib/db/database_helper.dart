@@ -15,6 +15,7 @@ import '../models/reward.dart';
 import '../models/tarea_catalogo.dart';
 import '../models/task.dart';
 import '../models/user.dart';
+import '../services/gamification_service.dart';
 import '../services/security_service.dart';
 import 'sync_client.dart';
 
@@ -338,7 +339,8 @@ class DatabaseHelper {
             // producía hashes inválidos y bloqueaba el login de la cuenta.
             final pwRemoto = ganador['password'];
             final saltRemoto = ganador['salt'];
-            final remotoCompleto = pwRemoto != null &&
+            final remotoCompleto =
+                pwRemoto != null &&
                 '$pwRemoto'.isNotEmpty &&
                 saltRemoto != null &&
                 '$saltRemoto'.isNotEmpty;
@@ -453,9 +455,7 @@ class DatabaseHelper {
     Map<String, Object?> leerMap(Map m, String campo) {
       final raw = m[campo];
       if (raw is! Map) return {};
-      return {
-        for (final e in raw.entries) e.key.toString(): e.value,
-      };
+      return {for (final e in raw.entries) e.key.toString(): e.value};
     }
 
     // `tomas` entra en la lista: en lluvia, si dos dispositivos registran
@@ -1433,7 +1433,10 @@ class DatabaseHelper {
       'color_tema': u.colorTema,
       'nivel': u.nivel,
       'puntos': u.puntos,
+      'puntos_totales': u.puntosTotales,
       'racha': u.racha,
+      'fecha_nacimiento': u.fechaNacimiento?.toIso8601String(),
+      'insignias_obtenidas': u.insigniasObtenidas,
       // Nunca enviar password/salt vacíos: el servidor solo preserva sus
       // hashes cuando el campo viene ausente (null). Si viajan como '' un
       // dispositivo sin contraseñas locales (p. ej. recién instalado) borra
@@ -1448,6 +1451,8 @@ class DatabaseHelper {
   }
 
   User _mapToUser(Map map) {
+    final puntos = (map['puntos'] as int?) ?? 0;
+    final puntosTotales = _puntosTotales(map, puntos);
     return User(
       id: map['id'] as int?,
       nombre: (map['nombre'] as String?) ?? '',
@@ -1456,16 +1461,51 @@ class DatabaseHelper {
       fotoLocal: (map['foto_local'] as String?) ?? '',
       edad: (map['edad'] as int?) ?? 0,
       colorTema: (map['color_tema'] as String?) ?? '',
-      nivel: (map['nivel'] as int?) ?? 1,
-      puntos: (map['puntos'] as int?) ?? 0,
+      nivel: GamificationService.nivelPara(puntosTotales),
+      puntos: puntos,
+      puntosTotales: puntosTotales,
       racha: (map['racha'] as int?) ?? 0,
+      fechaNacimiento: map['fecha_nacimiento'] != null
+          ? DateTime.tryParse(map['fecha_nacimiento'] as String)
+          : null,
       password: (map['password'] as String?) ?? '',
       salt: (map['salt'] as String?) ?? '',
       rol: (map['rol'] as String?) ?? 'integrante',
       activo: (map['activo'] as int? ?? 1) == 1,
       pin: (map['pin'] as String?) ?? '',
+      insigniasObtenidas: (map['insignias_obtenidas'] as List?)?.cast<int>(),
       mascota: (map['mascota'] as String?) ?? '',
     );
+  }
+
+  int _puntosTotales(Map usuario, int puntosDisponibles) {
+    final guardados = usuario['puntos_totales'] as int?;
+    if (guardados != null) return guardados;
+
+    // Los datos antiguos solo guardaban el saldo; recupera lo gastado y los
+    // castigos aún vigentes para migrar el progreso acumulado.
+    final usuarioId = usuario['id'];
+    final recompensas = _box(_boxRecompensas).items;
+    final puntosCanjeados = _box(_boxCanjes).items
+        .where((canje) => canje['usuario_id'] == usuarioId)
+        .fold<int>(0, (total, canje) {
+          final costoGuardado = canje['costo_puntos'] as int?;
+          if (costoGuardado != null) return total + costoGuardado;
+          final recompensaId = canje['recompensa_id'];
+          for (final recompensa in recompensas) {
+            if (recompensa['id'] == recompensaId) {
+              return total + (recompensa['costo_puntos'] as int? ?? 0);
+            }
+          }
+          return total;
+        });
+    final castigos = _box(_boxCastigos).items
+        .where((castigo) => castigo['usuario_id'] == usuarioId)
+        .fold<int>(
+          0,
+          (total, castigo) => total + (castigo['puntos'] as int? ?? 0),
+        );
+    return max(0, puntosDisponibles + puntosCanjeados + castigos);
   }
 
   Map<String, dynamic> _castigoToMap(Castigo c) {
@@ -1529,6 +1569,7 @@ class DatabaseHelper {
       'fecha_completada': a.fechaCompletada?.toIso8601String(),
       'fecha_asignada': a.fechaAsignada?.toIso8601String(),
       'fecha_aprobada': a.fechaAprobada?.toIso8601String(),
+      'puntos_otorgados': a.puntosOtorgados,
     };
   }
 
@@ -1549,6 +1590,7 @@ class DatabaseHelper {
       fechaAprobada: map['fecha_aprobada'] != null
           ? DateTime.tryParse(map['fecha_aprobada'] as String)
           : null,
+      puntosOtorgados: map['puntos_otorgados'] as int?,
     );
   }
 
@@ -1581,6 +1623,8 @@ class DatabaseHelper {
       'recompensa_id': r.recompensaId,
       'fecha': r.fecha.toIso8601String(),
       'estado': r.estado,
+      'recompensa_nombre': r.recompensaNombre,
+      'costo_puntos': r.costoPuntos,
     };
   }
 
@@ -1591,6 +1635,8 @@ class DatabaseHelper {
       recompensaId: map['recompensa_id'] as int,
       fecha: DateTime.tryParse(map['fecha'] as String) ?? DateTime.now(),
       estado: (map['estado'] as String?) ?? 'pendiente',
+      recompensaNombre: map['recompensa_nombre'] as String?,
+      costoPuntos: map['costo_puntos'] as int?,
     );
   }
 
@@ -2118,8 +2164,7 @@ class DatabaseHelper {
     final box = _box(_boxAsignaciones);
     for (var i = 0; i < box.items.length; i++) {
       final m = box.items[i];
-      if (m['usuario_id'] == a.usuarioId &&
-          m['tarea_id'] == a.tareaId) {
+      if (m['usuario_id'] == a.usuarioId && m['tarea_id'] == a.tareaId) {
         final nuevo = _assignmentToMap(a);
         _sellar(nuevo);
         box.items[i] = nuevo;
@@ -2158,8 +2203,7 @@ class DatabaseHelper {
     final box = _box(_boxAsignaciones);
     for (var i = 0; i < box.items.length; i++) {
       final m = box.items[i];
-      if (m['usuario_id'] == usuarioId &&
-          m['tarea_id'] == tareaId) {
+      if (m['usuario_id'] == usuarioId && m['tarea_id'] == tareaId) {
         return _mapToAssignment(m);
       }
     }
@@ -2207,7 +2251,7 @@ class DatabaseHelper {
         .where(
           (a) =>
               a.fechaAprobada != null &&
-              a.fechaAprobada!.isAfter(inicio) &&
+              !a.fechaAprobada!.isBefore(inicio) &&
               a.fechaAprobada!.isBefore(fin),
         )
         .toList();
@@ -2225,7 +2269,7 @@ class DatabaseHelper {
         .where(
           (a) =>
               a.fechaAprobada != null &&
-              a.fechaAprobada!.isAfter(inicio) &&
+              !a.fechaAprobada!.isBefore(inicio) &&
               a.fechaAprobada!.isBefore(fin),
         )
         .toList();
@@ -2264,14 +2308,6 @@ class DatabaseHelper {
     for (var i = box.items.length - 1; i >= 0; i--) {
       final m = box.items[i];
       if (m['id'] == id) {
-        final canjes = _box(_boxCanjes);
-        for (var j = canjes.items.length - 1; j >= 0; j--) {
-          final c = canjes.items[j];
-          if (c['recompensa_id'] == id) {
-            _tombstone(_boxCanjes, c);
-            canjes.items.removeAt(j);
-          }
-        }
         _tombstone(_boxRecompensas, m);
         box.items.removeAt(i);
         await _guardarCache();
@@ -2648,10 +2684,10 @@ class DatabaseHelper {
     final aprobadas = asignaciones.items
         .where((m) => m['aprobada'] == 1)
         .length;
-    final totalPuntos = usuarios.items.fold<int>(
-      0,
-      (sum, m) => sum + (m['puntos'] as int? ?? 0),
-    );
+    final totalPuntos = usuarios.items.fold<int>(0, (sum, m) {
+      final puntos = m['puntos'] as int? ?? 0;
+      return sum + _puntosTotales(m, puntos);
+    });
 
     return {
       'usuarios': integrantes,

@@ -51,6 +51,8 @@ class _AdminRewardsView extends StatefulWidget {
 
 class _AdminRewardsViewState extends State<_AdminRewardsView> {
   List<Reward> _recompensas = [];
+  int _canjesPendientes = 0;
+  bool _datosCargados = false;
   bool _cargando = true;
 
   @override
@@ -70,7 +72,37 @@ class _AdminRewardsViewState extends State<_AdminRewardsView> {
     if (!mounted) return;
     setState(() => _cargando = true);
     try {
-      _recompensas = await widget.app.listarRecompensas();
+      final recompensas = await widget.app.listarRecompensas();
+      final canjes = await widget.app.canjesFamilia();
+      if (!mounted) return;
+      final pendientes = canjes.where((c) => c.$1.estado == 'pendiente').length;
+      final nuevosCanjes = _datosCargados && pendientes > _canjesPendientes;
+      setState(() {
+        _recompensas = recompensas;
+        _canjesPendientes = pendientes;
+        _datosCargados = true;
+      });
+      if (nuevosCanjes) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                pendientes == 1
+                    ? 'Hay un canje nuevo pendiente de aprobación.'
+                    : 'Hay $pendientes canjes pendientes de aprobación.',
+              ),
+              action: SnackBarAction(
+                label: 'Ver',
+                onPressed: () => showDialog(
+                  context: context,
+                  builder: (_) => _EntregaCanjesDialog(app: widget.app),
+                ),
+              ),
+            ),
+          );
+        });
+      }
     } finally {
       if (mounted) setState(() => _cargando = false);
     }
@@ -173,7 +205,11 @@ class _AdminRewardsViewState extends State<_AdminRewardsView> {
       children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
-          child: ReferenciaTitulo('CANJEA TUS PUNTOS', 'Premios', icono: Icono3DTipo.regalo),
+          child: ReferenciaTitulo(
+            'CANJEA TUS PUNTOS',
+            'Premios',
+            icono: Icono3DTipo.regalo,
+          ),
         ),
         Padding(
           padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
@@ -188,8 +224,12 @@ class _AdminRewardsViewState extends State<_AdminRewardsView> {
               ),
               const SizedBox(width: 10),
               DuoButton(
-                label: 'Historial',
-                icon: Icons.history,
+                label: _canjesPendientes > 0
+                    ? 'Canjes ($_canjesPendientes)'
+                    : 'Canjes',
+                icon: _canjesPendientes > 0
+                    ? Icons.notifications_active
+                    : Icons.history,
                 fullWidth: false,
                 onPressed: () => showDialog(
                   context: context,
@@ -452,16 +492,103 @@ class _EntregaCanjesDialog extends StatefulWidget {
 
 class _EntregaCanjesDialogState extends State<_EntregaCanjesDialog> {
   List<(Redemption, Reward, User)> _canjes = [];
+  final Set<int> _procesando = {};
+  bool _cargando = true;
 
   @override
   void initState() {
     super.initState();
+    widget.app.addListener(_onChange);
     _cargar();
   }
 
+  void _onChange() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _cargar();
+    });
+  }
+
   Future<void> _cargar() async {
-    final canjes = await widget.app.canjesFamilia();
-    if (mounted) setState(() => _canjes = canjes);
+    try {
+      final canjes = await widget.app.canjesFamilia();
+      if (mounted) setState(() => _canjes = canjes);
+    } finally {
+      if (mounted) setState(() => _cargando = false);
+    }
+  }
+
+  @override
+  void dispose() {
+    widget.app.removeListener(_onChange);
+    super.dispose();
+  }
+
+  Widget _listaCanjes(
+    List<(Redemption, Reward, User)> canjes, {
+    required bool pendientes,
+  }) {
+    if (canjes.isEmpty) {
+      return Center(
+        child: Text(
+          pendientes
+              ? 'No tienes canjes pendientes.'
+              : 'Los canjes aprobados aparecerán aquí.',
+          style: TextStyle(color: textoSuaveTema(context)),
+        ),
+      );
+    }
+    return ListView.separated(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      itemCount: canjes.length,
+      separatorBuilder: (_, _) => const Divider(height: 1),
+      itemBuilder: (context, i) {
+        final canje = canjes[i];
+        final id = canje.$1.id!;
+        final fecha = canje.$1.fecha;
+        return ListTile(
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 8,
+            vertical: 4,
+          ),
+          leading: CircleAvatar(
+            backgroundColor: pendientes
+                ? AppColors.amarilloFondo
+                : AppColors.verdeFondo,
+            child: Icon(
+              pendientes ? Icons.card_giftcard : Icons.check,
+              color: pendientes ? AppColors.amarilloOscuro : AppColors.verde,
+            ),
+          ),
+          title: Text(
+            canje.$2.nombre,
+            style: const TextStyle(fontWeight: FontWeight.w800),
+          ),
+          subtitle: Text(
+            '${canje.$3.nombre} · ${fecha.day}/${fecha.month}/${fecha.year}'
+            '${canje.$1.costoPuntos == null ? '' : ' · ${canje.$1.costoPuntos} monedas'}',
+          ),
+          trailing: pendientes
+              ? DuoButton(
+                  label: _procesando.contains(id) ? 'Guardando' : 'Aprobar',
+                  color: AppColors.verde,
+                  onPressed: _procesando.contains(id)
+                      ? null
+                      : () async {
+                          setState(() => _procesando.add(id));
+                          try {
+                            await widget.app.marcarCanjeEntregado(id);
+                            await _cargar();
+                          } finally {
+                            if (mounted) {
+                              setState(() => _procesando.remove(id));
+                            }
+                          }
+                        },
+                )
+              : const Icon(Icons.verified, color: AppColors.verde),
+        );
+      },
+    );
   }
 
   @override
@@ -469,53 +596,57 @@ class _EntregaCanjesDialogState extends State<_EntregaCanjesDialog> {
     final pendientes = _canjes
         .where((c) => c.$1.estado == 'pendiente')
         .toList();
-    return AlertDialog(
-      title: const Text('Entregar recompensas'),
-      content: SizedBox(
-        width: 420,
-        child: pendientes.isEmpty
-            ? Text(
-                'No hay recompensas pendientes de entregar.',
-                style: TextStyle(color: textoSuaveTema(context)),
-              )
-            : ListView.builder(
-                shrinkWrap: true,
-                itemCount: pendientes.length,
-                itemBuilder: (context, i) {
-                  final c = pendientes[i];
-                  return ListTile(
-                    dense: true,
-                    contentPadding: EdgeInsets.zero,
-                    leading: const Icon(
-                      Icons.card_giftcard,
-                      color: AppColors.azul,
+    final aprobados = _canjes.where((c) => c.$1.estado != 'pendiente').toList();
+    final alto = MediaQuery.sizeOf(context).height * 0.62;
+    return Dialog(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 620),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
+          child: SizedBox(
+            height: alto.clamp(240.0, 560.0).toDouble(),
+            child: DefaultTabController(
+              length: 2,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    'Canjes de recompensas',
+                    style: Theme.of(context).textTheme.titleLarge
+                        ?.copyWith(fontWeight: FontWeight.w900),
+                  ),
+                  const SizedBox(height: 12),
+                  TabBar(
+                    tabs: [
+                      Tab(text: 'Pendientes (${pendientes.length})'),
+                      Tab(text: 'Historial (${aprobados.length})'),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Expanded(
+                    child: _cargando
+                        ? const Center(child: CircularProgressIndicator())
+                        : TabBarView(
+                            children: [
+                              _listaCanjes(pendientes, pendientes: true),
+                              _listaCanjes(aprobados, pendientes: false),
+                            ],
+                          ),
+                  ),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: DuoButton(
+                      fullWidth: false,
+                      label: 'Cerrar',
+                      onPressed: () => Navigator.pop(context),
                     ),
-                    title: Text(
-                      c.$2.nombre,
-                      style: const TextStyle(fontWeight: FontWeight.w700),
-                    ),
-                    subtitle: Text(
-                      '${c.$3.nombre} · ${c.$1.fecha.day}/${c.$1.fecha.month}',
-                    ),
-                    trailing: DuoButton(
-                      label: 'Entregar',
-                      color: AppColors.verde,
-                      onPressed: () async {
-                        await widget.app.marcarCanjeEntregado(c.$1.id!);
-                        await _cargar();
-                      },
-                    ),
-                  );
-                },
+                  ),
+                ],
               ),
-      ),
-      actions: [
-        DuoButton(
-          fullWidth: false,
-          label: 'Cerrar',
-          onPressed: () => Navigator.pop(context),
+            ),
+          ),
         ),
-      ],
+      ),
     );
   }
 }
@@ -963,13 +1094,13 @@ class _UserRewardCard extends StatelessWidget {
             label: jaCanjeado ? 'Canjeado' : 'Canjear',
             color: jaCanjeado
                 ? (esOscuro(context)
-                    ? AppColors.grisMedio
-                    : AppColors.grisOscuro)
+                      ? AppColors.grisMedio
+                      : AppColors.grisOscuro)
                 : AppColors.verde,
             borderColor: jaCanjeado
                 ? (esOscuro(context)
-                    ? AppColors.grisMedio
-                    : AppColors.grisOscuro)
+                      ? AppColors.grisMedio
+                      : AppColors.grisOscuro)
                 : AppColors.verdeOscuro,
             onPressed: jaCanjeado ? null : onCanjear,
           ),
@@ -1065,19 +1196,20 @@ class _MisCanjes extends StatelessWidget {
                     style: TextStyle(
                       color: c.$1.estado == 'entregada'
                           ? (esOscuro(context)
-                              ? AppColors.verde
-                              : AppColors.verdeOscuro)
+                                ? AppColors.verde
+                                : AppColors.verdeOscuro)
                           : (esOscuro(context)
-                              ? Colors.redAccent
-                              : AppColors.rojo),
+                                ? Colors.redAccent
+                                : AppColors.rojo),
                       fontSize: 11,
                       fontWeight: FontWeight.w800,
                     ),
                   ),
-                  backgroundColor: (c.$1.estado == 'entregada'
-                          ? verdeFondoTema(context)
-                          : rojoFondoTema(context))
-                      .withValues(alpha: esOscuro(context) ? 0.35 : 0.12),
+                  backgroundColor:
+                      (c.$1.estado == 'entregada'
+                              ? verdeFondoTema(context)
+                              : rojoFondoTema(context))
+                          .withValues(alpha: esOscuro(context) ? 0.35 : 0.12),
                 ),
               ],
             ),

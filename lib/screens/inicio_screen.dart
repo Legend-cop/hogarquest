@@ -255,10 +255,14 @@ class _AdminHomeViewState extends State<_AdminHomeView> {
                   ),
                   child: Row(
                     children: [
-                      const Icon(Icons.bolt, color: AppColors.amarillo, size: 18),
+                      const Icon(
+                        Icons.bolt,
+                        color: AppColors.amarillo,
+                        size: 18,
+                      ),
                       const SizedBox(width: 4),
                       Text(
-                        '${user.puntos} XP',
+                        '${user.puntosTotales} XP',
                         style: const TextStyle(
                           fontWeight: FontWeight.bold,
                           color: AppColors.amarillo,
@@ -408,8 +412,8 @@ class _AdminHomeViewState extends State<_AdminHomeView> {
                     icon: Icons.card_giftcard,
                     title: 'Premios',
                     iconColor: AppColors.amarilloOscuro,
-                    onTap: () =>
-                        ControlPestanas.index.value = ControlPestanas.premiosDe(true),
+                    onTap: () => ControlPestanas.index.value =
+                        ControlPestanas.premiosDe(true),
                   ),
                 ),
               ],
@@ -425,9 +429,7 @@ class _AdminHomeViewState extends State<_AdminHomeView> {
                     Row(
                       children: [
                         const Expanded(
-                          child: _TituloSeccion(
-                            'Actividad familiar (30 días)',
-                          ),
+                          child: _TituloSeccion('Actividad familiar (30 días)'),
                         ),
                         _TrendPill(puntos: _puntosPorDia),
                       ],
@@ -841,8 +843,8 @@ class _ChildHomeViewState extends State<_ChildHomeView> {
             // de "Mi progreso" para que destaque.
             DuoCard(
               child: LevelProgress(
-                puntos: user.puntos,
-                nivel: GamificationService.nivelPara(user.puntos),
+                puntos: user.puntosTotales,
+                nivel: GamificationService.nivelPara(user.puntosTotales),
               ),
             ),
             const SizedBox(height: 24),
@@ -948,10 +950,7 @@ class _TituloSeccion extends StatelessWidget {
       padding: const EdgeInsets.only(bottom: 8),
       child: Text(
         texto,
-        style: const TextStyle(
-          fontSize: 16,
-          fontWeight: FontWeight.w900,
-        ),
+        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900),
       ),
     );
   }
@@ -968,10 +967,9 @@ class _TrendPill extends StatelessWidget {
     final n = puntos.length;
     if (n < 2) return const SizedBox.shrink();
     final inicio = n > 14 ? n - 14 : 0;
-    final semanaActual = puntos.sublist(n >= 7 ? n - 7 : 0).fold<int>(
-          0,
-          (s, d) => s + d.$2,
-        );
+    final semanaActual = puntos
+        .sublist(n >= 7 ? n - 7 : 0)
+        .fold<int>(0, (s, d) => s + d.$2);
     final semanaAnterior = puntos
         .sublist(n >= 14 ? n - 14 : 0, n >= 7 ? n - 7 : inicio)
         .fold<int>(0, (s, d) => s + d.$2);
@@ -994,8 +992,7 @@ class _TrendPill extends StatelessWidget {
       );
     }
 
-    final cambio =
-        ((semanaActual - semanaAnterior) * 100) ~/ semanaAnterior;
+    final cambio = ((semanaActual - semanaAnterior) * 100) ~/ semanaAnterior;
     final positivo = cambio >= 0;
     final color = positivo ? AppColors.verdeOscuro : AppColors.rojo;
     return Container(
