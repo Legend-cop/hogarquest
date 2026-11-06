@@ -929,38 +929,51 @@ Future<MascotType?> elegirMascotaSheet(
               ),
             ),
             const SizedBox(height: 12),
-            Flexible(
-              child: LayoutBuilder(
-                builder: (context, constraints) {
-                  final cols = constraints.maxWidth > 560 ? 5 : 4;
-                  final ancho = constraints.maxWidth / cols;
-                  return GridView.builder(
-                    padding: const EdgeInsets.fromLTRB(12, 4, 12, 16),
-                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: cols,
-                      mainAxisSpacing: 8,
-                      crossAxisSpacing: 8,
-                      childAspectRatio: ancho / 118,
-                    ),
-                    itemCount: lista.length,
-                    itemBuilder: (context, index) {
-                      final m = lista.elementAt(index);
-                      return _CeldaMascota(
-                        tipo: m,
-                        seleccionada: m == actual,
-                        desbloqueada: desbloqueadas.contains(m),
-                        nivelActual: nivel,
-                        puntosActuales: puntos,
-                        tareasActuales: tareas,
-                        insigniasActuales: insignias,
-                        onTap: desbloqueadas.contains(m)
-                            ? () => Navigator.of(sheetContext).pop(m)
-                            : null,
-                      );
-                    },
-                  );
-                },
-              ),
+            Builder(
+              builder: (context) {
+                final pocasMascotas = lista.length <= 4;
+                Widget construirGaleria() => LayoutBuilder(
+                  builder: (context, constraints) {
+                    final cols = pocasMascotas
+                        ? (constraints.maxWidth > 560 ? 4 : 2)
+                        : (constraints.maxWidth > 560 ? 5 : 4);
+                    final ancho = constraints.maxWidth / cols;
+                    return GridView.builder(
+                      shrinkWrap: pocasMascotas,
+                      physics: pocasMascotas
+                          ? const NeverScrollableScrollPhysics()
+                          : null,
+                      padding: const EdgeInsets.fromLTRB(12, 4, 12, 16),
+                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: cols,
+                        mainAxisSpacing: 10,
+                        crossAxisSpacing: 10,
+                        childAspectRatio: ancho / (pocasMascotas ? 164 : 118),
+                      ),
+                      itemCount: lista.length,
+                      itemBuilder: (context, index) {
+                        final m = lista.elementAt(index);
+                        return _CeldaMascota(
+                          tipo: m,
+                          seleccionada: m == actual,
+                          desbloqueada: desbloqueadas.contains(m),
+                          nivelActual: nivel,
+                          puntosActuales: puntos,
+                          tareasActuales: tareas,
+                          insigniasActuales: insignias,
+                          grande: pocasMascotas,
+                          onTap: desbloqueadas.contains(m)
+                              ? () => Navigator.of(sheetContext).pop(m)
+                              : null,
+                        );
+                      },
+                    );
+                  },
+                );
+                return pocasMascotas
+                    ? construirGaleria()
+                    : Flexible(child: construirGaleria());
+              },
             ),
           ],
         ),
@@ -977,6 +990,7 @@ class _CeldaMascota extends StatelessWidget {
   final int puntosActuales;
   final int tareasActuales;
   final int insigniasActuales;
+  final bool grande;
   final VoidCallback? onTap;
   const _CeldaMascota({
     required this.tipo,
@@ -986,6 +1000,7 @@ class _CeldaMascota extends StatelessWidget {
     required this.puntosActuales,
     required this.tareasActuales,
     required this.insigniasActuales,
+    required this.grande,
     required this.onTap,
   });
 
@@ -994,82 +1009,110 @@ class _CeldaMascota extends StatelessWidget {
     final req = requisitosDe(tipo);
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(14),
-      child: DecoratedBox(
+      borderRadius: BorderRadius.circular(18),
+      child: Container(
         decoration: BoxDecoration(
           color: seleccionada
-              ? amarilloFondoTema(context)
+              ? Color.lerp(
+                  esOscuro(context) ? AppColors.superficieOscura : Colors.white,
+                  tipo.color,
+                  esOscuro(context) ? 0.24 : 0.11,
+                )
               : (esOscuro(context)
                     ? AppColors.superficieOscura
-                    : const Color(0xFFF7F7F7)),
-          borderRadius: BorderRadius.circular(14),
+                    : const Color(0xFFF8FAFC)),
+          borderRadius: BorderRadius.circular(18),
           border: Border.all(
             color: seleccionada
-                ? AppColors.amarillo
-                : (desbloqueada ? AppColors.linea : AppColors.grisMedio),
+                ? tipo.color
+                : (desbloqueada
+                      ? tipo.color.withValues(alpha: 0.28)
+                      : AppColors.grisMedio),
             width: seleccionada ? 2.5 : 1.5,
           ),
         ),
-        child: Opacity(
-          opacity: desbloqueada ? 1 : 0.55,
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Stack(
-                clipBehavior: Clip.none,
-                children: [
-                  _MascotaEstatica(tipo: tipo),
-                  if (!desbloqueada)
-                    Positioned(
-                      right: -2,
-                      top: -2,
-                      child: Container(
-                        padding: const EdgeInsets.all(3),
-                        decoration: const BoxDecoration(
-                          color: Colors.white,
-                          shape: BoxShape.circle,
+        child: Padding(
+          padding: EdgeInsets.all(grande ? 10 : 4),
+          child: Opacity(
+            opacity: desbloqueada ? 1 : 0.55,
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Stack(
+                  clipBehavior: Clip.none,
+                  alignment: Alignment.center,
+                  children: [
+                    _MascotaEstatica(tipo: tipo, size: grande ? 72 : 54),
+                    if (seleccionada)
+                      Positioned(
+                        right: -2,
+                        top: -2,
+                        child: Container(
+                          padding: const EdgeInsets.all(3),
+                          decoration: BoxDecoration(
+                            color: tipo.color,
+                            shape: BoxShape.circle,
+                            border: Border.all(color: Colors.white, width: 2),
+                          ),
+                          child: const Icon(
+                            Icons.check_rounded,
+                            size: 13,
+                            color: Colors.white,
+                          ),
                         ),
-                        child: const Icon(
-                          Icons.lock,
-                          size: 15,
-                          color: AppColors.grisMedio,
+                      )
+                    else if (!desbloqueada)
+                      Positioned(
+                        right: -2,
+                        top: -2,
+                        child: Container(
+                          padding: const EdgeInsets.all(4),
+                          decoration: const BoxDecoration(
+                            color: Colors.white,
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(
+                            Icons.lock_rounded,
+                            size: 13,
+                            color: AppColors.grisMedio,
+                          ),
                         ),
                       ),
-                    ),
-                ],
-              ),
-              const SizedBox(height: 2),
-              Text(
-                tipo.nombre,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w800,
+                  ],
                 ),
-              ),
-              if (!desbloqueada)
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 4),
-                  child: Text(
-                    req.faltante(
-                      nivelActual: nivelActual,
-                      puntosActuales: puntosActuales,
-                      tareasActuales: tareasActuales,
-                      insigniasActuales: insigniasActuales,
-                    ),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      fontSize: 8,
-                      height: 1.1,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.grisMedio,
-                    ),
+                SizedBox(height: grande ? 7 : 2),
+                Text(
+                  tipo.nombre,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: grande ? 14 : 11,
+                    fontWeight: FontWeight.w800,
                   ),
                 ),
-            ],
+                if (!desbloqueada)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 4),
+                    child: Text(
+                      req.faltante(
+                        nivelActual: nivelActual,
+                        puntosActuales: puntosActuales,
+                        tareasActuales: tareasActuales,
+                        insigniasActuales: insigniasActuales,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        fontSize: 8,
+                        height: 1.1,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.grisMedio,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
           ),
         ),
       ),
@@ -1079,14 +1122,17 @@ class _CeldaMascota extends StatelessWidget {
 
 class _MascotaEstatica extends StatelessWidget {
   final MascotType tipo;
-  const _MascotaEstatica({required this.tipo});
+  final double size;
+  const _MascotaEstatica({required this.tipo, required this.size});
 
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      width: 54,
-      height: 54,
-      child: RepaintBoundary(child: CustomPaint(painter: _MascotPainter(tipo))),
+      width: size,
+      height: size,
+      child: RepaintBoundary(
+        child: CustomPaint(painter: _MascotPainter(tipo, mostrarSombra: false)),
+      ),
     );
   }
 }
@@ -1097,8 +1143,9 @@ class _MascotaEstatica extends StatelessWidget {
 /// mejillas rosas).
 class _MascotPainter extends CustomPainter {
   final MascotType mascota;
+  final bool mostrarSombra;
 
-  _MascotPainter(this.mascota);
+  _MascotPainter(this.mascota, {this.mostrarSombra = true});
 
   /// Escala actual (lienzo de referencia 220x220); se fija en [paint].
   double _s = 1;
@@ -1111,14 +1158,16 @@ class _MascotPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     _s = size.width / 220;
 
-    // Sombra proyectada: la misma silueta en negro borroso, desplazada
-    // abajo-derecha; encima la mascota nítida.
-    canvas.save();
-    canvas.translate(5 * _s, 10 * _s);
-    _sombra = true;
-    _pintar(canvas);
-    _sombra = false;
-    canvas.restore();
+    if (mostrarSombra) {
+      // Sombra proyectada: la misma silueta en negro borroso, desplazada
+      // abajo-derecha; encima la mascota nítida.
+      canvas.save();
+      canvas.translate(5 * _s, 10 * _s);
+      _sombra = true;
+      _pintar(canvas);
+      _sombra = false;
+      canvas.restore();
+    }
 
     _pintar(canvas);
   }
@@ -2437,5 +2486,6 @@ class _MascotPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _MascotPainter oldDelegate) =>
-      oldDelegate.mascota != mascota;
+      oldDelegate.mascota != mascota ||
+      oldDelegate.mostrarSombra != mostrarSombra;
 }
