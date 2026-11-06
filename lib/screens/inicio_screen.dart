@@ -344,37 +344,59 @@ class _AdminHomeViewState extends State<_AdminHomeView> {
               ],
             ),
             const SizedBox(height: 20),
-            // 4 tarjetas métricas.
-            Row(
-              children: [
-                _MetricMini(
-                  '$integrantes',
-                  'INTEGRANTES',
-                  azulFondoTema(context),
-                  AppColors.azul,
-                ),
-                const SizedBox(width: 8),
-                _MetricMini(
-                  '$pendientes',
-                  'PENDIENTES',
-                  amarilloFondoTema(context),
-                  AppColors.amarilloOscuro,
-                ),
-                const SizedBox(width: 8),
-                _MetricMini(
-                  '$totalPuntos',
-                  'PUNTOS XP',
-                  verdeFondoTema(context),
-                  AppColors.verde,
-                ),
-                const SizedBox(width: 8),
-                _MetricMini(
-                  '$tareasActivas',
-                  'TAREAS',
-                  rosaFondoTema(context),
-                  const Color(0xFFEC4899),
-                ),
-              ],
+            LayoutBuilder(
+              builder: (context, constraints) {
+                const gap = 10.0;
+                final columnas = constraints.maxWidth >= 600 ? 4 : 2;
+                final anchoTarjeta =
+                    (constraints.maxWidth - gap * (columnas - 1)) / columnas;
+                return Wrap(
+                  spacing: gap,
+                  runSpacing: gap,
+                  children: [
+                    SizedBox(
+                      width: anchoTarjeta,
+                      child: _MetricMini(
+                        '$integrantes',
+                        'Integrantes',
+                        Icons.groups_rounded,
+                        azulFondoTema(context),
+                        AppColors.azul,
+                      ),
+                    ),
+                    SizedBox(
+                      width: anchoTarjeta,
+                      child: _MetricMini(
+                        '$pendientes',
+                        'Pendientes',
+                        Icons.notifications_active_rounded,
+                        amarilloFondoTema(context),
+                        AppColors.amarilloOscuro,
+                      ),
+                    ),
+                    SizedBox(
+                      width: anchoTarjeta,
+                      child: _MetricMini(
+                        '$totalPuntos',
+                        'Puntos XP',
+                        Icons.star_rounded,
+                        verdeFondoTema(context),
+                        AppColors.verde,
+                      ),
+                    ),
+                    SizedBox(
+                      width: anchoTarjeta,
+                      child: _MetricMini(
+                        '$tareasActivas',
+                        'Tareas',
+                        Icons.task_alt_rounded,
+                        rosaFondoTema(context),
+                        const Color(0xFFEC4899),
+                      ),
+                    ),
+                  ],
+                );
+              },
             ),
             const SizedBox(height: 24),
             Text(
@@ -546,41 +568,73 @@ class _AdminHomeViewState extends State<_AdminHomeView> {
   }
 }
 
-/// Tarjeta métrica compacta de la referencia: valor arriba, etiqueta abajo.
+/// Tarjeta métrica adaptable con icono, valor destacado y etiqueta legible.
 class _MetricMini extends StatelessWidget {
   final String value;
   final String label;
+  final IconData icon;
   final Color bgColor;
   final Color textColor;
-  const _MetricMini(this.value, this.label, this.bgColor, this.textColor);
+  const _MetricMini(
+    this.value,
+    this.label,
+    this.icon,
+    this.bgColor,
+    this.textColor,
+  );
 
   @override
   Widget build(BuildContext context) {
-    return Expanded(
+    return Semantics(
+      label: '$label: $value',
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 4),
+        height: 76,
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         decoration: BoxDecoration(
           color: bgColor,
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(16),
         ),
-        child: Column(
+        child: Row(
           children: [
-            Text(
-              value,
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-                color: textColor,
+            Container(
+              width: 42,
+              height: 42,
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.72),
+                borderRadius: BorderRadius.circular(13),
               ),
+              child: Icon(icon, size: 23, color: textColor),
             ),
-            const SizedBox(height: 2),
-            Text(
-              label,
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 9,
-                fontWeight: FontWeight.bold,
-                color: textoSuaveTema(context),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    value,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 21,
+                      height: 1,
+                      fontWeight: FontWeight.w900,
+                      color: textColor,
+                    ),
+                  ),
+                  const SizedBox(height: 5),
+                  Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 11,
+                      height: 1,
+                      fontWeight: FontWeight.w700,
+                      color: textoSuaveTema(context),
+                    ),
+                  ),
+                ],
               ),
             ),
           ],
